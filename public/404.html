@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>SolarHub</title>
+    <script>
+      // GitHub Pages SPA redirect
+      // When GitHub Pages serves a 404 for a deep-link, this page encodes
+      // the full path+query+hash into a query parameter and redirects to
+      // the root index.html, which will then decode it and push the correct
+      // route via the History API.
+      var segmentsToKeep = 1; // number of path segments in the repo base (/solarhub)
+      var l = window.location;
+      l.replace(
+        l.protocol +
+          '//' +
+          l.hostname +
+          (l.port ? ':' + l.port : '') +
+          l.pathname
+            .split('/')
+            .slice(0, 1 + segmentsToKeep)
+            .join('/') +
+          '/?p=/' +
+          l.pathname
+            .split('/')
+            .slice(1 + segmentsToKeep)
+            .join('/')
+            .replace(/&/g, '~and~') +
+          (l.search ? '&q=' + l.search.slice(1).replace(/&/g, '~and~') : '') +
+          l.hash
+      );
+    </script>
+  </head>
+  <body></body>
+</html>

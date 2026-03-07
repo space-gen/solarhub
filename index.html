@@ -6,6 +6,38 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content="SolarHub – Citizen Science Solar Classification Platform" />
     <title>SolarHub</title>
+    <!-- GitHub Pages SPA: restore path encoded by 404.html -->
+    <script>
+      (function () {
+        var redirect = sessionStorage.redirect;
+        delete sessionStorage.redirect;
+        if (redirect && redirect !== location.href) {
+          history.replaceState(null, null, redirect);
+        }
+      })();
+
+      // Decode the ?p= query param written by 404.html
+      (function () {
+        var search = window.location.search;
+        if (search.indexOf('?p=/') === 0 || search.indexOf('&p=/') !== -1) {
+          var params = search.slice(1).split('&').reduce(function (acc, s) {
+            var eq = s.indexOf('=');
+            if (eq > 0) acc[decodeURIComponent(s.slice(0, eq))] = decodeURIComponent(s.slice(eq + 1).replace(/~and~/g, '&'));
+            return acc;
+          }, {});
+          if (params.p !== undefined) {
+            window.history.replaceState(
+              null,
+              null,
+              window.location.pathname.replace(/\/$/, '') +
+                params.p +
+                (params.q ? '?' + params.q : '') +
+                window.location.hash
+            );
+          }
+        }
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>
