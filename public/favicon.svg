@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <defs>
+    <radialGradient id="sun" cx="50%" cy="40%" r="50%">
+      <stop offset="0%" stop-color="#ffd966"/>
+      <stop offset="40%" stop-color="#ff9500"/>
+      <stop offset="80%" stop-color="#ff4500"/>
+      <stop offset="100%" stop-color="#b01000"/>
+    </radialGradient>
+  </defs>
+  <circle cx="50" cy="50" r="40" fill="url(#sun)"/>
+  <!-- Corona rays -->
+  <g stroke="#ff9500" stroke-width="3" stroke-linecap="round" opacity="0.6">
+    <line x1="50" y1="5"  x2="50" y2="15"/>
+    <line x1="50" y1="85" x2="50" y2="95"/>
+    <line x1="5"  y1="50" x2="15" y2="50"/>
+    <line x1="85" y1="50" x2="95" y2="50"/>
+    <line x1="18" y1="18" x2="25" y2="25"/>
+    <line x1="75" y1="75" x2="82" y2="82"/>
+    <line x1="82" y1="18" x2="75" y2="25"/>
+    <line x1="25" y1="75" x2="18" y2="82"/>
+  </g>
+</svg>
