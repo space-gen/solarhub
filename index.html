@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en" class="dark">
+  <head>
+    <!--
+      index.html – Root HTML entry point for SolarHub.
+
+      Vite uses this file as the application shell.  During development it is
+      served directly; during production build it is processed and asset
+      hashes are injected.
+
+      Meta tags:
+        - charset / viewport : standard mobile-friendly setup
+        - theme-color         : hints the browser chrome to use a dark colour
+        - description / og    : SEO + social-preview metadata
+    -->
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+    <!-- Dark theme colour for browser chrome on mobile -->
+    <meta name="theme-color" content="#0a0a1a" />
+
+    <!-- SEO -->
+    <meta
+      name="description"
+      content="SolarHub – a citizen-science platform where you help classify real solar observations from NASA's Solar Dynamics Observatory."
+    />
+
+    <!-- Open Graph (social sharing preview) -->
+    <meta property="og:title" content="SolarHub – Citizen Science" />
+    <meta
+      property="og:description"
+      content="Help classify real solar observations and contribute to space science."
+    />
+    <meta property="og:type" content="website" />
+
+    <!-- Favicon – inline SVG data URI so no extra file is needed -->
+    <link
+      rel="icon"
+      href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><circle cx='50' cy='50' r='30' fill='%23f97316'/><circle cx='50' cy='50' r='20' fill='%23fbbf24'/></svg>"
+    />
+
+    <!-- Page title shown in browser tab -->
+    <title>SolarHub – Citizen Science</title>
+
+    <!-- Google Fonts: Inter for UI text, JetBrains Mono for code/labels -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;600&display=swap"
+      rel="stylesheet"
+    />
+  </head>
+
+  <body>
+    <!--
+      #root – React mounts into this element via ReactDOM.createRoot().
+      The dark background colour here prevents a flash of white before
+      the React bundle initialises.
+    -->
+    <div id="root" style="background-color:#0a0a1a;min-height:100vh;"></div>
+
+    <!--
+      Vite entry point.  The `type="module"` attribute is required for ES
+      module bundling.  Vite replaces this script tag with the correct hashed
+      file path during the production build.
+    -->
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

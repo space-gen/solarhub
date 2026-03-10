@@ -1,0 +1,298 @@
+/*
+ * src/styles/globals.css
+ *
+ * Global stylesheet for SolarHub.
+ *
+ * Sections:
+ *  1. Tailwind directives  – injects base reset, component helpers, utilities
+ *  2. CSS custom properties – design tokens (colours, radii, transitions)
+ *  3. Base element resets   – dark bg, smooth scrolling, custom scrollbar
+ *  4. Glassmorphism helpers – reusable frosted-glass card classes
+ *  5. Animated background   – cosmic starfield + gradient behind every page
+ *  6. Solar glow effects    – orange halo utilities for interactive elements
+ *  7. Typography helpers    – gradient text, solar heading styles
+ *  8. Utility animations    – shimmer skeleton, fade-in helpers
+ */
+
+/* ─────────────────────────────────────────────────────────────────────────── */
+/* 1. Tailwind directives                                                       */
+/* ─────────────────────────────────────────────────────────────────────────── */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ─────────────────────────────────────────────────────────────────────────── */
+/* 2. CSS custom properties (design tokens)                                    */
+/* ─────────────────────────────────────────────────────────────────────────── */
+:root {
+  /* Background colours */
+  --bg-primary:   #0a0a1a;   /* deepest space black */
+  --bg-secondary: #0d0d2b;   /* slightly lighter deep blue */
+  --bg-card:      rgba(255, 255, 255, 0.04);
+
+  /* Brand colours */
+  --solar-500:    #f97316;
+  --solar-400:    #fb923c;
+  --cosmic-500:   #6366f1;
+  --nebula-500:   #d946ef;
+
+  /* Glass / border */
+  --glass-bg:     rgba(255, 255, 255, 0.05);
+  --glass-border: rgba(255, 255, 255, 0.10);
+  --glass-blur:   16px;
+
+  /* Transitions */
+  --transition-fast:   150ms ease;
+  --transition-normal: 300ms ease;
+  --transition-slow:   600ms ease;
+
+  /* Typography */
+  --font-sans: 'Inter', system-ui, sans-serif;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────── */
+/* 3. Base element resets                                                       */
+/* ─────────────────────────────────────────────────────────────────────────── */
+@layer base {
+  /* Dark space background for the whole page */
+  html {
+    background-color: var(--bg-primary);
+    color-scheme: dark;
+    scroll-behavior: smooth;
+    /* Prevent layout shift when scrollbar appears */
+    scrollbar-gutter: stable;
+  }
+
+  body {
+    background-color: var(--bg-primary);
+    color: #f1f5f9;         /* slate-100 – good contrast on dark bg */
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* ---------------------------------------------------------------------- */
+  /* Custom scrollbar – thin, dark, with solar-orange thumb                  */
+  /* ---------------------------------------------------------------------- */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: #0d0d2b;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: rgba(249, 115, 22, 0.5);   /* solar-500 at 50% opacity */
+    border-radius: 3px;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: #f97316;   /* full solar-500 on hover */
+  }
+
+  /* Firefox */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(249, 115, 22, 0.5) #0d0d2b;
+  }
+
+  /* Focus ring – replace browser default with solar-themed outline */
+  *:focus-visible {
+    outline: 2px solid #f97316;
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+}
+
+/* ─────────────────────────────────────────────────────────────────────────── */
+/* 4. Glassmorphism component helpers                                           */
+/* ─────────────────────────────────────────────────────────────────────────── */
+@layer components {
+  /**
+   * .glass
+   * Base frosted-glass card.  Apply to any container that should float above
+   * the background.  Uses a translucent white background + backdrop-blur so
+   * the cosmic gradient shows through softly.
+   */
+  .glass {
+    background: var(--glass-bg);
+    backdrop-filter: blur(var(--glass-blur));
+    -webkit-backdrop-filter: blur(var(--glass-blur));
+    border: 1px solid var(--glass-border);
+    border-radius: 1rem;
+  }
+
+  /**
+   * .glass-strong
+   * A more opaque variant for elements that need better readability (e.g.
+   * modals, dropdowns).
+   */
+  .glass-strong {
+    background: rgba(255, 255, 255, 0.08);
+    backdrop-filter: blur(24px);
+    -webkit-backdrop-filter: blur(24px);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 1rem;
+  }
+
+  /**
+   * .glass-dark
+   * Even darker glass – used for sidebars and footers.
+   */
+  .glass-dark {
+    background: rgba(10, 10, 26, 0.8);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+  }
+
+  /* ---------------------------------------------------------------------- */
+  /* Solar glow button                                                         */
+  /* ---------------------------------------------------------------------- */
+  .btn-solar {
+    @apply relative inline-flex items-center justify-center px-6 py-3 
+           rounded-xl font-semibold text-white
+           bg-gradient-to-r from-solar-500 to-solar-600
+           shadow-solar transition-all duration-300;
+  }
+
+  .btn-solar:hover {
+    @apply shadow-solar-lg scale-105;
+    background: linear-gradient(135deg, #fb923c, #f97316);
+  }
+
+  .btn-solar:active {
+    @apply scale-95;
+  }
+
+  /**
+   * .btn-ghost
+   * Ghost / outline button with glass backing – used for secondary actions.
+   */
+  .btn-ghost {
+    @apply relative inline-flex items-center justify-center px-6 py-3
+           rounded-xl font-semibold text-solar-400
+           border border-solar-500/40
+           transition-all duration-300;
+    background: rgba(249, 115, 22, 0.05);
+  }
+
+  .btn-ghost:hover {
+    background: rgba(249, 115, 22, 0.12);
+    @apply border-solar-500/80 shadow-solar;
+  }
+}
+
+/* ─────────────────────────────────────────────────────────────────────────── */
+/* 5. Animated cosmic background                                                */
+/* ─────────────────────────────────────────────────────────────────────────── */
+
+/**
+ * .cosmic-bg
+ * Apply this class to a full-screen wrapper element to give it the
+ * animated cosmic starfield + colour gradient background.
+ *
+ * The gradient slowly shifts so the nebula colours breathe in and out.
+ */
+.cosmic-bg {
+  position: relative;
+  background: linear-gradient(135deg, #0a0a1a 0%, #0d0d2b 40%, #1e1b4b 100%);
+  overflow: hidden;
+}
+
+/* Subtle rotating nebula colour overlay */
+.cosmic-bg::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(ellipse at 20% 20%, rgba(99, 102, 241, 0.08) 0%, transparent 60%),
+    radial-gradient(ellipse at 80% 70%, rgba(217, 70, 239, 0.06) 0%, transparent 60%),
+    radial-gradient(ellipse at 50% 50%, rgba(249, 115, 22, 0.04) 0%, transparent 70%);
+  animation: nebula-shift 20s ease-in-out infinite alternate;
+  pointer-events: none;
+  z-index: 0;
+}
+
+@keyframes nebula-shift {
+  0%   { opacity: 0.6; transform: scale(1) rotate(0deg); }
+  50%  { opacity: 1;   transform: scale(1.05) rotate(5deg); }
+  100% { opacity: 0.8; transform: scale(1) rotate(-5deg); }
+}
+
+/* ─────────────────────────────────────────────────────────────────────────── */
+/* 6. Solar glow / halo effects                                                 */
+/* ─────────────────────────────────────────────────────────────────────────── */
+
+/** Soft orange halo – wrap an element with this to give it a solar aura. */
+.solar-halo {
+  box-shadow:
+    0 0 20px rgba(249, 115, 22, 0.3),
+    0 0 60px rgba(249, 115, 22, 0.15),
+    0 0 120px rgba(249, 115, 22, 0.05);
+}
+
+.solar-halo:hover {
+  box-shadow:
+    0 0 30px rgba(249, 115, 22, 0.5),
+    0 0 80px rgba(249, 115, 22, 0.25),
+    0 0 160px rgba(249, 115, 22, 0.08);
+}
+
+/* ─────────────────────────────────────────────────────────────────────────── */
+/* 7. Typography helpers                                                        */
+/* ─────────────────────────────────────────────────────────────────────────── */
+
+/**
+ * .gradient-text
+ * Makes text display with the solar→nebula gradient.
+ * Must be applied alongside a specific text-size class.
+ */
+.gradient-text {
+  background: linear-gradient(135deg, #fb923c 0%, #f97316 40%, #d946ef 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.gradient-text-cosmic {
+  background: linear-gradient(135deg, #a3a3ff 0%, #6366f1 50%, #d946ef 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────── */
+/* 8. Utility animations                                                        */
+/* ─────────────────────────────────────────────────────────────────────────── */
+
+/** Shimmer skeleton loader */
+.shimmer-skeleton {
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0.03) 0%,
+    rgba(255, 255, 255, 0.08) 50%,
+    rgba(255, 255, 255, 0.03) 100%
+  );
+  background-size: 1000px 100%;
+  animation: shimmer 2s infinite linear;
+}
+
+@keyframes shimmer {
+  0%   { background-position: -1000px 0; }
+  100% { background-position:  1000px 0; }
+}
+
+/** Fade-in helper (for elements that don't use Framer Motion) */
+.fade-in {
+  animation: fadeIn 0.6s ease forwards;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
