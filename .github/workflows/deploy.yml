@@ -1,0 +1,104 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# .github/workflows/deploy.yml
+#
+# GitHub Actions workflow: Build SolarHub and deploy to GitHub Pages.
+#
+# Trigger:  Every push to the `main` branch.
+# Job 1 – build:  Install dependencies, run `npm run build`, upload the
+#                 resulting `dist/` folder as a Pages artifact.
+# Job 2 – deploy: Download the artifact and push it to the `gh-pages`
+#                 environment using the official GitHub Pages action.
+#
+# Required repository settings (Settings → Pages):
+#   Source: "GitHub Actions"
+#
+# The Vite config already sets  base: '/solarhub/'  so all asset paths are
+# correct when served from  https://<org>.github.io/solarhub/
+# ─────────────────────────────────────────────────────────────────────────────
+
+name: Deploy to GitHub Pages
+
+on:
+  # Run on every push to the default branch
+  push:
+    branches:
+      - main
+
+  # Allow manual trigger from the Actions tab
+  workflow_dispatch:
+
+# Sets the GITHUB_TOKEN permissions needed by the deploy action
+permissions:
+  contents: read      # read the repository source
+  pages: write        # write to GitHub Pages
+  id-token: write     # required for OIDC token used by deploy-pages
+
+# Only allow one concurrent deployment; cancel any in-progress run when a new
+# push arrives so we never deploy stale code.
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  # ── Job 1: build ────────────────────────────────────────────────────────────
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+
+    steps:
+      # 1. Check out the repository at the commit that triggered the workflow
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # 2. Set up the Node.js version that matches the project requirements.
+      #    Using the LTS release keeps the environment stable.
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'   # cache node_modules between runs for faster builds
+
+      # 3. Install all dependencies declared in package-lock.json.
+      #    `npm ci` is preferred over `npm install` in CI because it is
+      #    deterministic and fails if the lockfile is out of date.
+      - name: Install dependencies
+        run: npm ci
+
+      # 4. Configure GitHub Pages so the upload action knows the correct
+      #    base URL for the site.  The output `base_url` is not used here
+      #    because vite.config.ts already hard-codes the base path.
+      - name: Configure GitHub Pages
+        uses: actions/configure-pages@v5
+
+      # 5. Build the production bundle.
+      #    `tsc` first type-checks the project; Vite then bundles it into
+      #    the `dist/` directory with hashed asset file names.
+      - name: Build with Vite
+        run: npm run build
+
+      # 6. Upload the `dist/` folder as a Pages artifact so the deploy job
+      #    can access it.  The artifact is automatically deleted after the
+      #    deployment completes (or expires in 1 day).
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist   # folder produced by `npm run build`
+
+  # ── Job 2: deploy ───────────────────────────────────────────────────────────
+  deploy:
+    name: Deploy
+    needs: build          # wait for the build job to succeed
+    runs-on: ubuntu-latest
+
+    # Targets the special "github-pages" environment and exposes the live URL
+    # as a link in the Actions summary and the PR checks.
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+
+    steps:
+      # Deploy the artifact uploaded in the build job to GitHub Pages.
+      # The action handles the API calls; no manual git push needed.
+      - name: Deploy to GitHub Pages
+        id: deploy
+        uses: actions/deploy-pages@v4
