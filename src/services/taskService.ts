@@ -65,6 +65,9 @@ export interface Task {
 
   /** How many people have already annotated this task */
   annotation_count?: number;
+
+  /** Integer serial number from the aurora task dataset */
+  serial_number?: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -136,6 +139,7 @@ export const MOCK_TASKS: Task[] = [
     observation_date: new Date().toISOString(),
     instrument: 'AIA 193Å',
     annotation_count: 14,
+    serial_number: 1,
   },
   {
     id: 'sdo-2024-0002',
@@ -150,6 +154,7 @@ export const MOCK_TASKS: Task[] = [
     observation_date: new Date(Date.now() - 86400_000).toISOString(),
     instrument: 'AIA 304Å',
     annotation_count: 7,
+    serial_number: 2,
   },
   {
     id: 'sdo-2024-0003',
@@ -164,6 +169,7 @@ export const MOCK_TASKS: Task[] = [
     observation_date: new Date(Date.now() - 2 * 86400_000).toISOString(),
     instrument: 'HMI Continuum',
     annotation_count: 23,
+    serial_number: 3,
   },
   {
     id: 'sdo-2024-0004',
@@ -178,6 +184,7 @@ export const MOCK_TASKS: Task[] = [
     observation_date: new Date(Date.now() - 3 * 86400_000).toISOString(),
     instrument: 'AIA 171Å',
     annotation_count: 11,
+    serial_number: 4,
   },
   {
     id: 'sdo-2024-0005',
@@ -192,6 +199,7 @@ export const MOCK_TASKS: Task[] = [
     observation_date: new Date(Date.now() - 4 * 86400_000).toISOString(),
     instrument: 'AIA 94Å',
     annotation_count: 5,
+    serial_number: 5,
   },
   {
     id: 'sdo-2024-0006',
@@ -206,6 +214,7 @@ export const MOCK_TASKS: Task[] = [
     observation_date: new Date(Date.now() - 5 * 86400_000).toISOString(),
     instrument: 'HMI Doppler',
     annotation_count: 9,
+    serial_number: 6,
   },
 ];
 

@@ -1,137 +1,184 @@
 /**
  * src/components/AnnotationPanel.tsx
  *
- * The classification input panel shown next to each solar observation.
+ * Citizen-science classification form — plain English, step-by-step.
  *
- * UI elements:
- *  - Three large icon-buttons for the three classification options:
- *      ☀️  Sunspot
- *      🔥  Solar Flare
- *      🕳️  Coronal Hole
- *    Each has a hover-lift animation and a persistent glow when selected.
- *  - A confidence slider (0–100%) with a live percentage display.
- *  - An optional free-text comments textarea.
- *  - A "Submit" button that shows a loading spinner while the annotation
- *    is being submitted.
- *  - Inline success / error toast feedback animated via Framer Motion.
+ * Designed for non-scientists:
+ *  - Every option shows a plain-English "what to look for" description
+ *  - Two clearly numbered questions guide the user
+ *  - Friendly confidence slider and notes field
+ *  - Success screen celebrates the contribution
  *
- * After a successful submission the panel shows a brief "Thank you!" screen
- * before clearing its state for the next task.
- *
- * Props:
- *   taskId       – ID of the task being classified.
- *   onSubmit     – Callback fired with the AnnotationInput after successful
- *                  submission so the parent can add points and advance the task.
- *   isSubmitting – Whether the parent is currently awaiting an async operation.
+ * Technical aurora values are submitted unchanged; only the display text
+ * is simplified so anyone can participate without prior knowledge.
  */
 
-import { useState, useCallback, useEffect, useRef }      from 'react';
-import { motion, AnimatePresence }    from 'framer-motion';
-import { submitAnnotation }           from '@/services/annotationService';
-import type { UserLabel }             from '@/services/annotationService';
-import type { AnnotationInput }       from '@/services/annotationService';
-import { classifyTaskType }           from '@/utils/helpers';
+import { useState, useCallback, useEffect, useRef } from 'react';
+import { motion, AnimatePresence }   from 'framer-motion';
+import { submitAnnotation }          from '@/services/annotationService';
+import type { TaskType, UserLabel, AnnotationInput } from '@/services/annotationService';
 import { containerVariants, itemVariants } from '@/animations/pageTransitions';
-import { classifyButtonVariants }    from '@/animations/hoverAnimations';
 
 // ---------------------------------------------------------------------------
-// Types
+// Citizen-friendly task option definitions
+// ---------------------------------------------------------------------------
+
+interface SubLabel { value: UserLabel; label: string; hint: string }
+interface TaskOption {
+  value:       TaskType;
+  label:       string;    // plain-English display name
+  icon:        string;
+  lookFor:     string;    // one-line description of what to look for
+  color:       string;    // Tailwind text colour for selected state
+  bg:          string;
+  border:      string;
+  subLabels:   SubLabel[];
+}
+
+const TASK_OPTIONS: TaskOption[] = [
+  {
+    value:   'sunspot',
+    label:   'Sun Spots',
+    icon:    '🟤',
+    lookFor: 'Dark circular patches on the bright surface of the sun',
+    color:   'text-orange-300', bg: 'bg-orange-500/15', border: 'border-orange-500/40',
+    subLabels: [
+      { value: 'sunspot_group',  label: 'A cluster of dark spots',    hint: 'Several dark patches grouped closely together'    },
+      { value: 'active_region',  label: 'Bright area around spots',   hint: 'Glowing patches surrounding or between the spots' },
+      { value: 'quiet_sun',      label: 'Sun looks calm & normal',    hint: 'No unusual features — everything looks ordinary'  },
+      { value: 'no_sunspot',     label: "I don't see any spots",      hint: 'The surface looks smooth with no dark patches'    },
+    ],
+  },
+  {
+    value:   'solar_flare',
+    label:   'Bright Flash',
+    icon:    '🔥',
+    lookFor: "A sudden bright glow or explosion on the sun's surface",
+    color:   'text-rose-300', bg: 'bg-rose-500/15', border: 'border-rose-500/40',
+    subLabels: [
+      { value: 'a_class',  label: 'Tiny flicker',          hint: 'Very faint brightening, barely noticeable' },
+      { value: 'b_class',  label: 'Small flash',           hint: 'A small but visible bright spot'            },
+      { value: 'c_class',  label: 'Medium burst',          hint: 'A clearly visible bright burst of energy'   },
+      { value: 'm_class',  label: 'Large explosion',       hint: 'Very bright, large release of energy'       },
+      { value: 'x_class',  label: 'Massive explosion ⚠️', hint: 'Extremely bright — the most powerful type'  },
+      { value: 'no_flare', label: "I don't see a flash",   hint: 'No bright burst of light visible'           },
+    ],
+  },
+  {
+    value:   'magnetogram',
+    label:   'Magnetic Map',
+    icon:    '🧲',
+    lookFor: "A black & white image showing invisible magnetic forces — like a zebra pattern",
+    color:   'text-violet-300', bg: 'bg-violet-500/15', border: 'border-violet-500/40',
+    subLabels: [
+      { value: 'bipolar_active', label: 'Clear black & white pair', hint: 'Two distinct opposite-coloured areas side by side'       },
+      { value: 'unipolar',       label: 'Mostly one colour',        hint: 'Mainly one dark or white region'                          },
+      { value: 'complex',        label: 'Tangled / mixed pattern',  hint: 'Black and white areas mixed together in a complex way'    },
+      { value: 'quiet',          label: 'Calm and mostly grey',     hint: 'No strong features — image looks smooth and unremarkable' },
+    ],
+  },
+  {
+    value:   'coronal_hole',
+    label:   'Dark Region',
+    icon:    '🕳️',
+    lookFor: 'A large, clearly dark patch against an otherwise bright glowing image',
+    color:   'text-cyan-300', bg: 'bg-cyan-500/15', border: 'border-cyan-500/40',
+    subLabels: [
+      { value: 'polar',        label: 'Top or bottom (near a pole)', hint: "Dark area near the sun's north or south pole"       },
+      { value: 'equatorial',   label: 'In the middle band',          hint: "Dark area near the sun's equator (the middle belt)" },
+      { value: 'mid_latitude', label: 'Somewhere in between',        hint: 'Dark area between the equator and a pole'           },
+      { value: 'none',         label: "I don't see a dark region",   hint: 'No large dark area visible'                         },
+    ],
+  },
+  {
+    value:   'prominence',
+    label:   'Glowing Arch',
+    icon:    '🌊',
+    lookFor: 'A bright arch or loop of plasma rising above the edge of the sun',
+    color:   'text-sky-300', bg: 'bg-sky-500/15', border: 'border-sky-500/40',
+    subLabels: [
+      { value: 'eruptive',  label: 'Erupting outward into space', hint: 'The arch is bursting apart and shooting outward'      },
+      { value: 'quiescent', label: 'Calm and stable',             hint: 'A steady, quiet arch just hanging there'              },
+      { value: 'active',    label: 'Moving and changing',         hint: 'The arch looks dynamic, unstable, or shifting'        },
+      { value: 'none',      label: "I don't see an arch",         hint: 'No visible loop or arch at the edge of the sun'       },
+    ],
+  },
+  {
+    value:   'active_region',
+    label:   'Active Region',
+    icon:    '⚡',
+    lookFor: 'A bright, busy cluster of activity — often the source of flares and storms',
+    color:   'text-yellow-300', bg: 'bg-yellow-500/15', border: 'border-yellow-500/40',
+    subLabels: [
+      { value: 'alpha',            label: 'Simple — one spot',            hint: 'A single, simple magnetic area'                        },
+      { value: 'beta',             label: 'Two spots side by side',        hint: 'Two distinct magnetic areas close together'             },
+      { value: 'beta_gamma',       label: 'Complex group',                 hint: 'Several areas in a complex, tangled arrangement'        },
+      { value: 'beta_gamma_delta', label: 'Very chaotic / high energy ⚠️', hint: 'Highly mixed areas — this type has the highest flare risk' },
+      { value: 'none',             label: "I don't see an active region",  hint: 'No significant active cluster visible'                  },
+    ],
+  },
+  {
+    value:   'cme',
+    label:   'Solar Storm',
+    icon:    '💥',
+    lookFor: 'A large cloud of gas erupting outward from the sun (often looks like a halo)',
+    color:   'text-red-300', bg: 'bg-red-500/15', border: 'border-red-500/40',
+    subLabels: [
+      { value: 'halo',         label: 'Full ring all around the sun', hint: 'The eruption forms a complete ring / halo'         },
+      { value: 'partial_halo', label: 'Partial ring / arc',           hint: 'An arc shape, not a full ring'                     },
+      { value: 'narrow',       label: 'A thin stream or jet',         hint: 'A narrow stream of material in one direction'      },
+      { value: 'none',         label: "I don't see anything erupting", hint: 'No visible cloud or eruption'                    },
+    ],
+  },
+];
+
+// ---------------------------------------------------------------------------
+// Props
 // ---------------------------------------------------------------------------
 
 interface AnnotationPanelProps {
   taskId:       string;
+  serialNumber: number;
+  imageUrl:     string;
   onSubmit:     (input: AnnotationInput) => void;
-  isSubmitting?: boolean;
 }
-
-// ---------------------------------------------------------------------------
-// Classification option definitions
-// ---------------------------------------------------------------------------
-
-interface ClassOption {
-  value: UserLabel;
-  label: string;
-  icon:  string;
-  description: string;
-}
-
-const CLASS_OPTIONS: ClassOption[] = [
-  {
-    value:       'sunspot',
-    label:       'Sunspot',
-    icon:        '☀️',
-    description: 'Dark, magnetically intense region on the photosphere',
-  },
-  {
-    value:       'solar_flare',
-    label:       'Solar Flare',
-    icon:        '🔥',
-    description: 'Sudden, intense burst of radiation from the Sun\'s surface',
-  },
-  {
-    value:       'coronal_hole',
-    label:       'Coronal Hole',
-    icon:        '🕳️',
-    description: 'Dark region in the corona where solar wind streams outward',
-  },
-];
 
 // ---------------------------------------------------------------------------
 // Sub-components
 // ---------------------------------------------------------------------------
 
-/**
- * ClassificationButton
- *
- * A single large option button for one classification type.
- * Renders with a coloured glow border when selected.
- */
-function ClassificationButton({
-  option,
-  isSelected,
-  onClick,
-}: {
-  option:     ClassOption;
-  isSelected: boolean;
-  onClick:    () => void;
-}) {
-  const style = classifyTaskType(option.value);
-
+/** One big card per task type — shows the friendly name and what to look for */
+function TaskTypeCard({
+  option, isSelected, onClick,
+}: { option: TaskOption; isSelected: boolean; onClick: () => void }) {
   return (
     <motion.button
-      variants={classifyButtonVariants}
-      initial="rest"
-      whileHover="hover"
-      whileTap="tap"
+      initial="rest" whileHover="hover" whileTap="tap"
       animate={isSelected ? 'selected' : 'rest'}
       onClick={onClick}
       className={[
-        'relative w-full flex items-center gap-3 p-4 rounded-xl text-left',
-        'transition-colors duration-200 outline-none',
+        'w-full flex items-start gap-3 p-3.5 rounded-xl text-left transition-colors',
+        'duration-200 outline-none border',
         isSelected
-          ? `${style.bg} ${style.text} border ${style.border}`
-          : 'bg-white/3 text-slate-400 border border-white/8 hover:text-slate-200',
+          ? `${option.bg} ${option.color} ${option.border}`
+          : 'bg-white/3 border-white/8 text-slate-400 hover:bg-white/5 hover:text-slate-200',
       ].join(' ')}
       aria-pressed={isSelected}
     >
-      {/* Emoji icon */}
-      <span className="text-2xl" role="img" aria-hidden="true">{option.icon}</span>
-
-      {/* Text */}
+      <span className="text-xl mt-0.5 flex-shrink-0">{option.icon}</span>
       <div className="flex-1 min-w-0">
-        <p className="font-semibold text-sm">{option.label}</p>
-        <p className="text-xs opacity-60 truncate">{option.description}</p>
+        <p className="font-semibold text-sm leading-tight">{option.label}</p>
+        <p className={`text-xs mt-0.5 leading-snug ${isSelected ? 'opacity-70' : 'text-slate-600'}`}>
+          Look for: {option.lookFor}
+        </p>
       </div>
-
-      {/* Selected checkmark */}
       {isSelected && (
         <motion.div
-          className={`w-5 h-5 rounded-full flex items-center justify-center ${style.bg} border ${style.border}`}
-          initial={{ scale: 0 }}
-          animate={{ scale: 1 }}
+          className={`mt-0.5 w-5 h-5 rounded-full flex-shrink-0 flex items-center justify-center ${option.bg} border ${option.border}`}
+          initial={{ scale: 0 }} animate={{ scale: 1 }}
           transition={{ type: 'spring', stiffness: 500, damping: 25 }}
         >
-          <svg viewBox="0 0 12 12" className={`w-3 h-3 ${style.text}`} fill="none" stroke="currentColor" strokeWidth={2.5}>
+          <svg viewBox="0 0 12 12" className={`w-3 h-3 ${option.color}`} fill="none" stroke="currentColor" strokeWidth={2.5}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M2 6l3 3 5-5" />
           </svg>
         </motion.div>
@@ -140,75 +187,46 @@ function ClassificationButton({
   );
 }
 
-/**
- * ConfidenceSlider
- *
- * Range input that displays the selected confidence with a live label.
- */
-function ConfidenceSlider({
-  value,
-  onChange,
-}: {
-  value:    number;
-  onChange: (v: number) => void;
-}) {
+/** Sub-label card — shows the label and a one-line hint */
+function SubLabelCard({
+  sub, isSelected, onSelect, option,
+}: { sub: SubLabel; isSelected: boolean; onSelect: (v: UserLabel) => void; option: TaskOption }) {
   return (
-    <div className="flex flex-col gap-2">
-      <div className="flex justify-between text-xs text-slate-400">
-        <span>Confidence</span>
-        <motion.span
-          key={value}
-          className="font-semibold text-solar-300"
-          initial={{ opacity: 0, y: -4 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.15 }}
-        >
-          {value}%
-        </motion.span>
+    <button
+      onClick={() => onSelect(sub.value)}
+      className={[
+        'w-full text-left p-3 rounded-lg border transition-all duration-150',
+        isSelected
+          ? `${option.bg} ${option.color} ${option.border}`
+          : 'bg-white/4 border-white/8 text-slate-400 hover:bg-white/7 hover:text-slate-200',
+      ].join(' ')}
+    >
+      <div className="flex items-start gap-2">
+        <div className={`mt-1 w-3.5 h-3.5 rounded-full border flex-shrink-0 flex items-center justify-center ${
+          isSelected ? `${option.bg} ${option.border}` : 'border-white/20'
+        }`}>
+          {isSelected && (
+            <div className={`w-1.5 h-1.5 rounded-full ${option.color.replace('text-', 'bg-')}`} />
+          )}
+        </div>
+        <div className="min-w-0">
+          <p className="text-sm font-medium leading-tight">{sub.label}</p>
+          <p className={`text-xs mt-0.5 leading-snug ${isSelected ? 'opacity-60' : 'text-slate-600'}`}>
+            {sub.hint}
+          </p>
+        </div>
       </div>
-
-      {/* Custom-styled range input */}
-      <input
-        type="range"
-        min={0}
-        max={100}
-        step={5}
-        value={value}
-        onChange={e => onChange(Number(e.target.value))}
-        className="w-full h-2 rounded-full appearance-none cursor-pointer
-                   bg-white/10 accent-solar-500"
-        aria-label="Classification confidence"
-      />
-
-      {/* Confidence level label */}
-      <div className="flex justify-between text-xs text-slate-600">
-        <span>Not sure</span>
-        <span>Certain</span>
-      </div>
-    </div>
+    </button>
   );
 }
 
-// ---------------------------------------------------------------------------
-// Success overlay
-// ---------------------------------------------------------------------------
-
-/**
- * SuccessOverlay
- *
- * Full-panel overlay shown for ~2 seconds after a successful submission.
- * Shows an animated checkmark and "Thank you!" message.
- */
-function SuccessOverlay({ onDone }: { onDone: () => void }) {
-  // Store the auto-dismiss timer so it can be cleaned up on unmount
+function SuccessOverlay({ issueUrl, onDone }: { issueUrl?: string; onDone: () => void }) {
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
   useEffect(() => {
-    timerRef.current = setTimeout(onDone, 2_000);
-    return () => {
-      if (timerRef.current) clearTimeout(timerRef.current);
-    };
+    timerRef.current = setTimeout(onDone, 4_000);
+    return () => { if (timerRef.current) clearTimeout(timerRef.current); };
   }, [onDone]);
+
   return (
     <motion.div
       className="absolute inset-0 z-10 glass-strong rounded-2xl flex flex-col
@@ -218,32 +236,38 @@ function SuccessOverlay({ onDone }: { onDone: () => void }) {
       exit={{ opacity: 0, scale: 0.95 }}
       transition={{ duration: 0.3 }}
     >
-      {/* Animated check circle */}
       <motion.div
         className="w-16 h-16 rounded-full bg-emerald-500/20 border border-emerald-500/40
-                   flex items-center justify-center"
-        animate={{ scale: [1, 1.15, 1] }}
+                   flex items-center justify-center text-3xl"
+        animate={{ scale: [1, 1.2, 1] }}
         transition={{ duration: 0.5, delay: 0.1 }}
       >
-        <motion.svg
-          viewBox="0 0 24 24"
-          className="w-8 h-8 text-emerald-400"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth={2.5}
-          initial={{ pathLength: 0 }}
-          animate={{ pathLength: 1 }}
-          transition={{ duration: 0.4, delay: 0.2 }}
-        >
-          <motion.path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-        </motion.svg>
+        🎉
       </motion.div>
-
       <div>
-        <p className="text-lg font-bold text-emerald-300 mb-1">Annotation Saved!</p>
-        <p className="text-sm text-slate-400">Thanks for contributing to solar science.</p>
-        <p className="text-xs text-slate-500 mt-2">+10 points earned 🌟</p>
+        <p className="text-lg font-bold text-emerald-300 mb-1">Thank you!</p>
+        <p className="text-sm text-slate-300 leading-relaxed">
+          Your observation has been recorded.<br />
+          You're helping scientists study the sun!
+        </p>
+        {issueUrl && (
+          <a
+            href={issueUrl} target="_blank" rel="noopener noreferrer"
+            className="mt-3 inline-flex items-center gap-1.5 text-xs text-solar-400
+                       hover:text-solar-300 underline underline-offset-2 transition-colors"
+            onClick={e => e.stopPropagation()}
+          >
+            See your contribution on GitHub →
+          </a>
+        )}
+        <p className="text-xs text-slate-500 mt-3">+10 points earned 🌟</p>
       </div>
+      <button
+        onClick={onDone}
+        className="text-xs text-slate-600 hover:text-slate-400 transition-colors mt-1"
+      >
+        Classify another image
+      </button>
     </motion.div>
   );
 }
@@ -252,164 +276,250 @@ function SuccessOverlay({ onDone }: { onDone: () => void }) {
 // Main component
 // ---------------------------------------------------------------------------
 
-export default function AnnotationPanel({ taskId, onSubmit }: AnnotationPanelProps) {
-  // ── Form state ─────────────────────────────────────────────────────────────
-  const [selectedLabel, setSelectedLabel] = useState<UserLabel | null>(null);
-  const [confidence,    setConfidence]    = useState(75);
-  const [comments,      setComments]      = useState('');
+export default function AnnotationPanel({ taskId, serialNumber, imageUrl, onSubmit }: AnnotationPanelProps) {
+  const [taskType,    setTaskType]    = useState<TaskType   | null>(null);
+  const [userLabel,   setUserLabel]   = useState<UserLabel  | null>(null);
+  const [confidence,  setConfidence]  = useState(75);
+  const [comments,    setComments]    = useState('');
+  const [submitting,  setSubmitting]  = useState(false);
+  const [showSuccess, setShowSuccess] = useState(false);
+  const [issueUrl,    setIssueUrl]    = useState<string | undefined>();
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
-  // ── Submission state ───────────────────────────────────────────────────────
-  const [submitting,   setSubmitting]   = useState(false);
-  const [showSuccess,  setShowSuccess]  = useState(false);
-  const [submitError,  setSubmitError]  = useState<string | null>(null);
-
-  // ── Handlers ───────────────────────────────────────────────────────────────
+  const handleTaskTypeSelect = useCallback((tt: TaskType) => {
+    setTaskType(tt);
+    setUserLabel(null);
+  }, []);
 
   const handleSubmit = useCallback(async () => {
-    if (!selectedLabel) return;
-
+    if (!taskType || !userLabel) return;
     setSubmitting(true);
     setSubmitError(null);
 
     const input: AnnotationInput = {
-      task_id:     taskId,
-      user_label:  selectedLabel,
+      task_id:       taskId,
+      serial_number: serialNumber,
+      image_url:     imageUrl,
+      task_type:     taskType,
+      user_label:    userLabel,
       confidence,
-      comments:    comments.trim(),
+      comments:      comments.trim(),
     };
 
     try {
-      // submitAnnotation always returns a result (never throws)
-      await submitAnnotation(input);
-
+      const result = await submitAnnotation(input);
+      setIssueUrl(result.issueUrl);
       setShowSuccess(true);
-      // Notify parent of successful submission
       onSubmit(input);
-
+      if (!result.success && result.error) setSubmitError(result.error);
     } catch {
-      // submitAnnotation shouldn't throw, but just in case:
-      setSubmitError('Unexpected error. Your annotation has been saved locally.');
+      setSubmitError('Something went wrong. Your observation has been saved locally.');
     } finally {
       setSubmitting(false);
     }
-  }, [selectedLabel, confidence, comments, taskId, onSubmit]);
+  }, [taskType, userLabel, confidence, comments, taskId, serialNumber, imageUrl, onSubmit]);
 
-  /** Called when the SuccessOverlay auto-dismisses */
   const handleSuccessDone = useCallback(() => {
     setShowSuccess(false);
-    // Reset form for the next task
-    setSelectedLabel(null);
+    setTaskType(null);
+    setUserLabel(null);
     setConfidence(75);
     setComments('');
     setSubmitError(null);
+    setIssueUrl(undefined);
   }, []);
 
-  // ── Render ─────────────────────────────────────────────────────────────────
+  const selectedOption = TASK_OPTIONS.find(o => o.value === taskType);
+  const step           = !taskType ? 1 : !userLabel ? 2 : 3;
+  const canSubmit      = Boolean(taskType && userLabel && !submitting);
+
   return (
     <div className="relative">
-      {/* ------------------------------------------------------------------ */}
-      {/* Success overlay (AnimatePresence handles enter/exit animation)       */}
-      {/* ------------------------------------------------------------------ */}
       <AnimatePresence>
-        {showSuccess && <SuccessOverlay onDone={handleSuccessDone} />}
+        {showSuccess && <SuccessOverlay issueUrl={issueUrl} onDone={handleSuccessDone} />}
       </AnimatePresence>
 
-      <motion.div
-        variants={containerVariants}
-        initial="hidden"
-        animate="visible"
-        className="flex flex-col gap-5"
-      >
-        {/* ── Header ──────────────────────────────────────────────────────── */}
-        <motion.div variants={itemVariants}>
-          <h2 className="text-lg font-bold text-slate-100 mb-0.5">Classify this observation</h2>
-          <p className="text-sm text-slate-500">
-            What do you see in the solar image above?
-          </p>
+      <motion.div variants={containerVariants} initial="hidden" animate="visible"
+        className="flex flex-col gap-5">
+
+        {/* ── Intro banner ──────────────────────────────────────────────── */}
+        <motion.div variants={itemVariants}
+          className="flex items-start gap-3 p-3.5 rounded-xl bg-solar-500/8 border border-solar-500/20">
+          <span className="text-xl flex-shrink-0 mt-0.5">👈</span>
+          <div>
+            <p className="text-sm font-semibold text-solar-200">Look at the image and answer 2 questions</p>
+            <p className="text-xs text-slate-400 mt-0.5 leading-relaxed">
+              No expertise needed — just describe what you see. Every observation helps scientists
+              predict solar storms and protect satellites.
+            </p>
+          </div>
         </motion.div>
 
-        {/* ── Classification buttons ───────────────────────────────────────── */}
+        {/* ── Step indicator ────────────────────────────────────────────── */}
+        <motion.div variants={itemVariants} className="flex items-center gap-2">
+          {[1, 2].map(n => (
+            <div key={n} className={`flex items-center gap-1.5 ${n < step ? 'opacity-40' : ''}`}>
+              <div className={[
+                'w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold border',
+                step === n
+                  ? 'bg-solar-500/30 text-solar-300 border-solar-500/50'
+                  : step > n
+                    ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40'
+                    : 'bg-white/5 text-slate-600 border-white/10',
+              ].join(' ')}>
+                {step > n ? '✓' : n}
+              </div>
+              <span className={`text-xs ${step === n ? 'text-slate-300 font-medium' : 'text-slate-600'}`}>
+                {n === 1 ? 'What type?' : 'What do you see?'}
+              </span>
+            </div>
+          ))}
+          {step > 1 && (
+            <div className="ml-auto w-5 h-5 rounded-full bg-white/5 border border-white/10
+                            flex items-center justify-center">
+              <div className="w-1.5 h-1.5 rounded-full bg-slate-600" />
+            </div>
+          )}
+        </motion.div>
+
+        {/* ── Question 1: Task type ──────────────────────────────────────── */}
         <motion.div variants={itemVariants} className="flex flex-col gap-2">
-          {CLASS_OPTIONS.map(option => (
-            <ClassificationButton
+          <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide">
+            Question 1 — What kind of solar image is this?
+          </p>
+          {TASK_OPTIONS.map(option => (
+            <TaskTypeCard
               key={option.value}
               option={option}
-              isSelected={selectedLabel === option.value}
-              onClick={() => setSelectedLabel(option.value)}
+              isSelected={taskType === option.value}
+              onClick={() => handleTaskTypeSelect(option.value)}
             />
           ))}
         </motion.div>
 
-        {/* ── Confidence slider ────────────────────────────────────────────── */}
-        <motion.div variants={itemVariants} className="glass rounded-xl p-4">
-          <ConfidenceSlider value={confidence} onChange={setConfidence} />
+        {/* ── Question 2: Sub-label (shown after Q1) ────────────────────── */}
+        <AnimatePresence>
+          {selectedOption && (
+            <motion.div
+              variants={itemVariants}
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -8 }}
+              transition={{ duration: 0.25 }}
+              className="flex flex-col gap-2"
+            >
+              <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide">
+                Question 2 — Which best describes what you see?
+              </p>
+              <p className="text-xs text-slate-500 -mt-1">
+                You chose <span className="text-slate-300 font-medium">{selectedOption.icon} {selectedOption.label}</span>.
+                Now pick the closest match:
+              </p>
+              <div className="flex flex-col gap-2 mt-1">
+                {selectedOption.subLabels.map(sub => (
+                  <SubLabelCard
+                    key={sub.value}
+                    sub={sub}
+                    isSelected={userLabel === sub.value}
+                    onSelect={setUserLabel}
+                    option={selectedOption}
+                  />
+                ))}
+              </div>
+              <p className="text-xs text-slate-600 italic mt-1">
+                💡 Not 100% sure? That's fine — pick the closest one!
+              </p>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* ── Confidence slider ─────────────────────────────────────────── */}
+        <motion.div variants={itemVariants} className="glass rounded-xl p-4 flex flex-col gap-2">
+          <div className="flex justify-between items-center">
+            <span className="text-xs text-slate-400">How confident are you?</span>
+            <motion.span key={confidence}
+              className="text-xs font-semibold text-solar-300"
+              initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.15 }}>
+              {confidence < 40 ? 'Just guessing' : confidence < 70 ? 'Somewhat sure' : confidence < 90 ? 'Pretty sure' : 'Very certain'} · {confidence}%
+            </motion.span>
+          </div>
+          <input
+            type="range" min={0} max={100} step={5} value={confidence}
+            onChange={e => setConfidence(Number(e.target.value))}
+            className="w-full h-2 rounded-full appearance-none cursor-pointer bg-white/10 accent-solar-500"
+            aria-label="How confident are you in your classification"
+          />
+          <div className="flex justify-between text-xs text-slate-700">
+            <span>Just guessing</span><span>Absolutely certain</span>
+          </div>
         </motion.div>
 
-        {/* ── Comments textarea ────────────────────────────────────────────── */}
+        {/* ── Notes ────────────────────────────────────────────────────────── */}
         <motion.div variants={itemVariants}>
           <label htmlFor="comments" className="block text-xs text-slate-400 mb-2">
-            Notes <span className="text-slate-600">(optional)</span>
+            Anything else you noticed? <span className="text-slate-600">(optional)</span>
           </label>
           <textarea
-            id="comments"
-            value={comments}
+            id="comments" value={comments}
             onChange={e => setComments(e.target.value)}
-            placeholder="Describe what you see, e.g. 'Large sunspot group near the solar equator…'"
+            placeholder="e.g. 'There's a very bright spot in the upper right corner' or 'The arch looks like it's about to erupt'"
             rows={3}
             className="w-full bg-white/4 border border-white/8 rounded-xl px-4 py-3
-                       text-sm text-slate-300 placeholder-slate-600
+                       text-sm text-slate-300 placeholder-slate-700
                        resize-none focus:outline-none focus:border-solar-500/60
-                       focus:bg-white/6 transition-colors"
+                       focus:bg-white/6 transition-colors leading-relaxed"
           />
         </motion.div>
 
-        {/* ── Error message ────────────────────────────────────────────────── */}
+        {/* ── Error ────────────────────────────────────────────────────────── */}
         <AnimatePresence>
           {submitError && (
             <motion.p
               className="text-xs text-amber-400 bg-amber-500/10 border border-amber-500/20
-                         rounded-lg px-3 py-2"
-              initial={{ opacity: 0, y: -8 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0 }}
+                         rounded-lg px-3 py-2 leading-relaxed"
+              initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
             >
               ⚠️ {submitError}
             </motion.p>
           )}
         </AnimatePresence>
 
-        {/* ── Submit button ────────────────────────────────────────────────── */}
+        {/* ── Submit ───────────────────────────────────────────────────────── */}
         <motion.div variants={itemVariants}>
           <motion.button
             onClick={handleSubmit}
-            disabled={!selectedLabel || submitting}
+            disabled={!canSubmit}
             className={[
               'w-full py-3.5 rounded-xl font-semibold text-sm transition-all duration-200',
-              selectedLabel && !submitting
+              canSubmit
                 ? 'btn-solar cursor-pointer'
                 : 'bg-white/5 text-slate-600 border border-white/8 cursor-not-allowed',
             ].join(' ')}
-            whileHover={selectedLabel && !submitting ? { scale: 1.02 } : {}}
-            whileTap={selectedLabel  && !submitting ? { scale: 0.98 } : {}}
+            whileHover={canSubmit ? { scale: 1.02 } : {}}
+            whileTap={canSubmit   ? { scale: 0.98 } : {}}
           >
             {submitting ? (
               <span className="flex items-center justify-center gap-2">
-                {/* Spinning loader */}
                 <motion.span
                   className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full"
                   animate={{ rotate: 360 }}
                   transition={{ duration: 0.7, ease: 'linear', repeat: Infinity }}
                 />
-                Submitting…
+                Submitting your observation…
               </span>
-            ) : selectedLabel ? (
-              `Submit: ${CLASS_OPTIONS.find(o => o.value === selectedLabel)?.label}`
+            ) : canSubmit ? (
+              'Submit My Observation →'
+            ) : !taskType ? (
+              '↑ Start by picking an image type above'
             ) : (
-              'Select a classification above'
+              '↑ Now pick what you see in Question 2'
             )}
           </motion.button>
         </motion.div>
+
       </motion.div>
     </div>
   );
 }
+

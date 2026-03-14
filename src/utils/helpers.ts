@@ -220,6 +220,46 @@ export function classifyTaskType(type: string): TaskTypeStyle {
         hex:    '#67e8f9',
       };
 
+    case 'magnetogram':
+      return {
+        bg:     'bg-violet-500/20',
+        text:   'text-violet-300',
+        border: 'border-violet-500/40',
+        icon:   '🧲',
+        label:  'Magnetogram',
+        hex:    '#a78bfa',
+      };
+
+    case 'prominence':
+      return {
+        bg:     'bg-sky-500/20',
+        text:   'text-sky-300',
+        border: 'border-sky-500/40',
+        icon:   '🌊',
+        label:  'Prominence',
+        hex:    '#38bdf8',
+      };
+
+    case 'active_region':
+      return {
+        bg:     'bg-yellow-500/20',
+        text:   'text-yellow-300',
+        border: 'border-yellow-500/40',
+        icon:   '⚡',
+        label:  'Active Region',
+        hex:    '#fde047',
+      };
+
+    case 'cme':
+      return {
+        bg:     'bg-red-500/20',
+        text:   'text-red-300',
+        border: 'border-red-500/40',
+        icon:   '💥',
+        label:  'CME',
+        hex:    '#f87171',
+      };
+
     default:
       return {
         bg:     'bg-purple-500/20',

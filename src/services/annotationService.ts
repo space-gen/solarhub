@@ -1,93 +1,87 @@
 /**
  * src/services/annotationService.ts
  *
- * Handles the submission and local persistence of user annotations.
+ * Handles annotation submission for the SolarHub citizen-science platform.
  *
- * Annotation lifecycle:
- *  1. User classifies an image in AnnotationPanel and clicks "Submit".
- *  2. submitAnnotation() is called.
- *  3. The annotation is immediately saved to localStorage as a backup.
- *  4. A POST request is made to the GitHub Issues API to create a public,
- *     auditable record on the solarhub-data repository.
- *  5. On network failure the localStorage copy is the durable record.
+ * What happens when a user clicks "Submit":
+ *  1. A full Annotation record is built from the form data.
+ *  2. It is saved to localStorage immediately (offline-first).
+ *  3. It is saved to puter.kv (cloud backup, zero-config via Puter.js).
+ *  4. A POST to the GitHub Issues API creates a public issue on space-gen/aurora
+ *     using the user's OAuth token obtained via githubAuthService.
+ *     The issue body is formatted so aurora's parse_issue_annotation.py
+ *     pipeline script can parse it automatically.
+ *  5. On any API failure the localStorage + Puter copies are the durable record.
  *
- * GitHub Issues as annotation storage:
- *  Using GitHub Issues gives us:
- *  - A human-readable, searchable audit trail.
- *  - Automatic timestamps and author metadata.
- *  - A free, reliable backend with no server maintenance.
- *  - The ability to later export via the GitHub API.
- *
- * Authentication:
- *  A personal access token (PAT) can optionally be stored in localStorage
- *  under the key "solarhub_gh_token".  Without a token the API request will
- *  fail with a 401 – the annotation is still preserved locally.
+ * Issue format (matching aurora's parse_issue_annotation.py):
+ *   ### Image URL
+ *   ### Task Type
+ *   ### Record ID
+ *   ### Serial Number
+ *   ### Your Label
+ *   ### Pixel Coordinates (optional)
+ *   ### Notes (optional)
  */
 
-import { GITHUB_CONFIG } from '@/config/endpoints';
+/// <reference path="../types/puter.d.ts" />
+
+import { GITHUB_CONFIG }  from '@/config/endpoints';
 import { generateSessionId } from '@/utils/helpers';
-import { formatTimestamp } from '@/utils/formatters';
+import { getStoredToken }    from '@/services/githubAuthService';
 
 // ---------------------------------------------------------------------------
 // Data model
 // ---------------------------------------------------------------------------
 
-/** Valid classification labels that a user can assign to a task. */
-export type UserLabel = 'sunspot' | 'solar_flare' | 'coronal_hole';
+/** Top-level solar observation categories (must match aurora task_types). */
+export type TaskType =
+  | 'sunspot'
+  | 'solar_flare'
+  | 'magnetogram'
+  | 'coronal_hole'
+  | 'prominence'
+  | 'active_region'
+  | 'cme';
 
 /**
- * Annotation
- *
- * The full record of a single classification action by a user.
+ * UserLabel — the specific sub-classification within a task type.
+ * Valid values mirror aurora's VALID_LABELS dict in parse_issue_annotation.py.
  */
-export interface Annotation {
-  /** Unique identifier for this annotation (generated client-side) */
-  id: string;
+export type UserLabel =
+  | 'active_region' | 'quiet_sun'   | 'sunspot_group'      | 'no_sunspot'       // sunspot
+  | 'a_class'       | 'b_class'     | 'c_class'             | 'm_class'
+  | 'x_class'       | 'no_flare'                                                  // solar_flare
+  | 'bipolar_active'| 'unipolar'    | 'complex'             | 'quiet'             // magnetogram
+  | 'polar'         | 'equatorial'  | 'mid_latitude'                              // coronal_hole
+  | 'eruptive'      | 'quiescent'   | 'active'                                    // prominence
+  | 'alpha'         | 'beta'        | 'beta_gamma'          | 'beta_gamma_delta'  // active_region
+  | 'halo'          | 'partial_halo'| 'narrow'              | 'none';             // coronal_hole / prominence / active_region / cme
 
-  /** ID of the Task that was classified */
-  task_id: string;
+/** Fields the caller must supply to create an annotation. */
+export interface AnnotationInput {
+  task_id:       string;
+  serial_number: number;
+  image_url:     string;
+  task_type:     TaskType;
+  user_label:    UserLabel;
+  confidence:    number;
+  comments:      string;
+}
 
-  /** The user's classification label */
-  user_label: UserLabel;
-
-  /**
-   * The user's confidence in their classification.
-   * Stored as an integer in [0, 100] for readability in the issue body.
-   */
-  confidence: number;
-
-  /** Optional free-text comment from the user */
-  comments: string;
-
-  /** Session ID of the annotating user */
-  session_id: string;
-
-  /** ISO timestamp of when the annotation was made */
-  timestamp: string;
-
-  /**
-   * GitHub issue number returned after successful submission.
-   * undefined until the API call succeeds.
-   */
+/** Full annotation record (AnnotationInput + generated fields). */
+export interface Annotation extends AnnotationInput {
+  id:                   string;
+  session_id:           string;
+  timestamp:            string;
   github_issue_number?: number;
 }
 
-/** Subset of fields required from the caller to create an annotation */
-export type AnnotationInput = Pick<
-  Annotation,
-  'task_id' | 'user_label' | 'confidence' | 'comments'
->;
-
-/** Result returned by submitAnnotation */
+/** Return value of submitAnnotation(). */
 export interface AnnotationResult {
-  /** Whether the GitHub API call succeeded */
-  success: boolean;
-  /** The complete, saved annotation record */
+  success:    boolean;
   annotation: Annotation;
-  /** GitHub issue URL if creation succeeded */
-  issueUrl?: string;
-  /** Error message if submission failed */
-  error?: string;
+  issueUrl?:  string;
+  error?:     string;
 }
 
 // ---------------------------------------------------------------------------
@@ -96,37 +90,19 @@ export interface AnnotationResult {
 
 const LOCAL_STORAGE_KEY = 'solarhub_annotations';
 
-/**
- * saveAnnotationLocally
- *
- * Serialises an annotation and appends it to the list stored in localStorage.
- * This serves as a durable backup in case the GitHub API call fails or the
- * user is offline.
- *
- * @param annotation - The Annotation record to persist
- */
 export function saveAnnotationLocally(annotation: Annotation): void {
   try {
     const existing = getLocalAnnotations();
-    const updated  = [...existing, annotation];
-    localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(updated));
-  } catch (error) {
-    // localStorage can be unavailable in private browsing or when storage is full
-    console.warn('[AnnotationService] Could not save annotation locally:', error);
+    localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify([...existing, annotation]));
+  } catch (err) {
+    console.warn('[AnnotationService] localStorage save failed:', err);
   }
 }
 
-/**
- * getLocalAnnotations
- *
- * Retrieves all locally stored annotations.
- * Returns an empty array on any parse error.
- */
 export function getLocalAnnotations(): Annotation[] {
   try {
     const raw = localStorage.getItem(LOCAL_STORAGE_KEY);
     if (!raw) return [];
-
     const parsed = JSON.parse(raw) as unknown;
     return Array.isArray(parsed) ? (parsed as Annotation[]) : [];
   } catch {
@@ -135,58 +111,62 @@ export function getLocalAnnotations(): Annotation[] {
 }
 
 // ---------------------------------------------------------------------------
-// GitHub Issue body formatter
+// Puter KV cloud backup
+// ---------------------------------------------------------------------------
+
+/**
+ * saveToPuterCloud
+ *
+ * Appends the annotation to the user's Puter KV store as a cloud backup.
+ * Puter.js auto-handles authentication; if the user isn't signed into Puter
+ * they may see a brief sign-in prompt.  Failures are silently swallowed
+ * since the localStorage copy is already the durable record.
+ */
+async function saveToPuterCloud(annotation: Annotation): Promise<void> {
+  try {
+    const puter = window.puter;
+    if (!puter?.kv) return;
+
+    const raw      = await puter.kv.get('solarhub_annotations') ?? '[]';
+    const existing = JSON.parse(raw) as Annotation[];
+    await puter.kv.set('solarhub_annotations', JSON.stringify([...existing, annotation]));
+  } catch {
+    // Non-fatal — Puter cloud is an optional bonus layer
+  }
+}
+
+// ---------------------------------------------------------------------------
+// GitHub Issue body formatter  (aurora parse_issue_annotation.py compatible)
 // ---------------------------------------------------------------------------
 
 /**
  * formatIssueBody
  *
- * Builds the Markdown body of the GitHub Issue that will be created for each
- * annotation.  The structured format makes it easy to parse programmatically
- * for downstream analysis.
+ * Produces a Markdown body using `### Heading` sections that aurora's
+ * parse_issue_annotation.py splits and extracts automatically.
  */
 function formatIssueBody(annotation: Annotation): string {
-  const confidenceBar = '█'.repeat(Math.round(annotation.confidence / 10))
-    + '░'.repeat(10 - Math.round(annotation.confidence / 10));
+  return `### Image URL
+${annotation.image_url}
 
-  return `## SolarHub Annotation
+### Task Type
+${annotation.task_type}
 
-| Field            | Value |
-|------------------|-------|
-| **Task ID**      | \`${annotation.task_id}\` |
-| **Label**        | \`${annotation.user_label}\` |
-| **Confidence**   | ${annotation.confidence}% \`${confidenceBar}\` |
-| **Session**      | \`${annotation.session_id}\` |
-| **Timestamp**    | ${formatTimestamp(annotation.timestamp)} |
-| **Annotation ID**| \`${annotation.id}\` |
+### Record ID
+${annotation.task_id}
 
-### Comments
-${annotation.comments.trim() || '_No additional comments provided._'}
+### Serial Number
+${annotation.serial_number}
 
----
-*Submitted via [SolarHub Citizen Science](https://github.com/${GITHUB_CONFIG.owner}/${GITHUB_CONFIG.repo})*
+### Your Label
+${annotation.user_label}
+
+### Pixel Coordinates (optional)
+_No response_
+
+### Notes (optional)
+${annotation.comments.trim() || '_No response_'}
 `;
-}
-
-// ---------------------------------------------------------------------------
-// GitHub token helper
-// ---------------------------------------------------------------------------
-
-/**
- * getGitHubToken
- *
- * Looks up a GitHub personal-access token stored in localStorage.
- * The key "solarhub_gh_token" lets power users supply their own token so
- * annotations are attributed to their GitHub account.
- *
- * Returns null if no token is available.
- */
-function getGitHubToken(): string | null {
-  try {
-    return localStorage.getItem('solarhub_gh_token');
-  } catch {
-    return null;
-  }
 }
 
 // ---------------------------------------------------------------------------
@@ -196,47 +176,46 @@ function getGitHubToken(): string | null {
 /**
  * submitAnnotation
  *
- * The primary submission pipeline:
- *  1. Constructs a full Annotation record from the user's input.
- *  2. Saves it to localStorage immediately (offline-first).
- *  3. Attempts to create a GitHub Issue for the annotation.
- *  4. On success, updates the local record with the issue number and returns.
- *  5. On failure, returns success=false with the error message; the local
- *     copy is preserved for future manual sync.
+ * Full submission pipeline:
+ *  1. Builds the Annotation record.
+ *  2. Saves locally (offline-first).
+ *  3. Saves to Puter cloud KV (zero-config cloud backup).
+ *  4. Creates a GitHub Issue on space-gen/aurora using the user's OAuth token.
  *
- * @param input - The user's classification data
- * @returns AnnotationResult
+ * Returns success=false (with a reason) if the user is not signed in or the
+ * API call fails — the local + Puter copies are preserved either way.
  */
-export async function submitAnnotation(input: AnnotationInput): Promise<AnnotationResult> {
-  // ── Build the full annotation record ──────────────────────────────────────
+export async function submitAnnotation(
+  input: AnnotationInput,
+): Promise<AnnotationResult> {
+
+  // ── Build full record ────────────────────────────────────────────────────
   const annotation: Annotation = {
-    id:           `ann_${Date.now().toString(36)}_${Math.random().toString(16).slice(2, 8)}`,
-    task_id:      input.task_id,
-    user_label:   input.user_label,
-    confidence:   input.confidence,
-    comments:     input.comments,
-    session_id:   generateSessionId(),
-    timestamp:    new Date().toISOString(),
+    ...input,
+    id:         `ann_${Date.now().toString(36)}_${Math.random().toString(16).slice(2, 8)}`,
+    session_id: generateSessionId(),
+    timestamp:  new Date().toISOString(),
   };
 
-  // ── Persist locally first (offline-first strategy) ───────────────────────
+  // ── Local persistence (always, even before network) ──────────────────────
   saveAnnotationLocally(annotation);
 
-  // ── Attempt GitHub Issue creation ────────────────────────────────────────
-  const token = getGitHubToken();
+  // ── Puter cloud backup (async, non-blocking) ──────────────────────────────
+  void saveToPuterCloud(annotation);
+
+  // ── GitHub Issue creation ────────────────────────────────────────────────
+  const token = getStoredToken();
 
   if (!token) {
-    // Without a token we can't create issues; that's fine – the local record
-    // is the source of truth.
     return {
-      success: false,
+      success:    false,
       annotation,
-      error:   'No GitHub token found. Annotation saved locally.',
+      error:      'Sign in with GitHub to submit your annotation publicly.',
     };
   }
 
   try {
-    const issueTitle = `[Annotation] ${annotation.user_label} – Task ${annotation.task_id}`;
+    const issueTitle = `[Annotation] ${annotation.task_type} – ${annotation.task_id}`;
     const issueBody  = formatIssueBody(annotation);
 
     const response = await fetch(GITHUB_CONFIG.issuesApiUrl, {
@@ -249,7 +228,7 @@ export async function submitAnnotation(input: AnnotationInput): Promise<Annotati
       body: JSON.stringify({
         title:  issueTitle,
         body:   issueBody,
-        labels: ['annotation', annotation.user_label],
+        labels: ['annotation'],
       }),
     });
 
@@ -258,18 +237,14 @@ export async function submitAnnotation(input: AnnotationInput): Promise<Annotati
       throw new Error(`GitHub API ${response.status}: ${errBody}`);
     }
 
-    const issueData = (await response.json()) as { number: number; html_url: string };
+    const issueData = await response.json() as { number: number; html_url: string };
 
-    // ── Update the local record with the GitHub issue number ─────────────
-    const annotations       = getLocalAnnotations();
-    const targetIndex       = annotations.findIndex(a => a.id === annotation.id);
-    if (targetIndex !== -1) {
-      annotations[targetIndex].github_issue_number = issueData.number;
-      try {
-        localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(annotations));
-      } catch {
-        // Non-fatal
-      }
+    // Update the local record with the issue number
+    const annotations = getLocalAnnotations();
+    const idx = annotations.findIndex(a => a.id === annotation.id);
+    if (idx !== -1) {
+      annotations[idx].github_issue_number = issueData.number;
+      try { localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(annotations)); } catch { /* non-fatal */ }
     }
 
     return {
@@ -281,11 +256,6 @@ export async function submitAnnotation(input: AnnotationInput): Promise<Annotati
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error';
     console.error('[AnnotationService] GitHub submission failed:', message);
-
-    return {
-      success:    false,
-      annotation,
-      error:      message,
-    };
+    return { success: false, annotation, error: message };
   }
 }

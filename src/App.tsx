@@ -32,6 +32,7 @@ import { AnimatePresence }                     from 'framer-motion';
 import NavigationBar                           from '@/components/NavigationBar';
 import Home                                    from '@/pages/Home';
 import Classify                                from '@/pages/Classify';
+import { useGitHubAuth }                       from '@/hooks/useGitHubAuth';
 
 // ---------------------------------------------------------------------------
 // Point state persistence helpers
@@ -105,12 +106,11 @@ function AppRoutes({
         {/* Classify page – the main citizen-science workflow */}
         <Route
           path="/classify"
-          element={
-            <Classify
-              points={points}
-              onPointsChange={onPointsChange}
-            />
-          }
+          element={<Classify points={points} onPointsChange={onPointsChange} />}
+        />
+        <Route
+          path="/classify/:taskType"
+          element={<Classify points={points} onPointsChange={onPointsChange} />}
         />
 
         {/* Catch-all: redirect any unknown path to Home */}
@@ -125,36 +125,25 @@ function AppRoutes({
 // ---------------------------------------------------------------------------
 
 export default function App() {
-  // Points are initialised from localStorage and updated via callback
   const [points, setPoints] = useState<number>(loadPoints);
+  const { user, loading: authLoading, isConfigured, signIn, signOut } = useGitHubAuth();
 
-  /**
-   * handlePointsChange
-   *
-   * Called by the Classify page whenever the user earns points.
-   * Updates both React state (triggers re-render) and localStorage
-   * (persists across refreshes).
-   */
   function handlePointsChange(newPoints: number) {
     setPoints(newPoints);
     savePoints(newPoints);
   }
 
   return (
-    /*
-     * HashRouter – uses window.location.hash for routing.
-     * Required for GitHub Pages compatibility (see module docstring).
-     */
     <HashRouter>
-      {/* The "dark" class on the outer div ensures TailwindCSS dark-mode
-          utilities are active for the entire application. */}
       <div className="dark min-h-screen bg-cosmic-950 text-slate-100 font-sans">
-
-        {/* Persistent navigation bar – rendered outside AnimatePresence
-            so it doesn't animate on route changes. */}
-        <NavigationBar points={points} />
-
-        {/* Page content area */}
+        <NavigationBar
+          points={points}
+          user={user}
+          authLoading={authLoading}
+          isOAuthConfigured={isConfigured}
+          onSignIn={signIn}
+          onSignOut={signOut}
+        />
         <main>
           <AppRoutes points={points} onPointsChange={handlePointsChange} />
         </main>
