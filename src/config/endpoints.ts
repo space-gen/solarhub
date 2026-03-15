@@ -37,7 +37,7 @@ export const GITHUB_CONFIG = {
  */
 export const AUTH_CONFIG = {
   /** GitHub OAuth App client ID (public). */
-  clientId:    'YOUR_GITHUB_CLIENT_ID',
+  clientId:    'Ov23li8lNUPIqguWQbLq',
   /** Callback URL registered in the OAuth App settings. */
   redirectUri: 'https://space-gen.github.io/solarhub/',
   /** Deployed Puter worker URL (no trailing slash). */
