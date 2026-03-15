@@ -73,8 +73,14 @@ jobs:
       # 5. Build the production bundle.
       #    `tsc` first type-checks the project; Vite then bundles it into
       #    the `dist/` directory with hashed asset file names.
+      #    OAuth credentials are injected from repository secrets so they
+      #    are baked into the static bundle at build time (no backend needed).
       - name: Build with Vite
         run: npm run build
+        env:
+          VITE_GITHUB_CLIENT_ID:     ${{ secrets.VITE_GITHUB_CLIENT_ID }}
+          VITE_GITHUB_CLIENT_SECRET: ${{ secrets.VITE_GITHUB_CLIENT_SECRET }}
+          VITE_GITHUB_REDIRECT_URI:  https://space-gen.github.io/solarhub/
 
       # 6. Upload the `dist/` folder as a Pages artifact so the deploy job
       #    can access it.  The artifact is automatically deleted after the
