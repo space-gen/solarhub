@@ -23,3 +23,23 @@ export const GITHUB_CONFIG = {
   repo:         'aurora',
   issuesApiUrl: 'https://api.github.com/repos/space-gen/aurora/issues',
 } as const;
+
+/**
+ * AUTH_CONFIG — GitHub OAuth App settings.
+ *
+ * CLIENT_ID  : public value, safe to commit (visible in the browser URL anyway).
+ * WORKER_URL : deployed URL of auth-worker.js on Puter.
+ *              Set GH_CLIENT_ID and GH_CLIENT_SECRET as env vars in the Puter
+ *              worker dashboard — they never touch this codebase.
+ *
+ * After registering your OAuth App and deploying the worker, fill in the two
+ * values below and push.  No build-time secrets or .env files required.
+ */
+export const AUTH_CONFIG = {
+  /** GitHub OAuth App client ID (public). */
+  clientId:    'YOUR_GITHUB_CLIENT_ID',
+  /** Callback URL registered in the OAuth App settings. */
+  redirectUri: 'https://space-gen.github.io/solarhub/',
+  /** Deployed Puter worker URL (no trailing slash). */
+  workerUrl:   'YOUR_PUTER_WORKER_URL',
+} as const;

@@ -26,16 +26,15 @@
 
 /// <reference path="../types/puter.d.ts" />
 
+import { AUTH_CONFIG } from '../config/endpoints';
+
 // ---------------------------------------------------------------------------
 // Config
 // ---------------------------------------------------------------------------
 
-const CLIENT_ID    = import.meta.env.VITE_GITHUB_CLIENT_ID  as string ?? '';
-const WORKER_URL   = import.meta.env.VITE_AUTH_WORKER_URL   as string ?? '';
-const REDIRECT_URI = import.meta.env.VITE_GITHUB_REDIRECT_URI as string
-  ?? (typeof window !== 'undefined'
-    ? window.location.origin + window.location.pathname
-    : '');
+const CLIENT_ID    = AUTH_CONFIG.clientId;
+const WORKER_URL   = AUTH_CONFIG.workerUrl;
+const REDIRECT_URI = AUTH_CONFIG.redirectUri;
 
 const SCOPE     = 'public_repo';
 const STATE_KEY = 'solarhub_oauth_state';

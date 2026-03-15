@@ -77,10 +77,6 @@ jobs:
       #    are baked into the static bundle at build time (no backend needed).
       - name: Build with Vite
         run: npm run build
-        env:
-          VITE_GITHUB_CLIENT_ID:    ${{ secrets.VITE_GITHUB_CLIENT_ID }}
-          VITE_AUTH_WORKER_URL:     ${{ secrets.VITE_AUTH_WORKER_URL }}
-          VITE_GITHUB_REDIRECT_URI: https://space-gen.github.io/solarhub/
 
       # 6. Upload the `dist/` folder as a Pages artifact so the deploy job
       #    can access it.  The artifact is automatically deleted after the
