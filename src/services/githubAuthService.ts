@@ -6,20 +6,21 @@
  * How the CORS problem is solved without a backend:
  *   GitHub's token exchange endpoint (github.com/login/oauth/access_token)
  *   does NOT send CORS headers, so a plain browser fetch() fails.
- *   We solve this using puter.net.fetch(), which proxies the request through
- *   Puter's servers — bypassing the browser's CORS restriction entirely.
- *   https://docs.puter.com/net/fetch/
+ *   Instead, the frontend POSTs the OAuth code to the Puter.js Worker
+ *   (auth-worker.js) which runs server-side and calls GitHub directly,
+ *   keeping GH_CLIENT_SECRET out of the browser bundle entirely.
  *
  * Flow:
  *   1. startOAuthFlow()  →  redirect to github.com/login/oauth/authorize
  *   2. GitHub redirects back to REDIRECT_URI with ?code=&state=
- *   3. handleOAuthCallback()  →  puter.net.fetch to exchange code → token
- *   4. storeTokenAndFetchUser()  →  GET api.github.com/user (has CORS)
- *   5. Token + user stored in localStorage for the session
+ *   3. handleOAuthCallback()  →  POST code to VITE_AUTH_WORKER_URL/exchange
+ *   4. Worker exchanges code with GitHub, returns token JSON
+ *   5. storeTokenAndFetchUser()  →  GET api.github.com/user (has CORS)
+ *   6. Token + user stored in localStorage for the session
  *
  * Required env vars (see .env.example):
  *   VITE_GITHUB_CLIENT_ID
- *   VITE_GITHUB_CLIENT_SECRET
+ *   VITE_AUTH_WORKER_URL       (deployed URL of auth-worker.js on Puter)
  *   VITE_GITHUB_REDIRECT_URI   (optional, defaults to current origin)
  */
 
@@ -29,9 +30,9 @@
 // Config
 // ---------------------------------------------------------------------------
 
-const CLIENT_ID     = import.meta.env.VITE_GITHUB_CLIENT_ID     as string ?? '';
-const CLIENT_SECRET = import.meta.env.VITE_GITHUB_CLIENT_SECRET as string ?? '';
-const REDIRECT_URI  = import.meta.env.VITE_GITHUB_REDIRECT_URI  as string
+const CLIENT_ID    = import.meta.env.VITE_GITHUB_CLIENT_ID  as string ?? '';
+const WORKER_URL   = import.meta.env.VITE_AUTH_WORKER_URL   as string ?? '';
+const REDIRECT_URI = import.meta.env.VITE_GITHUB_REDIRECT_URI as string
   ?? (typeof window !== 'undefined'
     ? window.location.origin + window.location.pathname
     : '');
@@ -107,37 +108,18 @@ export async function handleOAuthCallback(
   }
   sessionStorage.removeItem(STATE_KEY);
 
-  if (!CLIENT_ID || !CLIENT_SECRET) {
-    console.error('[GitHubAuth] OAuth credentials not configured.');
+  if (!CLIENT_ID || !WORKER_URL) {
+    console.error('[GitHubAuth] VITE_GITHUB_CLIENT_ID or VITE_AUTH_WORKER_URL is not set.');
     return null;
   }
 
-  // ── Token exchange via puter.net.fetch (CORS-free) ──────────────────────
+  // ── Token exchange via auth-worker.js (secret never touches the browser) ──
   try {
-    // puter.net.fetch routes through Puter's servers, so github.com's missing
-    // CORS headers are not a problem for the browser.
-    const puterFetch = (
-      typeof window !== 'undefined' && window.puter?.net?.fetch
-        ? window.puter.net.fetch.bind(window.puter.net)
-        : fetch
-    ) as typeof fetch;
-
-    const response = await puterFetch(
-      'https://github.com/login/oauth/access_token',
-      {
-        method:  'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept':        'application/json',
-        },
-        body: JSON.stringify({
-          client_id:     CLIENT_ID,
-          client_secret: CLIENT_SECRET,
-          code,
-          redirect_uri:  REDIRECT_URI,
-        }),
-      },
-    );
+    const response = await fetch(`${WORKER_URL}/exchange`, {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ code }),
+    });
 
     if (!response.ok) {
       throw new Error(`Token exchange returned HTTP ${response.status}`);
@@ -215,5 +197,5 @@ export function signOut(): void {
 }
 
 export function isOAuthConfigured(): boolean {
-  return Boolean(CLIENT_ID && CLIENT_SECRET);
+  return Boolean(CLIENT_ID && WORKER_URL);
 }
