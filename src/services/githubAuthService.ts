@@ -1,27 +1,22 @@
 /**
  * src/services/githubAuthService.ts
  *
- * GitHub OAuth 2.0 authentication for a fully static frontend.
+ * GitHub OAuth 2.0 authentication for a fully static GitHub Pages site.
  *
- * How the CORS problem is solved without a backend:
- *   GitHub's token exchange endpoint (github.com/login/oauth/access_token)
- *   does NOT send CORS headers, so a plain browser fetch() fails.
- *   Instead, the frontend POSTs the OAuth code to the Puter.js Worker
- *   (auth-worker.js) which runs server-side and calls GitHub directly,
- *   keeping GH_CLIENT_SECRET out of the browser bundle entirely.
+ * CORS problem & solution:
+ *   github.com/login/oauth/access_token has no CORS headers, so a plain
+ *   browser fetch() fails.  puter.net.fetch() proxies the request through
+ *   Puter's servers, bypassing the restriction entirely — no backend needed.
+ *   https://docs.puter.com/net/fetch/
  *
  * Flow:
- *   1. startOAuthFlow()  →  redirect to github.com/login/oauth/authorize
- *   2. GitHub redirects back to REDIRECT_URI with ?code=&state=
- *   3. handleOAuthCallback()  →  POST code to VITE_AUTH_WORKER_URL/exchange
- *   4. Worker exchanges code with GitHub, returns token JSON
- *   5. storeTokenAndFetchUser()  →  GET api.github.com/user (has CORS)
- *   6. Token + user stored in localStorage for the session
+ *   1. startOAuthFlow()        → redirect to github.com/login/oauth/authorize
+ *   2. GitHub redirects back   → REDIRECT_URI?code=&state=
+ *   3. handleOAuthCallback()   → puter.net.fetch token exchange
+ *   4. storeTokenAndFetchUser() → GET api.github.com/user (has CORS)
+ *   5. Token + user stored in localStorage for the session
  *
- * Required env vars (see .env.example):
- *   VITE_GITHUB_CLIENT_ID
- *   VITE_AUTH_WORKER_URL       (deployed URL of auth-worker.js on Puter)
- *   VITE_GITHUB_REDIRECT_URI   (optional, defaults to current origin)
+ * Config: src/config/endpoints.ts → AUTH_CONFIG
  */
 
 /// <reference path="../types/puter.d.ts" />
@@ -32,9 +27,9 @@ import { AUTH_CONFIG } from '../config/endpoints';
 // Config
 // ---------------------------------------------------------------------------
 
-const CLIENT_ID    = AUTH_CONFIG.clientId;
-const WORKER_URL   = AUTH_CONFIG.workerUrl;
-const REDIRECT_URI = AUTH_CONFIG.redirectUri;
+const CLIENT_ID     = AUTH_CONFIG.clientId;
+const CLIENT_SECRET = AUTH_CONFIG.clientSecret;
+const REDIRECT_URI  = AUTH_CONFIG.redirectUri;
 
 const SCOPE     = 'public_repo';
 const STATE_KEY = 'solarhub_oauth_state';
@@ -56,15 +51,9 @@ export interface GitHubUser {
 // OAuth flow — step 1: redirect to GitHub
 // ---------------------------------------------------------------------------
 
-/**
- * startOAuthFlow
- *
- * Redirects the browser to GitHub's OAuth authorisation page.
- * A random `state` nonce is stored in sessionStorage to prevent CSRF.
- */
 export function startOAuthFlow(): void {
   if (!CLIENT_ID) {
-    console.error('[GitHubAuth] VITE_GITHUB_CLIENT_ID is not set.');
+    console.error('[GitHubAuth] AUTH_CONFIG.clientId is not set.');
     return;
   }
 
@@ -82,18 +71,9 @@ export function startOAuthFlow(): void {
 }
 
 // ---------------------------------------------------------------------------
-// OAuth flow — step 2: exchange code for token (via puter.net.fetch)
+// OAuth flow — step 2: exchange code for token via puter.net.fetch
 // ---------------------------------------------------------------------------
 
-/**
- * handleOAuthCallback
- *
- * Call this on app load when `?code=` and `?state=` are detected in the URL.
- * Uses puter.net.fetch() to proxy the token exchange through Puter's servers,
- * completely bypassing the browser's CORS restriction on github.com.
- *
- * @returns The GitHub access token, or null on failure.
- */
 export async function handleOAuthCallback(
   code:  string,
   state: string,
@@ -107,18 +87,37 @@ export async function handleOAuthCallback(
   }
   sessionStorage.removeItem(STATE_KEY);
 
-  if (!CLIENT_ID || !WORKER_URL) {
-    console.error('[GitHubAuth] VITE_GITHUB_CLIENT_ID or VITE_AUTH_WORKER_URL is not set.');
+  if (!CLIENT_ID || !CLIENT_SECRET) {
+    console.error('[GitHubAuth] AUTH_CONFIG.clientId or clientSecret is not set.');
     return null;
   }
 
-  // ── Token exchange via auth-worker.js (secret never touches the browser) ──
+  // ── Token exchange via puter.net.fetch (CORS-free proxy) ────────────────
   try {
-    const response = await fetch(`${WORKER_URL}/exchange`, {
-      method:  'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ code }),
-    });
+    // puter.net.fetch routes through Puter's servers so GitHub's missing
+    // CORS headers are never seen by the browser.
+    const puterFetch = (
+      typeof window !== 'undefined' && window.puter?.net?.fetch
+        ? window.puter.net.fetch.bind(window.puter.net)
+        : fetch
+    ) as typeof fetch;
+
+    const response = await puterFetch(
+      'https://github.com/login/oauth/access_token',
+      {
+        method:  'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept':        'application/json',
+        },
+        body: JSON.stringify({
+          client_id:     CLIENT_ID,
+          client_secret: CLIENT_SECRET,
+          code,
+          redirect_uri:  REDIRECT_URI,
+        }),
+      },
+    );
 
     if (!response.ok) {
       throw new Error(`Token exchange returned HTTP ${response.status}`);
@@ -146,13 +145,6 @@ export async function handleOAuthCallback(
 // Step 3: fetch GitHub user and store everything
 // ---------------------------------------------------------------------------
 
-/**
- * storeTokenAndFetchUser
- *
- * Persists the access token to localStorage, then fetches the authenticated
- * user's profile from api.github.com (which has CORS headers, so a plain
- * fetch() works fine here).
- */
 export async function storeTokenAndFetchUser(token: string): Promise<GitHubUser | null> {
   localStorage.setItem(TOKEN_KEY, token);
 
@@ -196,5 +188,6 @@ export function signOut(): void {
 }
 
 export function isOAuthConfigured(): boolean {
-  return Boolean(CLIENT_ID && WORKER_URL);
+  return Boolean(CLIENT_ID && CLIENT_SECRET);
 }
+

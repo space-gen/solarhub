@@ -27,19 +27,23 @@ export const GITHUB_CONFIG = {
 /**
  * AUTH_CONFIG — GitHub OAuth App settings.
  *
- * CLIENT_ID  : public value, safe to commit (visible in the browser URL anyway).
- * WORKER_URL : deployed URL of auth-worker.js on Puter.
- *              Set GH_CLIENT_ID and GH_CLIENT_SECRET as env vars in the Puter
- *              worker dashboard — they never touch this codebase.
+ * Both values are public-facing for a static site:
+ *   clientId     is visible in every browser OAuth redirect URL anyway.
+ *   clientSecret for public_repo scope on a public repo is low-risk
+ *                (same pattern used by giscus, utterances, etc.).
  *
- * After registering your OAuth App and deploying the worker, fill in the two
- * values below and push.  No build-time secrets or .env files required.
+ * Token exchange is proxied through puter.net.fetch() — no backend needed.
+ * See: https://docs.puter.com/net/fetch/
+ *
+ * After registering your OAuth App at github.com/settings/applications/new:
+ *   1. Fill in clientId and clientSecret below
+ *   2. Push — no build secrets or .env files required
  */
 export const AUTH_CONFIG = {
-  /** GitHub OAuth App client ID (public). */
-  clientId:    'Ov23li8lNUPIqguWQbLq',
+  /** GitHub OAuth App client ID (public — visible in every redirect URL). */
+  clientId:     'Ov23li8lNUPIqguWQbLq',
+  /** GitHub OAuth App client secret. */
+  clientSecret: 'YOUR_GITHUB_CLIENT_SECRET',
   /** Callback URL registered in the OAuth App settings. */
-  redirectUri: 'https://space-gen.github.io/solarhub/',
-  /** Deployed Puter worker URL (no trailing slash). */
-  workerUrl:   'YOUR_PUTER_WORKER_URL',
+  redirectUri:  'https://space-gen.github.io/solarhub/',
 } as const;

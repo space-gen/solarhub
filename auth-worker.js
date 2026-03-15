@@ -1,10 +1,17 @@
 /**
- * auth-worker.js — Puter.js Worker
+ * auth-worker.js — Cloudflare Worker (optional alternative backend)
  *
- * Stateless edge worker that handles GitHub OAuth code-for-token exchange.
- * Deploy via: puter worker deploy auth-worker.js
+ * This script is an OPTIONAL Cloudflare Worker that can handle the GitHub
+ * OAuth code-for-token exchange server-side, keeping the client secret out
+ * of the browser bundle.
  *
- * Environment variables (set in Puter dashboard or CLI):
+ * NOTE: The static site (GitHub Pages) currently uses puter.net.fetch() to
+ * proxy the token exchange through Puter's servers — no deployment needed.
+ * This file is provided as a ready-to-deploy Cloudflare Worker if you prefer
+ * a dedicated backend.
+ *
+ * Deploy via Cloudflare dashboard → Workers → Create Worker → paste this file.
+ * Add environment variables in Settings → Variables:
  *   GH_CLIENT_ID     — GitHub OAuth App client ID
  *   GH_CLIENT_SECRET — GitHub OAuth App client secret
  *
