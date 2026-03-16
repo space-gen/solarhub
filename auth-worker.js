@@ -1,39 +1,47 @@
 /**
  * auth-worker.js — Puter Serverless Worker
  *
- * Handles GitHub OAuth code-for-token exchange.
- * Secrets are stored in YOUR Puter cloud KV — nothing secret in this file.
+ * POST /exchange  { code }  → exchanges GitHub OAuth code for an access token.
  *
- * ── ONE-TIME SETUP ──────────────────────────────────────────────────────────
- * Run these two lines once in your browser console at https://puter.com:
- *
- *   await puter.kv.set('gh_client_id', 'Ov23li8lNUPIqguWQbLq')
- *   await puter.kv.set('gh_client_secret', 'YOUR_GITHUB_CLIENT_SECRET')
- *
- * That stores them encrypted in your Puter account (me.puter.kv).
- * The worker reads them at runtime — they never appear in this file or the repo.
- *
- * ── DEPLOY ──────────────────────────────────────────────────────────────────
- * Deploy via puter.com → Workers → Create, or:
- *   const code = await fetch('auth-worker.js').then(r => r.text());
- *   const worker = await puter.workers.create(code);
- *   console.log(worker.url); // paste this as AUTH_CONFIG.workerUrl
- *
- * ── ENDPOINT ────────────────────────────────────────────────────────────────
- * POST /exchange   body: { code: string }
- *                  returns: { access_token: string } or { error: string }
+ * This file contains NO secrets. You store secrets in Puter KV, and the worker
+ * reads them at runtime.
  */
 
+// ── Placeholders / configuration ───────────────────────────────────────────
+// Where secrets live:
+//   - 'me'   : YOUR (deployer) Puter KV — recommended.
+//   - 'user' : the CALLER's Puter KV (requires calling via puter.workers.exec).
+//             Not recommended for GitHub OAuth app secrets.
+const SECRET_OWNER = 'me'; // 'me' | 'user'
+
+// KV keys for the GitHub OAuth app credentials.
+const KV_GH_CLIENT_ID_KEY     = 'gh_client_id';
+const KV_GH_CLIENT_SECRET_KEY = 'gh_client_secret';
+
+// Helper: pick which KV to read from.
+function getKV(user) {
+  if (SECRET_OWNER === 'user') return user?.puter?.kv ?? null;
+  return me?.puter?.kv ?? null;
+}
+
 // POST /exchange — exchange GitHub OAuth code for access token
-router.post('/exchange', async ({ request }) => {
-  // Read secrets from deployer's Puter KV (me.puter = your account, not the user's)
-  const clientId     = await me.puter.kv.get('gh_client_id');
-  const clientSecret = await me.puter.kv.get('gh_client_secret');
+router.post('/exchange', async ({ request, user }) => {
+  const kv = getKV(user);
+  if (!kv) {
+    return new Response(JSON.stringify({
+      error: 'not_authenticated',
+      error_description: 'Call this worker via puter.workers.exec() so user.puter is available (or set SECRET_OWNER="me").',
+    }), { status: 401, headers: { 'Content-Type': 'application/json' } });
+  }
+
+  const clientId     = await kv.get(KV_GH_CLIENT_ID_KEY);
+  const clientSecret = await kv.get(KV_GH_CLIENT_SECRET_KEY);
 
   if (!clientId || !clientSecret) {
     return new Response(JSON.stringify({
       error: 'not_configured',
-      error_description: 'Run one-time setup: puter.kv.set("gh_client_id", ...) and puter.kv.set("gh_client_secret", ...)',
+      error_description:
+        `Missing secrets in Puter KV. Set ${KV_GH_CLIENT_ID_KEY} and ${KV_GH_CLIENT_SECRET_KEY} in ${SECRET_OWNER}.puter.kv`,
     }), { status: 500, headers: { 'Content-Type': 'application/json' } });
   }
 
