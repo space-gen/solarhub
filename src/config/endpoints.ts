@@ -40,7 +40,7 @@ export const AUTH_CONFIG = {
   /** GitHub OAuth App client ID (public — visible in every redirect URL). */
   clientId:    'Ov23li8lNUPIqguWQbLq',
   /** Deployed Puter Worker URL (no trailing slash). Get it after deploying auth-worker.js. */
-  workerUrl:   'YOUR_PUTER_WORKER_URL',
+  workerUrl:   'https://puter.com/app/sandbox-solarhub-oauth-worker',
   /** Callback URL registered in the OAuth App settings. */
   redirectUri: 'https://space-gen.github.io/solarhub/',
 } as const;
