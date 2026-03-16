@@ -27,9 +27,9 @@ import { AUTH_CONFIG } from '../config/endpoints';
 // Config
 // ---------------------------------------------------------------------------
 
-const CLIENT_ID     = AUTH_CONFIG.clientId;
-const CLIENT_SECRET = AUTH_CONFIG.clientSecret;
-const REDIRECT_URI  = AUTH_CONFIG.redirectUri;
+const CLIENT_ID    = AUTH_CONFIG.clientId;
+const WORKER_URL   = AUTH_CONFIG.workerUrl;
+const REDIRECT_URI = AUTH_CONFIG.redirectUri;
 
 const SCOPE     = 'public_repo';
 const STATE_KEY = 'solarhub_oauth_state';
@@ -87,37 +87,21 @@ export async function handleOAuthCallback(
   }
   sessionStorage.removeItem(STATE_KEY);
 
-  if (!CLIENT_ID || !CLIENT_SECRET) {
-    console.error('[GitHubAuth] AUTH_CONFIG.clientId or clientSecret is not set.');
+  if (!CLIENT_ID || !WORKER_URL) {
+    console.error('[GitHubAuth] AUTH_CONFIG.clientId or workerUrl is not set.');
     return null;
   }
 
-  // ── Token exchange via puter.net.fetch (CORS-free proxy) ────────────────
+  // ── Token exchange via Puter Worker (me.puter.kv holds the secret) ───────
+  // puter.workers.exec() sends the user's Puter token automatically,
+  // making user.puter available in the worker. The secret never leaves
+  // the deployer's Puter KV (me.puter.kv) — it's never in this bundle.
   try {
-    // puter.net.fetch routes through Puter's servers so GitHub's missing
-    // CORS headers are never seen by the browser.
-    const puterFetch = (
-      typeof window !== 'undefined' && window.puter?.net?.fetch
-        ? window.puter.net.fetch.bind(window.puter.net)
-        : fetch
-    ) as typeof fetch;
-
-    const response = await puterFetch(
-      'https://github.com/login/oauth/access_token',
-      {
-        method:  'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept':        'application/json',
-        },
-        body: JSON.stringify({
-          client_id:     CLIENT_ID,
-          client_secret: CLIENT_SECRET,
-          code,
-          redirect_uri:  REDIRECT_URI,
-        }),
-      },
-    );
+    const response = await window.puter.workers.exec(`${WORKER_URL}/exchange`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code }),
+    });
 
     if (!response.ok) {
       throw new Error(`Token exchange returned HTTP ${response.status}`);
@@ -188,6 +172,6 @@ export function signOut(): void {
 }
 
 export function isOAuthConfigured(): boolean {
-  return Boolean(CLIENT_ID && CLIENT_SECRET);
+  return Boolean(CLIENT_ID && WORKER_URL);
 }
 

@@ -28,10 +28,16 @@ interface PuterAuth {
   isSignedIn(): Promise<boolean>;
 }
 
+interface PuterWorkers {
+  /** Call a deployed Puter Worker. Automatically sends the user's Puter auth token. */
+  exec(url: string, options?: RequestInit): Promise<Response>;
+}
+
 interface Puter {
-  auth: PuterAuth;
-  kv:   PuterKV;
-  net:  PuterNet;
+  auth:    PuterAuth;
+  kv:      PuterKV;
+  net:     PuterNet;
+  workers: PuterWorkers;
 }
 
 declare global {
