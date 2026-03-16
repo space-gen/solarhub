@@ -28,8 +28,25 @@ import { AUTH_CONFIG } from '../config/endpoints';
 // ---------------------------------------------------------------------------
 
 const CLIENT_ID    = AUTH_CONFIG.clientId;
-const WORKER_URL   = AUTH_CONFIG.workerUrl;
+const WORKER_URL   = normalizeWorkerUrl(AUTH_CONFIG.workerUrl);
 const REDIRECT_URI = AUTH_CONFIG.redirectUri;
+
+function normalizeWorkerUrl(raw: string): string {
+  const trimmed = (raw ?? '').trim().replace(/\/+$/, '');
+  if (!trimmed) return '';
+
+  // User might paste the Puter app URL instead of the worker endpoint URL.
+  // Example: https://puter.com/app/sandbox-solarhub-oauth-worker
+  const m = trimmed.match(/^https?:\/\/puter\.com\/app\/([^/?#]+)$/i);
+  if (m?.[1]) return `https://${m[1]}.puter.work`;
+
+  // If they paste just the worker name.
+  if (!/^https?:\/\//i.test(trimmed) && /^[a-z0-9-]+$/i.test(trimmed)) {
+    return `https://${trimmed}.puter.work`;
+  }
+
+  return trimmed;
+}
 
 const SCOPE     = 'public_repo';
 const STATE_KEY = 'solarhub_oauth_state';
