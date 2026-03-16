@@ -23,8 +23,6 @@
  *   ### Notes (optional)
  */
 
-/// <reference path="../types/puter.d.ts" />
-
 import { GITHUB_CONFIG }  from '@/config/endpoints';
 import { generateSessionId } from '@/utils/helpers';
 import { getStoredToken }    from '@/services/githubAuthService';

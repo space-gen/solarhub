@@ -32,6 +32,7 @@ import { AnimatePresence }                     from 'framer-motion';
 import NavigationBar                           from '@/components/NavigationBar';
 import Home                                    from '@/pages/Home';
 import Classify                                from '@/pages/Classify';
+import { usePuterAuth }                        from '@/hooks/usePuterAuth';
 import { useGitHubAuth }                       from '@/hooks/useGitHubAuth';
 
 // ---------------------------------------------------------------------------
@@ -126,7 +127,23 @@ function AppRoutes({
 
 export default function App() {
   const [points, setPoints] = useState<number>(loadPoints);
-  const { user, loading: authLoading, isConfigured, signIn, signOut } = useGitHubAuth();
+
+  const {
+    user: puterUser,
+    loading: puterLoading,
+    signIn: puterSignIn,
+    signOut: puterSignOut,
+  } = usePuterAuth();
+
+  const {
+    user: ghUser,
+    loading: ghLoading,
+    isConfigured: ghConfigured,
+    deviceFlow,
+    signIn: ghSignIn,
+    cancelSignIn: ghCancelSignIn,
+    signOut: ghSignOut,
+  } = useGitHubAuth(Boolean(puterUser));
 
   function handlePointsChange(newPoints: number) {
     setPoints(newPoints);
@@ -138,11 +155,19 @@ export default function App() {
       <div className="dark min-h-screen bg-cosmic-950 text-slate-100 font-sans">
         <NavigationBar
           points={points}
-          user={user}
-          authLoading={authLoading}
-          isOAuthConfigured={isConfigured}
-          onSignIn={signIn}
-          onSignOut={signOut}
+
+          puterUser={puterUser}
+          puterLoading={puterLoading}
+          onPuterSignIn={puterSignIn}
+          onPuterSignOut={puterSignOut}
+
+          githubUser={ghUser}
+          githubAuthLoading={ghLoading}
+          isGitHubOAuthConfigured={ghConfigured}
+          deviceFlow={deviceFlow}
+          onGitHubSignIn={ghSignIn}
+          onGitHubCancel={ghCancelSignIn}
+          onGitHubSignOut={ghSignOut}
         />
         <main>
           <AppRoutes points={points} onPointsChange={handlePointsChange} />

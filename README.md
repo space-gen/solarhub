@@ -10,14 +10,14 @@ Authentication is handled via **GitHub OAuth** — no passwords, no registration
 - **Two-step classification** — task type then aurora-compatible sub-label
 - **GitHub OAuth** — users sign in once; annotations are submitted under their GitHub identity
 - **Issues on aurora** — every submission becomes a parseable GitHub Issue (`space-gen/aurora`)
-- **Puter.js cloud** — annotations backed up to Puter KV; `puter.net.fetch()` proxies the OAuth token exchange (no backend server needed)
+- **Puter.js cloud** — annotations backed up to Puter KV; GitHub token is stored in the user’s Puter KV (best-effort)
 - **Offline-first** — localStorage copy always written before any network call
 
 ---
 
 ## 🔐 GitHub OAuth App Setup
 
-You must register a **GitHub OAuth App** before deploying.
+This site is deployed as a **static GitHub Pages** app. To avoid shipping a client secret (and to avoid any backend/worker), SolarHub uses GitHub OAuth **Device Flow**.
 
 ### Register at GitHub
 
@@ -28,42 +28,33 @@ Go to **[github.com/settings/applications/new](https://github.com/settings/appli
 | **Application name** | `SolarHub Citizen Science` |
 | **Homepage URL** | Your deployed site URL (e.g. `https://space-gen.github.io/solarhub/`) |
 | **Application description** | `Classify real solar observations from NASA's SDO and contribute to open space science.` |
-| **Authorization callback URL** | Same as Homepage URL (e.g. `https://space-gen.github.io/solarhub/`) |
+| **Authorization callback URL** | Same as Homepage URL (required by the form; not used by device flow) |
 
-After registering, copy the **Client ID** and generate a **Client Secret**.
+After registering, copy the **Client ID**.
 
-### Environment Variables
+### Enable Device Flow
 
-Copy `.env.example` to `.env.local` and fill in your credentials:
+In your OAuth app settings, enable **Device Flow** (required by GitHub).
 
-```bash
-cp .env.example .env.local
-```
+### Configure client ID + scopes
 
-```env
-VITE_GITHUB_CLIENT_ID=your_client_id_here
-VITE_GITHUB_CLIENT_SECRET=your_client_secret_here
+Edit `src/config/endpoints.ts`:
 
-# Must exactly match the Authorization callback URL in the OAuth App settings
-VITE_GITHUB_REDIRECT_URI=https://space-gen.github.io/solarhub/
-```
+- `AUTH_CONFIG.clientId` → your GitHub OAuth **Client ID**
+- `AUTH_CONFIG.scopes` → requested scopes (default: `public_repo`)
 
-> **Security note:** `VITE_GITHUB_CLIENT_SECRET` is bundled into the static JS.  
-> For this app the OAuth scope is `public_repo` only, and the target repo is already public,  
-> so the exposure risk is minimal and is the accepted trade-off for a backend-free static site.
-
-### How the OAuth flow works (no backend needed)
+### How sign-in works (Device Flow)
 
 ```
-User clicks "Sign in"
-  → redirect to github.com/login/oauth/authorize
-  → GitHub redirects back to REDIRECT_URI?code=…&state=…
-  → puter.net.fetch() proxies POST to github.com/login/oauth/access_token
-      (bypasses browser CORS restriction via Puter's servers)
-  → token stored in localStorage
-  → GET api.github.com/user (api.github.com has CORS — plain fetch works)
-  → user avatar + login shown in navbar
-  → Submit button → POST api.github.com/repos/space-gen/aurora/issues
+User clicks "Sign in to Puter"
+  → Puter auth (so we can use puter.net.fetch for CORS-bypassing calls)
+User clicks "Connect GitHub"
+  → POST https://github.com/login/device/code (client_id + scope)
+  → UI shows user_code + opens https://github.com/login/device
+  → app polls POST https://github.com/login/oauth/access_token (client_id + device_code)
+  → token stored in user's Puter KV (best-effort) + localStorage cache
+  → GET https://api.github.com/user (to display GitHub account)
+  → Submit → POST https://api.github.com/repos/space-gen/aurora/issues
 ```
 
 ---
@@ -75,8 +66,8 @@ It provides two things in this app:
 
 | Feature | Use |
 |---------|-----|
-| `puter.net.fetch()` | Proxy GitHub's OAuth token endpoint — bypasses CORS with zero backend |
-| `puter.kv` | Cloud key-value store — backs up every annotation to the user's Puter account |
+| `puter.net.fetch()` | Call GitHub OAuth Device Flow endpoints (which don't send CORS headers) |
+| `puter.kv` | Cloud key-value store — backs up annotations and stores the user's GitHub access token |
 
 Users are prompted to sign into Puter (free, one click) the first time an annotation is saved to cloud storage.  The prompt is non-blocking — the annotation is always saved locally first.
 
@@ -85,12 +76,11 @@ Users are prompted to sign into Puter (free, one click) the first time an annota
 ## 🚀 Quick Start
 
 ```bash
-cp .env.example .env.local   # fill in VITE_GITHUB_CLIENT_ID + SECRET
 npm install
 npm run dev
 ```
 
-Open `http://localhost:5173/`. Remember to add `http://localhost:5173/` as an **Authorization callback URL** in your OAuth App settings (GitHub allows multiple).
+Set your GitHub OAuth **Client ID** in `src/config/endpoints.ts` before running locally.
 
 ```bash
 npm run build    # production build → dist/
@@ -108,7 +98,7 @@ src/
 ├── types/
 │   └── puter.d.ts            – TypeScript ambient declarations for window.puter
 ├── services/
-│   ├── githubAuthService.ts  – OAuth redirect + puter.net.fetch token exchange
+│   ├── githubAuthService.ts  – GitHub OAuth Device Flow (client-id only) via puter.net.fetch
 │   ├── annotationService.ts  – Issue creation (aurora format) + Puter KV backup
 │   └── taskService.ts        – Task fetching with localStorage cache + mock fallback
 ├── hooks/
@@ -159,6 +149,8 @@ Large sunspot group near the equator.
 
 ### GitHub Pages
 
+This is a fully static deployment — no runtime secrets are required for GitHub auth (Device Flow uses **client_id only**).
+
 ```yaml
 # .github/workflows/deploy.yml
 name: Deploy
@@ -174,27 +166,17 @@ jobs:
         with: { node-version: 20 }
       - run: npm ci
       - run: npm run build
-        env:
-          VITE_GITHUB_CLIENT_ID:     ${{ secrets.VITE_GITHUB_CLIENT_ID }}
-          VITE_GITHUB_CLIENT_SECRET: ${{ secrets.VITE_GITHUB_CLIENT_SECRET }}
-          VITE_GITHUB_REDIRECT_URI:  https://space-gen.github.io/solarhub/
       - uses: peaceiris/actions-gh-pages@v3
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: ./dist
 ```
 
-Add `VITE_GITHUB_CLIENT_ID` and `VITE_GITHUB_CLIENT_SECRET` as **repository secrets** under Settings → Secrets → Actions.
-
 ### Render Static Site
 
 1. Connect your repo in the Render dashboard.
 2. Build command: `npm install && npm run build`
 3. Publish directory: `dist`
-4. Add environment variables in Render's dashboard:
-   - `VITE_GITHUB_CLIENT_ID`
-   - `VITE_GITHUB_CLIENT_SECRET`
-   - `VITE_GITHUB_REDIRECT_URI` → your Render URL
 
 ---
 

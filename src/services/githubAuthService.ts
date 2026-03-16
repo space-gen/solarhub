@@ -1,61 +1,25 @@
 /**
  * src/services/githubAuthService.ts
  *
- * GitHub OAuth 2.0 authentication for a fully static GitHub Pages site.
+ * GitHub auth for a fully static GitHub Pages site.
  *
- * CORS problem & solution:
- *   github.com/login/oauth/access_token has no CORS headers, so a plain
- *   browser fetch() fails.  puter.net.fetch() proxies the request through
- *   Puter's servers, bypassing the restriction entirely — no backend needed.
- *   https://docs.puter.com/net/fetch/
+ * We use GitHub's OAuth **Device Flow** (client-id only):
+ *   - No client secret in the frontend bundle
+ *   - No backend server
+ *   - No Puter Workers
  *
- * Flow:
- *   1. startOAuthFlow()        → redirect to github.com/login/oauth/authorize
- *   2. GitHub redirects back   → REDIRECT_URI?code=&state=
- *   3. handleOAuthCallback()   → puter.net.fetch token exchange
- *   4. storeTokenAndFetchUser() → GET api.github.com/user (has CORS)
- *   5. Token + user stored in localStorage for the session
- *
- * Config: src/config/endpoints.ts → AUTH_CONFIG
+ * CORS note:
+ *   GitHub's device endpoints do not include browser CORS headers.
+ *   We call them via `puter.net.fetch()` which proxies the request.
  */
-
-/// <reference path="../types/puter.d.ts" />
 
 import { AUTH_CONFIG } from '../config/endpoints';
 
-// ---------------------------------------------------------------------------
-// Config
-// ---------------------------------------------------------------------------
+const CLIENT_ID = AUTH_CONFIG.clientId;
+const SCOPE     = (AUTH_CONFIG.scopes ?? ['public_repo']).join(' ');
 
-const CLIENT_ID    = AUTH_CONFIG.clientId;
-const WORKER_URL   = normalizeWorkerUrl(AUTH_CONFIG.workerUrl);
-const REDIRECT_URI = AUTH_CONFIG.redirectUri;
-
-function normalizeWorkerUrl(raw: string): string {
-  const trimmed = (raw ?? '').trim().replace(/\/+$/, '');
-  if (!trimmed) return '';
-
-  // User might paste the Puter app URL instead of the worker endpoint URL.
-  // Example: https://puter.com/app/sandbox-solarhub-oauth-worker
-  const m = trimmed.match(/^https?:\/\/puter\.com\/app\/([^/?#]+)$/i);
-  if (m?.[1]) return `https://${m[1]}.puter.work`;
-
-  // If they paste just the worker name.
-  if (!/^https?:\/\//i.test(trimmed) && /^[a-z0-9-]+$/i.test(trimmed)) {
-    return `https://${trimmed}.puter.work`;
-  }
-
-  return trimmed;
-}
-
-const SCOPE     = 'public_repo';
-const STATE_KEY = 'solarhub_oauth_state';
 const TOKEN_KEY = 'solarhub_gh_token';
 const USER_KEY  = 'solarhub_gh_user';
-
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
 
 export interface GitHubUser {
   login:      string;
@@ -64,111 +28,123 @@ export interface GitHubUser {
   html_url:   string;
 }
 
-// ---------------------------------------------------------------------------
-// OAuth flow — step 1: redirect to GitHub
-// ---------------------------------------------------------------------------
+export interface DeviceFlowStart {
+  device_code:      string;
+  user_code:        string;
+  verification_uri: string;
+  expires_in:       number;
+  interval:         number;
+}
 
-export function startOAuthFlow(): void {
-  if (!CLIENT_ID) {
-    console.error('[GitHubAuth] AUTH_CONFIG.clientId is not set.');
-    return;
+type DeviceTokenResponse = {
+  access_token?: string;
+  error?: string;
+  error_description?: string;
+  interval?: number;
+};
+
+function requirePuterNetFetch(): PuterNet['fetch'] {
+  const puter = window.puter;
+  if (!puter?.net?.fetch) {
+    throw new Error('Puter.js is required for GitHub sign-in (for CORS-bypassing fetch).');
   }
+  return puter.net.fetch.bind(puter.net);
+}
 
-  const state = crypto.randomUUID();
-  sessionStorage.setItem(STATE_KEY, state);
+async function postFormJson<T>(url: string, form: Record<string, string>): Promise<T> {
+  const netFetch = requirePuterNetFetch();
+  const body = new URLSearchParams(form).toString();
 
-  const params = new URLSearchParams({
-    client_id:    CLIENT_ID,
-    redirect_uri: REDIRECT_URI,
-    scope:        SCOPE,
-    state,
+  const res = await netFetch(url, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded',
+      'Accept': 'application/json',
+    },
+    body,
   });
 
-  window.location.href = `https://github.com/login/oauth/authorize?${params}`;
+  if (!res.ok) {
+    const text = await res.text().catch(() => '');
+    throw new Error(`HTTP ${res.status} ${url}: ${text}`);
+  }
+
+  return res.json() as Promise<T>;
 }
 
-// ---------------------------------------------------------------------------
-// OAuth flow — step 2: exchange code for token via puter.net.fetch
-// ---------------------------------------------------------------------------
-
-export async function handleOAuthCallback(
-  code:  string,
-  state: string,
-): Promise<string | null> {
-
-  // ── CSRF check ──────────────────────────────────────────────────────────
-  const storedState = sessionStorage.getItem(STATE_KEY);
-  if (!storedState || state !== storedState) {
-    console.error('[GitHubAuth] State mismatch — ignoring callback.');
-    return null;
-  }
-  sessionStorage.removeItem(STATE_KEY);
-
-  if (!CLIENT_ID || !WORKER_URL) {
-    console.error('[GitHubAuth] AUTH_CONFIG.clientId or workerUrl is not set.');
-    return null;
-  }
-
-  // ── Token exchange via Puter Worker (me.puter.kv holds the secret) ───────
-  // puter.workers.exec() sends the user's Puter token automatically,
-  // making user.puter available in the worker. The secret never leaves
-  // the deployer's Puter KV (me.puter.kv) — it's never in this bundle.
-  try {
-    const response = await window.puter.workers.exec(`${WORKER_URL}/exchange`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ code }),
-    });
-
-    if (!response.ok) {
-      throw new Error(`Token exchange returned HTTP ${response.status}`);
-    }
-
-    const data = await response.json() as {
-      access_token?: string;
-      error?:        string;
-      error_description?: string;
-    };
-
-    if (data.error || !data.access_token) {
-      throw new Error(data.error_description ?? data.error ?? 'No access_token in response');
-    }
-
-    return data.access_token;
-
-  } catch (err) {
-    console.error('[GitHubAuth] Token exchange failed:', err);
-    return null;
-  }
+export function isOAuthConfigured(): boolean {
+  return Boolean(CLIENT_ID);
 }
 
-// ---------------------------------------------------------------------------
-// Step 3: fetch GitHub user and store everything
-// ---------------------------------------------------------------------------
+export async function startDeviceFlow(): Promise<DeviceFlowStart> {
+  if (!CLIENT_ID) throw new Error('AUTH_CONFIG.clientId is not set.');
 
-export async function storeTokenAndFetchUser(token: string): Promise<GitHubUser | null> {
+  // https://docs.github.com/en/apps/oauth-apps/building-oauth-apps/authorizing-oauth-apps#device-flow
+  return postFormJson<DeviceFlowStart>('https://github.com/login/device/code', {
+    client_id: CLIENT_ID,
+    scope: SCOPE,
+  });
+}
+
+export async function exchangeDeviceCodeOnce(deviceCode: string): Promise<DeviceTokenResponse> {
+  if (!CLIENT_ID) throw new Error('AUTH_CONFIG.clientId is not set.');
+
+  return postFormJson<DeviceTokenResponse>('https://github.com/login/oauth/access_token', {
+    client_id: CLIENT_ID,
+    device_code: deviceCode,
+    grant_type: 'urn:ietf:params:oauth:grant-type:device_code',
+  });
+}
+
+export async function fetchGitHubUser(token: string): Promise<GitHubUser> {
+  const response = await fetch('https://api.github.com/user', {
+    headers: { 'Authorization': `Bearer ${token}` },
+  });
+  if (!response.ok) throw new Error(`GitHub API returned ${response.status}`);
+  return response.json() as Promise<GitHubUser>;
+}
+
+export async function storeCredentials(token: string, user: GitHubUser): Promise<void> {
+  // Local cache (offline-friendly)
   localStorage.setItem(TOKEN_KEY, token);
+  localStorage.setItem(USER_KEY, JSON.stringify(user));
 
+  // User-owned Puter KV (best-effort)
   try {
-    const response = await fetch('https://api.github.com/user', {
-      headers: { 'Authorization': `Bearer ${token}` },
-    });
+    const puter = window.puter;
+    if (!puter?.kv) return;
+    const signedIn = await puter.auth?.isSignedIn?.().catch(() => false);
+    if (!signedIn) return;
 
-    if (!response.ok) throw new Error(`GitHub API returned ${response.status}`);
-
-    const user = await response.json() as GitHubUser;
-    localStorage.setItem(USER_KEY, JSON.stringify(user));
-    return user;
-
-  } catch (err) {
-    console.error('[GitHubAuth] Failed to fetch GitHub user:', err);
-    return null;
+    await puter.kv.set(TOKEN_KEY, token);
+    await puter.kv.set(USER_KEY, JSON.stringify(user));
+  } catch {
+    // Non-fatal — localStorage already has a copy
   }
 }
 
-// ---------------------------------------------------------------------------
-// Stored state accessors
-// ---------------------------------------------------------------------------
+export async function loadCredentialsFromPuter(): Promise<{ token: string; user: GitHubUser } | null> {
+  try {
+    const puter = window.puter;
+    if (!puter?.kv) return null;
+    const signedIn = await puter.auth?.isSignedIn?.().catch(() => false);
+    if (!signedIn) return null;
+
+    const token = await puter.kv.get(TOKEN_KEY);
+    const rawUser = await puter.kv.get(USER_KEY);
+    if (!token || !rawUser) return null;
+
+    const user = JSON.parse(rawUser) as GitHubUser;
+
+    // Refresh local cache
+    localStorage.setItem(TOKEN_KEY, token);
+    localStorage.setItem(USER_KEY, JSON.stringify(user));
+
+    return { token, user };
+  } catch {
+    return null;
+  }
+}
 
 export function getStoredToken(): string | null {
   return localStorage.getItem(TOKEN_KEY);
@@ -183,12 +159,22 @@ export function getStoredUser(): GitHubUser | null {
   }
 }
 
-export function signOut(): void {
+export function clearLocalCredentials(): void {
   localStorage.removeItem(TOKEN_KEY);
   localStorage.removeItem(USER_KEY);
 }
 
-export function isOAuthConfigured(): boolean {
-  return Boolean(CLIENT_ID && WORKER_URL);
+export async function clearPuterCredentials(): Promise<void> {
+  try {
+    const puter = window.puter;
+    if (!puter?.kv) return;
+    const signedIn = await puter.auth?.isSignedIn?.().catch(() => false);
+    if (!signedIn) return;
+
+    await puter.kv.del(TOKEN_KEY);
+    await puter.kv.del(USER_KEY);
+  } catch {
+    // ignore
+  }
 }
 

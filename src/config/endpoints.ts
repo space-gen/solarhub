@@ -27,22 +27,12 @@ export const GITHUB_CONFIG = {
 /**
  * AUTH_CONFIG — GitHub OAuth App settings.
  *
- * The client secret is NOT here. It lives encrypted in the deployer's
- * Puter cloud KV (me.puter.kv) and is read by auth-worker.js at runtime.
- *
- * One-time setup (run in browser console at https://puter.com):
- *   await puter.kv.set('gh_client_id', 'Ov23li8lNUPIqguWQbLq')
- *   await puter.kv.set('gh_client_secret', 'YOUR_GITHUB_CLIENT_SECRET')
- *
- * Then deploy auth-worker.js and paste the worker URL below.
+ * This site is 100% static (GitHub Pages). We use GitHub's OAuth **Device Flow**,
+ * which only requires a public **Client ID** (no client secret, no backend, no workers).
  */
 export const AUTH_CONFIG = {
-  /** GitHub OAuth App client ID (public — visible in every redirect URL). */
-  clientId:    'Ov23lisiMUCpxHrplfOe',
-  /** Deployed Puter Worker URL (no trailing slash). Get it after deploying auth-worker.js. */
-  // Puter worker endpoints use the *.puter.work domain.
-  // If you only have the app URL, the code also normalizes it at runtime.
-  workerUrl:   'https://sandbox-solarhub-oauth-worker.puter.work',
-  /** Callback URL registered in the OAuth App settings. */
-  redirectUri: 'https://space-gen.github.io/solarhub/',
+  /** GitHub OAuth App client ID (public). */
+  clientId: 'Ov23lisiMUCpxHrplfOe',
+  /** OAuth scopes requested for creating Issues on the aurora repo. */
+  scopes: ['public_repo'],
 } as const;
