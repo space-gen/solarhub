@@ -40,7 +40,8 @@ export function usePuterAuth(): UsePuterAuthReturn {
         return;
       }
 
-      void puter.auth.getUser()
+      void Promise.resolve()
+        .then(() => puter.auth.getUser())
         .then(u => { if (!cancelled) setUser(u); })
         .catch(() => { if (!cancelled) setUser(null); })
         .finally(() => { if (!cancelled) setLoading(false); });
@@ -64,7 +65,7 @@ export function usePuterAuth(): UsePuterAuthReturn {
       while (Date.now() - start < maxWaitMs) {
         const puter = window.puter;
         if (puter?.auth?.signIn) {
-          const u = await puter.auth.signIn();
+          const u = await Promise.resolve().then(() => puter.auth.signIn());
           setUser(u);
           return;
         }
@@ -87,7 +88,8 @@ export function usePuterAuth(): UsePuterAuthReturn {
     }
 
     setLoading(true);
-    void puter.auth.signOut()
+    void Promise.resolve()
+      .then(() => puter.auth.signOut())
       .catch(() => undefined)
       .finally(() => {
         setUser(null);
