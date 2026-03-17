@@ -404,7 +404,20 @@ export default function AnnotationPanel({ taskType, taskId, serialNumber, imageU
               <p className="text-xs text-slate-400 mb-1">Select spots on the image:</p>
               <img src={imageUrl} alt="Solar observation" style={{ maxWidth: 320, borderRadius: 8, border: '1px solid #333', cursor: 'crosshair' }} onClick={handleImageClick} />
               <div className="mt-2 text-xs text-slate-500">
-                Selected spots: {pixelCoords.length > 0 ? pixelCoords.map(p => `(${p.x},${p.y})`).join(', ') : 'None'}
+                Selected spots:
+                {pixelCoords.length > 0 ? (
+                  <ul className="mt-1">
+                    {pixelCoords.map((p, idx) => (
+                      <li key={idx} className="flex items-center gap-2">
+                        <span>({p.x},{p.y})</span>
+                        <button
+                          className="text-xs text-red-400 hover:text-red-600 underline"
+                          onClick={e => { e.stopPropagation(); setPixelCoords(pixelCoords.filter((_, i) => i !== idx)); }}
+                        >Remove</button>
+                      </li>
+                    ))}
+                  </ul>
+                ) : ' None'}
               </div>
               {taskType === 'magnetogram' && (
                 <div className="mt-2">
