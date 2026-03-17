@@ -158,6 +158,9 @@ ${annotation.image_url}
 ### Task Type
 ${annotation.task_type}
 
+### Scientific Command
+${annotation.scientific_command || '_No response_'}
+
 ### Record ID
 ${annotation.task_id}
 
@@ -204,6 +207,10 @@ export async function submitAnnotation(
     id:         `ann_${Date.now().toString(36)}_${Math.random().toString(16).slice(2, 8)}`,
     session_id: generateSessionId(),
     timestamp:  new Date().toISOString(),
+    scientific_command: (() => {
+      const coords = input.pixel_coords?.length ? input.pixel_coords.map(c => `(${c.x},${c.y})`).join(';') : '';
+      return `annotate --task ${input.task_type} --label ${input.user_label}${coords ? ` --coords "${coords}"` : ''}${typeof input.region_radius === 'number' ? ` --radius ${input.region_radius}` : ''}`;
+    })(),
   };
 
   // ── Local persistence (always, even before network) ──────────────────────

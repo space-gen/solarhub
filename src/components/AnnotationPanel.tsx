@@ -241,21 +241,34 @@ export default function AnnotationPanel({ taskType, taskId, serialNumber, imageU
   const [userLabel,   setUserLabel]   = useState<UserLabel  | null>(null);
   const [confidence,  setConfidence]  = useState(75);
   const [comments,    setComments]    = useState('');
-  const [pixelCoords, setPixelCoords] = useState<Array<{ x: number; y: number }>>([]);
-  const [regionRadius, setRegionRadius] = useState<number | undefined>(undefined);
+  const [pixelCoords, setPixelCoords] = useState<Array<{ x: number; y: number; xPct?: number; yPct?: number }>>([]);
+  const [regionRadius, setRegionRadius] = useState<number | undefined>(10);
   const [submitting,  setSubmitting]  = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
   const [issueUrl,    setIssueUrl]    = useState<string | undefined>();
   const [submitError, setSubmitError] = useState<string | null>(null);
 
-  // UI for pixel selection (sunspot) and region radius (magnetogram)
-  // For brevity, use placeholder UI: click image to add pixel, slider for radius
+  const imageRef = useRef<HTMLImageElement | null>(null);
+  const [naturalSize, setNaturalSize] = useState<{ w: number; h: number } | null>(null);
 
+  // Compute natural size on load
+  const handleImageLoad = (e: React.SyntheticEvent<HTMLImageElement>) => {
+    const img = e.currentTarget as HTMLImageElement;
+    setNaturalSize({ w: img.naturalWidth, h: img.naturalHeight });
+  };
+
+  // Click to add a selection — store both natural-pixel coords and percent (for rendering)
   const handleImageClick = (e: React.MouseEvent<HTMLImageElement>) => {
     const rect = e.currentTarget.getBoundingClientRect();
-    const x = Math.round(e.clientX - rect.left);
-    const y = Math.round(e.clientY - rect.top);
-    setPixelCoords([...pixelCoords, { x, y }]);
+    const dispX = e.clientX - rect.left;
+    const dispY = e.clientY - rect.top;
+    const natW = naturalSize?.w ?? (e.currentTarget.naturalWidth || rect.width);
+    const natH = naturalSize?.h ?? (e.currentTarget.naturalHeight || rect.height);
+    const xNat = Math.round(dispX * (natW / rect.width));
+    const yNat = Math.round(dispY * (natH / rect.height));
+    const xPct = dispX / rect.width;
+    const yPct = dispY / rect.height;
+    setPixelCoords(prev => [...prev, { x: xNat, y: yNat, xPct, yPct }]);
   };
 
   const handleRadiusChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -275,7 +288,7 @@ export default function AnnotationPanel({ taskType, taskId, serialNumber, imageU
       user_label:    userLabel,
       confidence,
       comments:      comments.trim(),
-      pixel_coords:  taskType === 'sunspot' || taskType === 'magnetogram' ? pixelCoords : undefined,
+      pixel_coords:  taskType === 'sunspot' || taskType === 'magnetogram' ? pixelCoords.map(p => ({ x: p.x, y: p.y })) : undefined,
       region_radius: taskType === 'magnetogram' ? regionRadius : undefined,
     };
 
@@ -293,7 +306,7 @@ export default function AnnotationPanel({ taskType, taskId, serialNumber, imageU
     } finally {
       setSubmitting(false);
     }
-  }, [taskType, userLabel, confidence, comments, taskId, serialNumber, imageUrl, onSubmit, pixelCoords, regionRadius]);
+  }, [taskType, userLabel, confidence, comments, taskId, serialNumber, imageUrl, onSubmit, pixelCoords, regionRadius, naturalSize]);
 
   const handleSuccessDone = useCallback(() => {
     setShowSuccess(false);
@@ -402,7 +415,49 @@ export default function AnnotationPanel({ taskType, taskId, serialNumber, imageU
           {(taskType === 'sunspot' || taskType === 'magnetogram') && (
             <div className="mt-3">
               <p className="text-xs text-slate-400 mb-1">Select spots on the image:</p>
-              <img src={imageUrl} alt="Solar observation" style={{ maxWidth: 320, borderRadius: 8, border: '1px solid #333', cursor: 'crosshair' }} onClick={handleImageClick} />
+              <div style={{ position: 'relative', display: 'inline-block', maxWidth: 320 }}>
+                <img
+                  ref={imageRef}
+                  src={imageUrl}
+                  alt="Solar observation"
+                  style={{ width: '100%', borderRadius: 8, border: '1px solid #333', cursor: 'crosshair', display: 'block' }}
+                  onClick={handleImageClick}
+                  onLoad={handleImageLoad}
+                />
+                <svg
+                  viewBox="0 0 100 100"
+                  preserveAspectRatio="none"
+                  style={{ position: 'absolute', left: 0, top: 0, width: '100%', height: '100%', pointerEvents: 'none' }}
+                >
+                  {pixelCoords.map((p, idx) => (
+                    <circle
+                      key={idx}
+                      cx={`${(p.xPct ?? 0) * 100}`}
+                      cy={`${(p.yPct ?? 0) * 100}`}
+                      r={2.5}
+                      fill="rgba(34,197,94,0.95)"
+                      stroke="#fff"
+                      strokeWidth={0.5}
+                    />
+                  ))}
+                  {taskType === 'magnetogram' && regionRadius && pixelCoords.length > 0 && (
+                    (() => {
+                      const center = pixelCoords[0];
+                      const radiusPct = ((regionRadius ?? 0) / (naturalSize?.w ?? 1)) * 100;
+                      return (
+                        <circle
+                          cx={`${(center.xPct ?? 0) * 100}`}
+                          cy={`${(center.yPct ?? 0) * 100}`}
+                          r={radiusPct}
+                          fill="rgba(99,102,241,0.08)"
+                          stroke="rgba(99,102,241,0.8)"
+                          strokeWidth={0.6}
+                        />
+                      );
+                    })()
+                  )}
+                </svg>
+              </div>
               <div className="mt-2 text-xs text-slate-500">
                 Selected spots:
                 {pixelCoords.length > 0 ? (
