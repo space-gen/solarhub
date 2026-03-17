@@ -35,6 +35,26 @@ interface TaskOption {
   subLabels:   SubLabel[];
 }
 
+// Scientific phrasing + plain-English helper per task type. The `uncertainLabel`
+// maps to the aurora-compatible label to use when the image doesn't match.
+const SCIENTIFIC_HELP: Record<TaskType, { scientific: string; plain: string; uncertainLabel: UserLabel }> = {
+  sunspot: {
+    scientific: 'Identify sunspot group classification (e.g. alpha, beta, beta-gamma, delta).',
+    plain: 'Is there a group of dark sunspots? If yes, is it simple or complex?',
+    uncertainLabel: 'no_sunspot',
+  },
+  magnetogram: {
+    scientific: 'Characterise the magnetic polarity distribution (bipolar, unipolar, complex).',
+    plain: 'Do you see clear opposite-polarity regions, mostly one polarity, or a tangled pattern?',
+    uncertainLabel: 'quiet',
+  },
+  solar_flare: { scientific: 'Classify flare magnitude (A/B/C/M/X).', plain: 'How bright is the flash?', uncertainLabel: 'no_flare' },
+  coronal_hole: { scientific: 'Identify coronal hole location and extent (polar/equatorial).', plain: 'Is there a large dark hole? Where is it?', uncertainLabel: 'none' },
+  prominence: { scientific: 'Classify prominence as eruptive, quiescent, or active.', plain: 'Is the arch calm or erupting?', uncertainLabel: 'none' },
+  active_region: { scientific: 'Classify magnetic complexity (alpha/beta/beta-gamma/delta).', plain: 'Is the active region simple or complex?', uncertainLabel: 'none' },
+  cme: { scientific: 'Describe CME morphology (halo/partial/narrow).', plain: 'Do you see a ring, arc, or narrow jet?', uncertainLabel: 'none' },
+};
+
 const TASK_OPTIONS: TaskOption[] = [
   {
     value:   'sunspot',
@@ -380,10 +400,23 @@ export default function AnnotationPanel({ taskType, taskId, serialNumber, imageU
             </p>
             <p className="text-xs text-slate-400 mt-1">Look for: {selectedOption.lookFor}</p>
           </div>
-          {/* Scientific command (placeholder) */}
-          <p className="text-xs text-slate-500 mt-2">
-            <strong>Scientific command:</strong> <code>annotate_{taskType}</code>
-          </p>
+          {/* Scientific phrasing + plain-English helper */}
+          {SCIENTIFIC_HELP[taskType] && (
+            <div className="mt-2 text-xs text-slate-400">
+              <p><strong>Scientific phrasing:</strong> {SCIENTIFIC_HELP[taskType].scientific}</p>
+              <p className="mt-1"><strong>Plain English:</strong> {SCIENTIFIC_HELP[taskType].plain}</p>
+              <p className="mt-1 text-xs text-slate-500"><strong>Scientific command:</strong> <code>annotate_{taskType}</code></p>
+              <div className="mt-2">
+                <button
+                  type="button"
+                  onClick={() => setUserLabel(SCIENTIFIC_HELP[taskType].uncertainLabel)}
+                  className="text-xs text-amber-300 underline hover:text-amber-400"
+                >
+                  Can't classify this image — mark as 'no / quiet' for scientists
+                </button>
+              </div>
+            </div>
+          )}
         </motion.div>
 
         {/* ── Task-specific label question ────────────────────────────────── */}
