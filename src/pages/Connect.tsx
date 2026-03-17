@@ -14,6 +14,7 @@ import { useNavigate } from 'react-router-dom';
 import { pageVariants, containerVariants, itemVariants } from '@/animations/pageTransitions';
 import { usePuterAuth } from '@/hooks/usePuterAuth';
 import { useGitHubAuth } from '@/hooks/useGitHubAuth';
+import { AUTH_CONFIG } from '@/config/endpoints';
 
 function Card({ children }: { children: React.ReactNode }) {
   return (
@@ -63,6 +64,18 @@ export default function Connect() {
     const code = deviceFlow.user_code;
     if (!code) return;
     try { await navigator.clipboard?.writeText?.(code); } catch { /* ignore */ }
+  }
+
+  function openGitHubDevicePage() {
+    const url =
+      deviceFlow.verification_uri_complete
+      ?? deviceFlow.verification_uri
+      ?? 'https://github.com/login/device';
+
+    const popup = window.open(url, '_blank', 'noopener,noreferrer');
+    if (!popup) {
+      window.location.href = url;
+    }
   }
 
   return (
@@ -142,7 +155,9 @@ export default function Connect() {
                     <a className="text-solar-300 underline underline-offset-2" href="https://github.com/login/device" target="_blank" rel="noopener noreferrer">
                       github.com/login/device
                     </a>.
-                    Only after that, click “Start” below and we’ll poll for your token.
+                    GitHub will ask permission for this app to create issues on your behalf (
+                    <code className="text-slate-300">{(AUTH_CONFIG.scopes ?? []).join(' ') || 'public_repo'}</code>).
+                    Only after approving, click “Start” below and we’ll poll for your token.
                   </p>
                 </div>
                 <span className="text-xs px-2 py-1 rounded bg-white/5 text-slate-300 border border-white/10">Explicit</span>
@@ -215,14 +230,13 @@ export default function Connect() {
                             >
                               Copy
                             </button>
-                            <a
-                              href={deviceFlow.verification_uri}
-                              target="_blank"
-                              rel="noopener noreferrer"
+                            <button
+                              onClick={openGitHubDevicePage}
                               className="px-3 py-2 rounded-xl border border-white/10 text-slate-300 hover:bg-white/5 transition-colors text-sm"
+                              type="button"
                             >
                               Open GitHub
-                            </a>
+                            </button>
                           </div>
                         </div>
 

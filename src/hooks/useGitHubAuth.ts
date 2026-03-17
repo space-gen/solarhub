@@ -31,6 +31,7 @@ export interface DeviceFlowState {
   status: DeviceFlowStatus;
   user_code?: string;
   verification_uri?: string;
+  verification_uri_complete?: string;
   expiresAt?: number;
   device_code?: string;
   interval?: number;
@@ -104,6 +105,7 @@ export function useGitHubAuth(puterSignedIn: boolean): UseGitHubAuthReturn {
     device_code: string;
     user_code: string;
     verification_uri: string;
+    verification_uri_complete?: string;
     expiresAt: number;
     interval?: number;
   }) => {
@@ -114,6 +116,7 @@ export function useGitHubAuth(puterSignedIn: boolean): UseGitHubAuthReturn {
       status: 'polling',
       user_code: start.user_code,
       verification_uri: start.verification_uri,
+      verification_uri_complete: start.verification_uri_complete,
       expiresAt,
       device_code: start.device_code,
       interval: start.interval,
@@ -194,6 +197,7 @@ export function useGitHubAuth(puterSignedIn: boolean): UseGitHubAuthReturn {
           status: 'pending',
           user_code: start.user_code,
           verification_uri: start.verification_uri,
+          verification_uri_complete: start.verification_uri_complete,
           expiresAt: Date.now() + start.expires_in * 1000,
           device_code: start.device_code,
           interval: start.interval,
@@ -223,6 +227,7 @@ export function useGitHubAuth(puterSignedIn: boolean): UseGitHubAuthReturn {
       device_code: deviceFlow.device_code,
       user_code: deviceFlow.user_code,
       verification_uri: deviceFlow.verification_uri,
+      verification_uri_complete: deviceFlow.verification_uri_complete,
       expiresAt: deviceFlow.expiresAt,
       interval: deviceFlow.interval,
     });
