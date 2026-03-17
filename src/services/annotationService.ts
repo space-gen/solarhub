@@ -64,6 +64,8 @@ export interface AnnotationInput {
   user_label:    UserLabel;
   confidence:    number;
   comments:      string;
+  pixel_coords?: Array<{ x: number; y: number }>;
+  region_radius?: number;
 }
 
 /** Full annotation record (AnnotationInput + generated fields). */
@@ -72,6 +74,7 @@ export interface Annotation extends AnnotationInput {
   session_id:           string;
   timestamp:            string;
   github_issue_number?: number;
+  scientific_command?: string;
 }
 
 /** Return value of submitAnnotation(). */
@@ -165,7 +168,10 @@ ${annotation.serial_number}
 ${annotation.user_label}
 
 ### Pixel Coordinates (optional)
-_No response_
+${annotation.pixel_coords && annotation.pixel_coords.length > 0 ? annotation.pixel_coords.map(p => `(${p.x}, ${p.y})`).join(', ') : '_No response_'}
+
+### Region Radius (optional)
+${typeof annotation.region_radius === 'number' ? annotation.region_radius : '_No response_'}
 
 ### Notes (optional)
 ${annotation.comments.trim() || '_No response_'}

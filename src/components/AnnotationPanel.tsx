@@ -241,10 +241,26 @@ export default function AnnotationPanel({ taskType, taskId, serialNumber, imageU
   const [userLabel,   setUserLabel]   = useState<UserLabel  | null>(null);
   const [confidence,  setConfidence]  = useState(75);
   const [comments,    setComments]    = useState('');
+  const [pixelCoords, setPixelCoords] = useState<Array<{ x: number; y: number }>>([]);
+  const [regionRadius, setRegionRadius] = useState<number | undefined>(undefined);
   const [submitting,  setSubmitting]  = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
   const [issueUrl,    setIssueUrl]    = useState<string | undefined>();
   const [submitError, setSubmitError] = useState<string | null>(null);
+
+  // UI for pixel selection (sunspot) and region radius (magnetogram)
+  // For brevity, use placeholder UI: click image to add pixel, slider for radius
+
+  const handleImageClick = (e: React.MouseEvent<HTMLImageElement>) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    const x = Math.round(e.clientX - rect.left);
+    const y = Math.round(e.clientY - rect.top);
+    setPixelCoords([...pixelCoords, { x, y }]);
+  };
+
+  const handleRadiusChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setRegionRadius(Number(e.target.value));
+  };
 
   const handleSubmit = useCallback(async () => {
     if (!userLabel) return;
@@ -259,6 +275,8 @@ export default function AnnotationPanel({ taskType, taskId, serialNumber, imageU
       user_label:    userLabel,
       confidence,
       comments:      comments.trim(),
+      pixel_coords:  taskType === 'sunspot' || taskType === 'magnetogram' ? pixelCoords : undefined,
+      region_radius: taskType === 'magnetogram' ? regionRadius : undefined,
     };
 
     try {
@@ -275,7 +293,7 @@ export default function AnnotationPanel({ taskType, taskId, serialNumber, imageU
     } finally {
       setSubmitting(false);
     }
-  }, [taskType, userLabel, confidence, comments, taskId, serialNumber, imageUrl, onSubmit]);
+  }, [taskType, userLabel, confidence, comments, taskId, serialNumber, imageUrl, onSubmit, pixelCoords, regionRadius]);
 
   const handleSuccessDone = useCallback(() => {
     setShowSuccess(false);
@@ -349,6 +367,10 @@ export default function AnnotationPanel({ taskType, taskId, serialNumber, imageU
             </p>
             <p className="text-xs text-slate-400 mt-1">Look for: {selectedOption.lookFor}</p>
           </div>
+          {/* Scientific command (placeholder) */}
+          <p className="text-xs text-slate-500 mt-2">
+            <strong>Scientific command:</strong> <code>annotate_{taskType}</code>
+          </p>
         </motion.div>
 
         {/* ── Task-specific label question ────────────────────────────────── */}
@@ -376,6 +398,23 @@ export default function AnnotationPanel({ taskType, taskId, serialNumber, imageU
           <p className="text-xs text-slate-600 italic mt-1">
             💡 Not 100% sure? That's fine — pick the closest one!
           </p>
+          {/* Pixel/region selection UI for sunspot/magnetogram */}
+          {(taskType === 'sunspot' || taskType === 'magnetogram') && (
+            <div className="mt-3">
+              <p className="text-xs text-slate-400 mb-1">Select spots on the image:</p>
+              <img src={imageUrl} alt="Solar observation" style={{ maxWidth: 320, borderRadius: 8, border: '1px solid #333', cursor: 'crosshair' }} onClick={handleImageClick} />
+              <div className="mt-2 text-xs text-slate-500">
+                Selected spots: {pixelCoords.length > 0 ? pixelCoords.map(p => `(${p.x},${p.y})`).join(', ') : 'None'}
+              </div>
+              {taskType === 'magnetogram' && (
+                <div className="mt-2">
+                  <label className="text-xs text-slate-400">Region radius:</label>
+                  <input type="range" min={1} max={100} value={regionRadius || 10} onChange={handleRadiusChange} className="ml-2" />
+                  <span className="ml-2 text-xs text-slate-500">{regionRadius || 10} px</span>
+                </div>
+              )}
+            </div>
+          )}
         </motion.div>
 
         {/* ── Confidence slider ─────────────────────────────────────────── */}
