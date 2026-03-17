@@ -23,7 +23,6 @@ import {
   getStoredUser,
   isOAuthConfigured,
   type GitHubUser,
-  type DeviceFlowStart,
 } from '@/services/githubAuthService';
 
 export type DeviceFlowStatus = 'idle' | 'starting' | 'pending' | 'polling' | 'error';
@@ -45,9 +44,16 @@ export interface UseGitHubAuthReturn {
   isConfigured: boolean;
 
   deviceFlow:   DeviceFlowState;
-  signIn:       () => void;
-  cancelSignIn: () => void;
-  signOut:      () => void;
+
+  /** Step 1 (explicit): request a device code and show it to the user. */
+  generateDeviceCode: () => void;
+  /** Step 2 (explicit): start polling for the token after the user enters the code on GitHub. */
+  startPolling: () => void;
+  /** Reset the device flow UI state. */
+  cancel: () => void;
+
+  /** Disconnect GitHub (clears local + Puter KV copies). */
+  signOut: () => void;
 }
 
 export function useGitHubAuth(puterSignedIn: boolean): UseGitHubAuthReturn {
@@ -67,7 +73,7 @@ export function useGitHubAuth(puterSignedIn: boolean): UseGitHubAuthReturn {
     }
   }, []);
 
-  const cancelSignIn = useCallback(() => {
+  const cancel = useCallback(() => {
     cancelledRef.current = true;
     clearTimer();
     setDeviceFlow({ status: 'idle' });
@@ -94,8 +100,14 @@ export function useGitHubAuth(puterSignedIn: boolean): UseGitHubAuthReturn {
     };
   }, [clearTimer]);
 
-  const pollForToken = useCallback(async (start: DeviceFlowStart) => {
-    const expiresAt = Date.now() + start.expires_in * 1000;
+  const pollForToken = useCallback(async (start: {
+    device_code: string;
+    user_code: string;
+    verification_uri: string;
+    expiresAt: number;
+    interval?: number;
+  }) => {
+    const { expiresAt } = start;
     let intervalMs = (start.interval || 5) * 1000;
 
     setDeviceFlow({
@@ -160,8 +172,11 @@ export function useGitHubAuth(puterSignedIn: boolean): UseGitHubAuthReturn {
     await tick();
   }, []);
 
-  const signIn = useCallback(() => {
-    if (!isOAuthConfigured()) return;
+  const generateDeviceCode = useCallback(() => {
+    if (!isOAuthConfigured()) {
+      setDeviceFlow({ status: 'error', error: 'Missing GitHub OAuth Client ID.' });
+      return;
+    }
     if (!puterSignedIn) {
       setDeviceFlow({ status: 'error', error: 'Sign in to Puter first.' });
       return;
@@ -175,7 +190,6 @@ export function useGitHubAuth(puterSignedIn: boolean): UseGitHubAuthReturn {
 
     void startDeviceFlow()
       .then(start => {
-        // Show instructions immediately
         setDeviceFlow({
           status: 'pending',
           user_code: start.user_code,
@@ -184,27 +198,43 @@ export function useGitHubAuth(puterSignedIn: boolean): UseGitHubAuthReturn {
           device_code: start.device_code,
           interval: start.interval,
         });
-
-        // Convenience: open URL and copy code (best-effort)
-        try { window.open(start.verification_uri, '_blank', 'noopener,noreferrer'); } catch { /* ignore */ }
-        void navigator.clipboard?.writeText?.(start.user_code).catch(() => undefined);
-
-        return pollForToken(start);
       })
       .catch(err => {
         const msg = err instanceof Error ? err.message : 'Unknown error';
         setDeviceFlow({ status: 'error', error: msg });
-        setLoading(false);
-      });
-  }, [puterSignedIn, clearTimer, pollForToken]);
+      })
+      .finally(() => setLoading(false));
+  }, [puterSignedIn, clearTimer]);
+
+  const startPolling = useCallback(() => {
+    if (!puterSignedIn) {
+      setDeviceFlow({ status: 'error', error: 'Sign in to Puter first.' });
+      return;
+    }
+
+    if (deviceFlow.status !== 'pending') return;
+    if (!deviceFlow.device_code || !deviceFlow.user_code || !deviceFlow.verification_uri || !deviceFlow.expiresAt) return;
+
+    cancelledRef.current = false;
+    clearTimer();
+    setLoading(true);
+
+    void pollForToken({
+      device_code: deviceFlow.device_code,
+      user_code: deviceFlow.user_code,
+      verification_uri: deviceFlow.verification_uri,
+      expiresAt: deviceFlow.expiresAt,
+      interval: deviceFlow.interval,
+    });
+  }, [puterSignedIn, deviceFlow, clearTimer, pollForToken]);
 
   const signOut = useCallback(() => {
-    cancelSignIn();
+    cancel();
     clearLocalCredentials();
     void clearPuterCredentials();
     setUser(null);
     setToken(null);
-  }, [cancelSignIn]);
+  }, [cancel]);
 
   return {
     user,
@@ -212,8 +242,9 @@ export function useGitHubAuth(puterSignedIn: boolean): UseGitHubAuthReturn {
     loading,
     isConfigured: isOAuthConfigured(),
     deviceFlow,
-    signIn,
-    cancelSignIn,
+    generateDeviceCode,
+    startPolling,
+    cancel,
     signOut,
   };
 }

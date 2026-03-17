@@ -125,6 +125,11 @@ async function saveToPuterCloud(annotation: Annotation): Promise<void> {
     const puter = window.puter;
     if (!puter?.kv) return;
 
+    // Avoid triggering Puter sign-in prompts during normal app usage.
+    // Only write if the user is already signed in (Connect page is where sign-in happens).
+    const signedIn = await puter.auth?.isSignedIn?.().catch(() => false);
+    if (!signedIn) return;
+
     const raw      = await puter.kv.get('solarhub_annotations') ?? '[]';
     const existing = JSON.parse(raw) as Annotation[];
     await puter.kv.set('solarhub_annotations', JSON.stringify([...existing, annotation]));
