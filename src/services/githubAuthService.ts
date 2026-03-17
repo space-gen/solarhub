@@ -106,8 +106,12 @@ export async function fetchGitHubUser(token: string): Promise<GitHubUser> {
 
 export async function storeCredentials(token: string, user: GitHubUser): Promise<void> {
   // Local cache (offline-friendly)
-  localStorage.setItem(TOKEN_KEY, token);
-  localStorage.setItem(USER_KEY, JSON.stringify(user));
+  try {
+    localStorage.setItem(TOKEN_KEY, token);
+    localStorage.setItem(USER_KEY, JSON.stringify(user));
+  } catch {
+    // ignore (storage can be blocked in embedded/private contexts)
+  }
   try { window.dispatchEvent(new Event('solarhub:github-auth-changed')); } catch { /* ignore */ }
 
   // User-owned Puter KV (best-effort)
@@ -138,8 +142,12 @@ export async function loadCredentialsFromPuter(): Promise<{ token: string; user:
     const user = JSON.parse(rawUser) as GitHubUser;
 
     // Refresh local cache
-    localStorage.setItem(TOKEN_KEY, token);
-    localStorage.setItem(USER_KEY, JSON.stringify(user));
+    try {
+      localStorage.setItem(TOKEN_KEY, token);
+      localStorage.setItem(USER_KEY, JSON.stringify(user));
+    } catch {
+      // ignore
+    }
     try { window.dispatchEvent(new Event('solarhub:github-auth-changed')); } catch { /* ignore */ }
 
     return { token, user };
@@ -149,7 +157,11 @@ export async function loadCredentialsFromPuter(): Promise<{ token: string; user:
 }
 
 export function getStoredToken(): string | null {
-  return localStorage.getItem(TOKEN_KEY);
+  try {
+    return localStorage.getItem(TOKEN_KEY);
+  } catch {
+    return null;
+  }
 }
 
 export function getStoredUser(): GitHubUser | null {
@@ -162,8 +174,12 @@ export function getStoredUser(): GitHubUser | null {
 }
 
 export function clearLocalCredentials(): void {
-  localStorage.removeItem(TOKEN_KEY);
-  localStorage.removeItem(USER_KEY);
+  try {
+    localStorage.removeItem(TOKEN_KEY);
+    localStorage.removeItem(USER_KEY);
+  } catch {
+    // ignore
+  }
   try { window.dispatchEvent(new Event('solarhub:github-auth-changed')); } catch { /* ignore */ }
 }
 
