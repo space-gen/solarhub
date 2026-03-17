@@ -260,7 +260,7 @@ function SuccessOverlay({ issueUrl, onDone }: { issueUrl?: string; onDone: () =>
             See your contribution on GitHub →
           </a>
         )}
-        <p className="text-xs text-slate-500 mt-3">+10 points earned 🌟</p>
+        <p className="text-xs text-slate-500 mt-3">+1 point earned 🌟</p>
       </div>
       <button
         onClick={onDone}
@@ -308,10 +308,13 @@ export default function AnnotationPanel({ taskId, serialNumber, imageUrl, onSubm
 
     try {
       const result = await submitAnnotation(input);
-      setIssueUrl(result.issueUrl);
-      setShowSuccess(true);
-      onSubmit(input);
-      if (!result.success && result.error) setSubmitError(result.error);
+      if (result.success) {
+        setIssueUrl(result.issueUrl);
+        setShowSuccess(true);
+        onSubmit(input);
+      } else if (result.error) {
+        setSubmitError(result.error);
+      }
     } catch {
       setSubmitError('Something went wrong. Your observation has been saved locally.');
     } finally {
@@ -522,4 +525,3 @@ export default function AnnotationPanel({ taskId, serialNumber, imageUrl, onSubm
     </div>
   );
 }
-

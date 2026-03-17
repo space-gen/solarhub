@@ -33,12 +33,14 @@ export interface AuroraTask {
 
 /** Raw shape of a single record in aurora's data JSON files. */
 interface RawAuroraRecord {
+  id?: string;
+  serial_number?: number;
   url: string;
-  task_type: string;
-  user_comments: unknown[];
-  metadata: {
+  task_type?: string;
+  metadata?: {
     source?: string;
     date?: string;
+    captured_at?: string;
   };
 }
 
@@ -98,14 +100,16 @@ export async function fetchAuroraTasksByType(
 
     if (!Array.isArray(raw)) return null;
 
-    return raw.map((record, index): AuroraTask => ({
-      id:           idFromUrl(record.url),
-      url:          record.url,
-      taskType:     taskType,
-      date:         record.metadata?.date ?? '',
-      source:       record.metadata?.source ?? 'NASA SDO',
-      serialNumber: index + 1,
-    }));
+    return raw
+      .filter((record): record is RawAuroraRecord & { url: string } => Boolean(record?.url))
+      .map((record, index): AuroraTask => ({
+        id:           record.id?.trim() || idFromUrl(record.url),
+        url:          record.url,
+        taskType:     taskType,
+        date:         record.metadata?.captured_at ?? record.metadata?.date ?? '',
+        source:       record.metadata?.source ?? 'NASA SDO',
+        serialNumber: record.serial_number ?? index + 1,
+      }));
   } catch (err) {
     console.warn(`[AuroraService] Error fetching ${url}:`, err);
     return null;
