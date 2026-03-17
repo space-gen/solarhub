@@ -64,18 +64,6 @@ export default function Connect() {
     try { await navigator.clipboard?.writeText?.(code); } catch { /* ignore */ }
   }
 
-  function openGitHubDevicePage() {
-    const url =
-      deviceFlow.verification_uri_complete
-      ?? deviceFlow.verification_uri
-      ?? 'https://github.com/login/device';
-
-    const popup = window.open(url, '_blank', 'noopener,noreferrer');
-    if (!popup) {
-      window.location.href = url;
-    }
-  }
-
   return (
     <div className="min-h-screen pt-24 pb-16 px-4 cosmic-bg">
       <div className="max-w-3xl mx-auto flex flex-col gap-6 relative z-10">
@@ -222,15 +210,24 @@ export default function Connect() {
                             >
                               Copy
                             </button>
-                            <button
-                              onClick={openGitHubDevicePage}
+                            <a
+                              href={deviceFlow.verification_uri_complete ?? deviceFlow.verification_uri ?? 'https://github.com/login/device'}
+                              target="_blank"
+                              rel="noopener noreferrer"
                               className="px-3 py-2 rounded-xl border border-white/10 text-slate-300 hover:bg-white/5 transition-colors text-sm"
-                              type="button"
                             >
-                              Open GitHub
-                            </button>
+                              Open URL
+                            </a>
                           </div>
                         </div>
+                        <a
+                          href={deviceFlow.verification_uri_complete ?? deviceFlow.verification_uri ?? 'https://github.com/login/device'}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="mt-2 inline-block text-xs text-solar-300 underline underline-offset-2 break-all"
+                        >
+                          {deviceFlow.verification_uri_complete ?? deviceFlow.verification_uri ?? 'https://github.com/login/device'}
+                        </a>
 
                         <div className="mt-3 flex flex-col sm:flex-row sm:items-center gap-2">
                           <button
