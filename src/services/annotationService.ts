@@ -46,14 +46,20 @@ export type TaskType =
  * Valid values mirror aurora's VALID_LABELS dict in parse_issue_annotation.py.
  */
 export type UserLabel =
-  | 'active_region' | 'quiet_sun'   | 'sunspot_group'      | 'no_sunspot'       // sunspot
-  | 'a_class'       | 'b_class'     | 'c_class'             | 'm_class'
-  | 'x_class'       | 'no_flare'                                                  // solar_flare
-  | 'bipolar_active'| 'unipolar'    | 'complex'             | 'quiet'             // magnetogram
-  | 'polar'         | 'equatorial'  | 'mid_latitude'                              // coronal_hole
-  | 'eruptive'      | 'quiescent'   | 'active'                                    // prominence
-  | 'alpha'         | 'beta'        | 'beta_gamma'          | 'beta_gamma_delta'  // active_region
-  | 'halo'          | 'partial_halo'| 'narrow'              | 'none';             // coronal_hole / prominence / active_region / cme
+  // Sunspot McIntosh-like classes + descriptive aliases
+  | 'class_a' | 'class_b' | 'class_c' | 'class_d' | 'class_e' | 'class_f' | 'class_h' | 'quiet_sun' | 'single_spot' | 'spot_cluster' | 'none'
+  // Solar flare GOES classes
+  | 'x_class' | 'm_class' | 'c_class' | 'b_class' | 'a_class' | 'no_flare' | 'microflare' | 'flare_region'
+  // Magnetogram Mount Wilson classes + aliases
+  | 'alpha' | 'beta' | 'gamma' | 'beta-gamma' | 'delta' | 'beta-delta' | 'beta-gamma-delta' | 'gamma-delta' | 'quiet' | 'bipolar_region' | 'complex_magnetic'
+  // Coronal hole
+  | 'polar' | 'equatorial' | 'mid-latitude' | 'transequatorial' | 'calm_region' | 'isolated_hole'
+  // Prominence
+  | 'quiescent' | 'active' | 'eruptive' | 'intermediate' | 'no_prominence' | 'filament' | 'prominence_loop'
+  // Active region structural
+  | 'quiet_region' | 'active_group' | 'emerging_flux'
+  // CME
+  | 'full_halo' | 'partial_halo' | 'normal' | 'narrow' | 'quiet_corona' | 'jet' | 'streamer_blowout' | 'none';
 
 /** Fields the caller must supply to create an annotation. */
 export interface AnnotationInput {

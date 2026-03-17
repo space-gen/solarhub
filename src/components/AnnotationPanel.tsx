@@ -41,7 +41,7 @@ const SCIENTIFIC_HELP: Record<TaskType, { scientific: string; plain: string; unc
   sunspot: {
     scientific: 'Identify sunspot group classification (e.g. alpha, beta, beta-gamma, delta).',
     plain: 'Is there a group of dark sunspots? If yes, is it simple or complex?',
-    uncertainLabel: 'no_sunspot',
+    uncertainLabel: 'none',
   },
   magnetogram: {
     scientific: 'Characterise the magnetic polarity distribution (bipolar, unipolar, complex).',
@@ -63,10 +63,17 @@ const TASK_OPTIONS: TaskOption[] = [
     lookFor: 'Dark circular patches on the bright surface of the sun',
     color:   'text-orange-300', bg: 'bg-orange-500/15', border: 'border-orange-500/40',
     subLabels: [
-      { value: 'sunspot_group',  label: 'A cluster of dark spots',    hint: 'Several dark patches grouped closely together'    },
-      { value: 'active_region',  label: 'Bright area around spots',   hint: 'Glowing patches surrounding or between the spots' },
-      { value: 'quiet_sun',      label: 'Sun looks calm & normal',    hint: 'No unusual features — everything looks ordinary'  },
-      { value: 'no_sunspot',     label: "I don't see any spots",      hint: 'The surface looks smooth with no dark patches'    },
+      { value: 'class_a', label: 'Class A (tiny)', hint: 'Very small, simple spot or group' },
+      { value: 'class_b', label: 'Class B (small)', hint: 'Small but defined spot/group' },
+      { value: 'class_c', label: 'Class C (medium)', hint: 'Moderate-sized group' },
+      { value: 'class_d', label: 'Class D (large)', hint: 'Large sunspot group' },
+      { value: 'class_e', label: 'Class E (very large)', hint: 'Very large group with complex structure' },
+      { value: 'class_f', label: 'Class F (extensive)', hint: 'Extensive group across the disk' },
+      { value: 'class_h', label: 'Class H (giant)', hint: 'Exceptionally large group' },
+      { value: 'quiet_sun', label: 'Quiet Sun', hint: 'No spots visible' },
+      { value: 'single_spot', label: 'Single spot', hint: 'One isolated spot' },
+      { value: 'spot_cluster', label: 'Spot cluster', hint: 'A few spots close together' },
+      { value: 'none', label: "I don't know / none", hint: 'Not sure or not applicable' },
     ],
   },
   {
@@ -91,10 +98,18 @@ const TASK_OPTIONS: TaskOption[] = [
     lookFor: "A black & white image showing invisible magnetic forces — like a zebra pattern",
     color:   'text-violet-300', bg: 'bg-violet-500/15', border: 'border-violet-500/40',
     subLabels: [
-      { value: 'bipolar_active', label: 'Clear black & white pair', hint: 'Two distinct opposite-coloured areas side by side'       },
-      { value: 'unipolar',       label: 'Mostly one colour',        hint: 'Mainly one dark or white region'                          },
-      { value: 'complex',        label: 'Tangled / mixed pattern',  hint: 'Black and white areas mixed together in a complex way'    },
-      { value: 'quiet',          label: 'Calm and mostly grey',     hint: 'No strong features — image looks smooth and unremarkable' },
+      { value: 'alpha', label: 'Alpha (simple)', hint: 'Single, simple polarity region' },
+      { value: 'beta', label: 'Beta (two spots)', hint: 'Two distinct opposite-polarity areas' },
+      { value: 'gamma', label: 'Gamma (complex)', hint: 'Multiple mixed polarities tangled together' },
+      { value: 'beta-gamma', label: 'Beta-Gamma (mixed)', hint: 'Mixed polarities with complex boundary' },
+      { value: 'delta', label: 'Delta (high energy)', hint: 'Very complex with closely packed opposite spots' },
+      { value: 'beta-delta', label: 'Beta-Delta', hint: 'Combination of beta and delta characteristics' },
+      { value: 'beta-gamma-delta', label: 'Beta-Gamma-Delta', hint: 'Highly complex and energetic region' },
+      { value: 'gamma-delta', label: 'Gamma-Delta', hint: 'Mixed complex magnetic structure' },
+      { value: 'quiet', label: 'Quiet', hint: 'No strong magnetic features' },
+      { value: 'bipolar_region', label: 'Bipolar region', hint: 'A clear pair of opposite polarities' },
+      { value: 'complex_magnetic', label: 'Complex magnetic', hint: 'Unclear, mixed polarity patterns' },
+      { value: 'none', label: "I don't know / none", hint: 'Not sure or not applicable' },
     ],
   },
   {
@@ -106,7 +121,7 @@ const TASK_OPTIONS: TaskOption[] = [
     subLabels: [
       { value: 'polar',        label: 'Top or bottom (near a pole)', hint: "Dark area near the sun's north or south pole"       },
       { value: 'equatorial',   label: 'In the middle band',          hint: "Dark area near the sun's equator (the middle belt)" },
-      { value: 'mid_latitude', label: 'Somewhere in between',        hint: 'Dark area between the equator and a pole'           },
+      { value: 'mid-latitude', label: 'Somewhere in between',        hint: 'Dark area between the equator and a pole'           },
       { value: 'none',         label: "I don't see a dark region",   hint: 'No large dark area visible'                         },
     ],
   },
@@ -130,11 +145,12 @@ const TASK_OPTIONS: TaskOption[] = [
     lookFor: 'A bright, busy cluster of activity — often the source of flares and storms',
     color:   'text-yellow-300', bg: 'bg-yellow-500/15', border: 'border-yellow-500/40',
     subLabels: [
-      { value: 'alpha',            label: 'Simple — one spot',            hint: 'A single, simple magnetic area'                        },
-      { value: 'beta',             label: 'Two spots side by side',        hint: 'Two distinct magnetic areas close together'             },
-      { value: 'beta_gamma',       label: 'Complex group',                 hint: 'Several areas in a complex, tangled arrangement'        },
-      { value: 'beta_gamma_delta', label: 'Very chaotic / high energy ⚠️', hint: 'Highly mixed areas — this type has the highest flare risk' },
-      { value: 'none',             label: "I don't see an active region",  hint: 'No significant active cluster visible'                  },
+      { value: 'alpha', label: 'Alpha (simple)', hint: 'Single, simple magnetic area' },
+      { value: 'beta', label: 'Beta (paired)', hint: 'Two nearby magnetic areas' },
+      { value: 'gamma', label: 'Gamma (complex)', hint: 'Multiple mixed magnetic areas' },
+      { value: 'beta-gamma', label: 'Beta-Gamma', hint: 'Mixed beta and gamma complexity' },
+      { value: 'beta-gamma-delta', label: 'Beta-Gamma-Delta', hint: 'Highly complex and potentially energetic' },
+      { value: 'none', label: "I don't see an active region", hint: 'No significant active cluster visible' },
     ],
   },
   {
@@ -144,7 +160,7 @@ const TASK_OPTIONS: TaskOption[] = [
     lookFor: 'A large cloud of gas erupting outward from the sun (often looks like a halo)',
     color:   'text-red-300', bg: 'bg-red-500/15', border: 'border-red-500/40',
     subLabels: [
-      { value: 'halo',         label: 'Full ring all around the sun', hint: 'The eruption forms a complete ring / halo'         },
+      { value: 'full_halo',         label: 'Full ring all around the sun', hint: 'The eruption forms a complete ring / halo'         },
       { value: 'partial_halo', label: 'Partial ring / arc',           hint: 'An arc shape, not a full ring'                     },
       { value: 'narrow',       label: 'A thin stream or jet',         hint: 'A narrow stream of material in one direction'      },
       { value: 'none',         label: "I don't see anything erupting", hint: 'No visible cloud or eruption'                    },
@@ -191,7 +207,10 @@ function SubLabelCard({
           )}
         </div>
         <div className="min-w-0">
-          <p className="text-sm font-medium leading-tight">{sub.label}</p>
+          <p className="text-sm font-medium leading-tight flex items-center gap-2">
+            <span className="font-mono text-[10px] text-slate-400">{sub.value}</span>
+            <span>{sub.label}</span>
+          </p>
           <p className={`text-xs mt-0.5 leading-snug ${isSelected ? 'opacity-60' : 'text-slate-600'}`}>
             {sub.hint}
           </p>
@@ -267,6 +286,8 @@ export default function AnnotationPanel({ taskType, taskId, serialNumber, imageU
   const [showSuccess, setShowSuccess] = useState(false);
   const [issueUrl,    setIssueUrl]    = useState<string | undefined>();
   const [submitError, setSubmitError] = useState<string | null>(null);
+  // Dragging state for markers (pointer events)
+  const [draggingIndex, setDraggingIndex] = useState<number | null>(null);
 
   const imageRef = useRef<HTMLImageElement | null>(null);
   const [naturalSize, setNaturalSize] = useState<{ w: number; h: number } | null>(null);
@@ -334,6 +355,8 @@ export default function AnnotationPanel({ taskType, taskId, serialNumber, imageU
     setComments('');
     setSubmitError(null);
     setIssueUrl(undefined);
+    setPixelCoords([]);
+    setRegionRadius(10);
   }, []);
 
   const selectedOption = TASK_OPTIONS.find(o => o.value === taskType);
@@ -447,7 +470,20 @@ export default function AnnotationPanel({ taskType, taskId, serialNumber, imageU
           {(taskType === 'sunspot' || taskType === 'magnetogram') && (
             <div className="mt-3">
               <p className="text-xs text-slate-400 mb-1">Select spots on the image:</p>
-              <div style={{ position: 'relative', display: 'inline-block', maxWidth: 320 }}>
+              <div
+                style={{ position: 'relative', display: 'inline-block', maxWidth: 320 }}
+                onPointerMove={(e: React.PointerEvent) => {
+                  if (draggingIndex === null) return;
+                  const rect = imageRef.current?.getBoundingClientRect();
+                  if (!rect) return;
+                  const xPct = Math.min(Math.max((e.clientX - rect.left) / rect.width, 0), 1);
+                  const yPct = Math.min(Math.max((e.clientY - rect.top) / rect.height, 0), 1);
+                  const x1024 = Math.round(xPct * 1024);
+                  const y1024 = Math.round(yPct * 1024);
+                  setPixelCoords(prev => prev.map((p, i) => i === draggingIndex ? { x: x1024, y: y1024, xPct, yPct } : p));
+                }}
+                onPointerUp={() => setDraggingIndex(null)}
+              >
                 <img
                   ref={imageRef}
                   src={imageUrl}
@@ -459,14 +495,16 @@ export default function AnnotationPanel({ taskType, taskId, serialNumber, imageU
                 <svg
                   viewBox="0 0 100 100"
                   preserveAspectRatio="none"
-                  style={{ position: 'absolute', left: 0, top: 0, width: '100%', height: '100%', pointerEvents: 'none' }}
+                  style={{ position: 'absolute', left: 0, top: 0, width: '100%', height: '100%', pointerEvents: 'auto' }}
                 >
                   {pixelCoords.map((p, idx) => (
                     <g key={idx}>
                       <circle
+                        onPointerDown={e => { e.stopPropagation(); setDraggingIndex(idx); }}
                         cx={`${(p.xPct ?? 0) * 100}`}
                         cy={`${(p.yPct ?? 0) * 100}`}
                         r={2.8}
+                        style={{ cursor: 'grab' }}
                         fill="rgba(34,197,94,0.95)"
                         stroke="#fff"
                         strokeWidth={0.5}
@@ -486,9 +524,11 @@ export default function AnnotationPanel({ taskType, taskId, serialNumber, imageU
                       const radiusPct = ((regionRadius ?? 0) / 1024) * 100;
                       return (
                         <circle
+                          onPointerDown={e => { e.stopPropagation(); setDraggingIndex(0); }}
                           cx={`${(center.xPct ?? 0) * 100}`}
                           cy={`${(center.yPct ?? 0) * 100}`}
                           r={radiusPct}
+                          style={{ cursor: 'grab' }}
                           fill="rgba(99,102,241,0.08)"
                           stroke="rgba(99,102,241,0.8)"
                           strokeWidth={0.6}

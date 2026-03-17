@@ -22,21 +22,23 @@ export interface DailyProgress {
   lastActiveDate: string | null;
 }
 
-function toDateKey(date: Date): string {
-  const y = date.getFullYear();
-  const m = String(date.getMonth() + 1).padStart(2, '0');
-  const d = String(date.getDate()).padStart(2, '0');
+function toDateKeyUTC(date: Date): string {
+  const y = date.getUTCFullYear();
+  const m = String(date.getUTCMonth() + 1).padStart(2, '0');
+  const d = String(date.getUTCDate()).padStart(2, '0');
   return `${y}-${m}-${d}`;
 }
 
+// day cutoff is 00:30 UTC; use a shifted time so the "today" key flips at 00:30 UTC
 function todayKey(): string {
-  return toDateKey(new Date());
+  const shifted = new Date(Date.now() - 30 * 60 * 1000); // subtract 30 minutes
+  return toDateKeyUTC(shifted);
 }
 
 function yesterdayKey(): string {
-  const d = new Date();
-  d.setDate(d.getDate() - 1);
-  return toDateKey(d);
+  const shifted = new Date(Date.now() - 30 * 60 * 1000);
+  shifted.setUTCDate(shifted.getUTCDate() - 1);
+  return toDateKeyUTC(shifted);
 }
 
 function parseStringArray(raw: string | null): string[] {
@@ -135,6 +137,18 @@ export async function loadDailyProgress(): Promise<DailyProgress> {
   // Refresh local cache with merged data.
   safeLocalSet(dailyKey, JSON.stringify([...mergedIds]));
   safeLocalSet(STATS_KEY, JSON.stringify(mergedStats));
+
+  // Clean up yesterday's key so IDs do not persist past the 00:30 UTC cutoff.
+  try {
+    const yKey = localDailyKey(yesterdayKey());
+    if (yKey !== dailyKey) {
+      // clear local storage for yesterday and attempt to clear cloud copy as well
+      try { localStorage.removeItem(yKey); } catch {}
+      await puterSet(yKey, JSON.stringify([]));
+    }
+  } catch {
+    // non-fatal cleanup failure
+  }
 
   return {
     dateKey,
