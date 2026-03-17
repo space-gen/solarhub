@@ -277,18 +277,17 @@ export default function AnnotationPanel({ taskType, taskId, serialNumber, imageU
     setNaturalSize({ w: img.naturalWidth, h: img.naturalHeight });
   };
 
-  // Click to add a selection — store both natural-pixel coords and percent (for rendering)
+  // Click to add a selection — map to 1024x1024 canonical pixels and store percent for rendering
   const handleImageClick = (e: React.MouseEvent<HTMLImageElement>) => {
     const rect = e.currentTarget.getBoundingClientRect();
     const dispX = e.clientX - rect.left;
     const dispY = e.clientY - rect.top;
-    const natW = naturalSize?.w ?? (e.currentTarget.naturalWidth || rect.width);
-    const natH = naturalSize?.h ?? (e.currentTarget.naturalHeight || rect.height);
-    const xNat = Math.round(dispX * (natW / rect.width));
-    const yNat = Math.round(dispY * (natH / rect.height));
     const xPct = dispX / rect.width;
     const yPct = dispY / rect.height;
-    setPixelCoords(prev => [...prev, { x: xNat, y: yNat, xPct, yPct }]);
+    // Map to canonical 1024x1024 pixel grid regardless of source resolution
+    const x1024 = Math.round(xPct * 1024);
+    const y1024 = Math.round(yPct * 1024);
+    setPixelCoords(prev => [...prev, { x: x1024, y: y1024, xPct, yPct }]);
   };
 
   const handleRadiusChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -463,20 +462,28 @@ export default function AnnotationPanel({ taskType, taskId, serialNumber, imageU
                   style={{ position: 'absolute', left: 0, top: 0, width: '100%', height: '100%', pointerEvents: 'none' }}
                 >
                   {pixelCoords.map((p, idx) => (
-                    <circle
-                      key={idx}
-                      cx={`${(p.xPct ?? 0) * 100}`}
-                      cy={`${(p.yPct ?? 0) * 100}`}
-                      r={2.5}
-                      fill="rgba(34,197,94,0.95)"
-                      stroke="#fff"
-                      strokeWidth={0.5}
-                    />
+                    <g key={idx}>
+                      <circle
+                        cx={`${(p.xPct ?? 0) * 100}`}
+                        cy={`${(p.yPct ?? 0) * 100}`}
+                        r={2.8}
+                        fill="rgba(34,197,94,0.95)"
+                        stroke="#fff"
+                        strokeWidth={0.5}
+                      />
+                      <text
+                        x={`${(p.xPct ?? 0) * 100 + 3}`}
+                        y={`${(p.yPct ?? 0) * 100 + 3}`}
+                        fontSize={3}
+                        fill="#fff"
+                        style={{ textAnchor: 'start' }}
+                      >{idx + 1}</text>
+                    </g>
                   ))}
                   {taskType === 'magnetogram' && regionRadius && pixelCoords.length > 0 && (
                     (() => {
                       const center = pixelCoords[0];
-                      const radiusPct = ((regionRadius ?? 0) / (naturalSize?.w ?? 1)) * 100;
+                      const radiusPct = ((regionRadius ?? 0) / 1024) * 100;
                       return (
                         <circle
                           cx={`${(center.xPct ?? 0) * 100}`}
@@ -492,25 +499,33 @@ export default function AnnotationPanel({ taskType, taskId, serialNumber, imageU
                 </svg>
               </div>
               <div className="mt-2 text-xs text-slate-500">
-                Selected spots:
+                <div className="mb-1">Coordinates (preview):</div>
                 {pixelCoords.length > 0 ? (
-                  <ul className="mt-1">
-                    {pixelCoords.map((p, idx) => (
-                      <li key={idx} className="flex items-center gap-2">
-                        <span>({p.x},{p.y})</span>
-                        <button
-                          className="text-xs text-red-400 hover:text-red-600 underline"
-                          onClick={e => { e.stopPropagation(); setPixelCoords(pixelCoords.filter((_, i) => i !== idx)); }}
-                        >Remove</button>
-                      </li>
-                    ))}
-                  </ul>
-                ) : ' None'}
+                  <div>
+                    <div className="text-xs mb-2">Format: x,y[,radius] ; multiple entries separated by ` ; `</div>
+                    <ul className="mt-1">
+                      {pixelCoords.map((p, idx) => {
+                        const coordStr = `${p.x},${p.y}${taskType === 'magnetogram' && regionRadius ? `,${regionRadius}` : ''}`;
+                        return (
+                          <li key={idx} className="flex items-center gap-3">
+                            <code className="bg-white/6 px-2 py-1 rounded text-xs">{coordStr}</code>
+                            <button
+                              className="text-xs text-red-400 hover:text-red-600 underline"
+                              onClick={e => { e.stopPropagation(); setPixelCoords(pixelCoords.filter((_, i) => i !== idx)); }}
+                            >Remove</button>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  </div>
+                ) : (
+                  <div className="text-xs italic text-slate-600">No coordinates selected</div>
+                )}
               </div>
               {taskType === 'magnetogram' && (
                 <div className="mt-2">
-                  <label className="text-xs text-slate-400">Region radius:</label>
-                  <input type="range" min={1} max={100} value={regionRadius || 10} onChange={handleRadiusChange} className="ml-2" />
+                  <label className="text-xs text-slate-400">Region radius (px, image scale 1024)</label>
+                  <input type="range" min={1} max={1024} value={regionRadius || 10} onChange={handleRadiusChange} className="ml-2" />
                   <span className="ml-2 text-xs text-slate-500">{regionRadius || 10} px</span>
                 </div>
               )}

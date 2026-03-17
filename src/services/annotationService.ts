@@ -171,7 +171,7 @@ ${annotation.serial_number}
 ${annotation.user_label}
 
 ### Pixel Coordinates (optional)
-${annotation.pixel_coords && annotation.pixel_coords.length > 0 ? annotation.pixel_coords.map(p => `(${p.x}, ${p.y})`).join(', ') : '_No response_'}
+${annotation.pixel_coords && annotation.pixel_coords.length > 0 ? annotation.pixel_coords.map(p => (typeof annotation.region_radius === 'number' ? `${p.x},${p.y},${annotation.region_radius}` : `${p.x},${p.y}`)).join(' ; ') : '_No response_'}
 
 ### Region Radius (optional)
 ${typeof annotation.region_radius === 'number' ? annotation.region_radius : '_No response_'}
@@ -208,7 +208,7 @@ export async function submitAnnotation(
     session_id: generateSessionId(),
     timestamp:  new Date().toISOString(),
     scientific_command: (() => {
-      const coords = input.pixel_coords?.length ? input.pixel_coords.map(c => `(${c.x},${c.y})`).join(';') : '';
+      const coords = input.pixel_coords?.length ? input.pixel_coords.map(c => `${c.x},${c.y}`).join(';') : '';
       return `annotate --task ${input.task_type} --label ${input.user_label}${coords ? ` --coords "${coords}"` : ''}${typeof input.region_radius === 'number' ? ` --radius ${input.region_radius}` : ''}`;
     })(),
   };
