@@ -19,26 +19,60 @@ export function usePuterAuth(): UsePuterAuthReturn {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    const puter = window.puter;
-    if (!puter?.auth?.getUser) return;
+    let cancelled = false;
+    let timer: number | null = null;
+
+    const start = Date.now();
+    const maxWaitMs = 10_000;
 
     setLoading(true);
-    void puter.auth.getUser()
-      .then(u => setUser(u))
-      .catch(() => setUser(null))
-      .finally(() => setLoading(false));
+
+    const tryInit = () => {
+      if (cancelled) return;
+
+      const puter = window.puter;
+      if (!puter?.auth?.getUser) {
+        if (Date.now() - start > maxWaitMs) {
+          setLoading(false);
+          return;
+        }
+        timer = window.setTimeout(tryInit, 200);
+        return;
+      }
+
+      void puter.auth.getUser()
+        .then(u => { if (!cancelled) setUser(u); })
+        .catch(() => { if (!cancelled) setUser(null); })
+        .finally(() => { if (!cancelled) setLoading(false); });
+    };
+
+    tryInit();
+
+    return () => {
+      cancelled = true;
+      if (timer !== null) window.clearTimeout(timer);
+    };
   }, []);
 
   const signIn = useCallback(() => {
-    const puter = window.puter;
-    if (!puter?.auth?.signIn) {
-      console.error('[PuterAuth] Puter.js not available.');
-      return;
-    }
-
     setLoading(true);
-    void puter.auth.signIn()
-      .then(u => setUser(u))
+
+    void (async () => {
+      const start = Date.now();
+      const maxWaitMs = 10_000;
+
+      while (Date.now() - start < maxWaitMs) {
+        const puter = window.puter;
+        if (puter?.auth?.signIn) {
+          const u = await puter.auth.signIn();
+          setUser(u);
+          return;
+        }
+        await new Promise<void>(resolve => window.setTimeout(resolve, 200));
+      }
+
+      throw new Error('Puter.js not available.');
+    })()
       .catch(err => {
         console.error('[PuterAuth] signIn failed:', err);
       })
