@@ -184,6 +184,7 @@ function AnnotationView({
             <PointsDisplay points={points} />
             <div className="glass rounded-2xl p-5">
               <AnnotationPanel
+                taskType={taskType}
                 taskId={task.id}
                 serialNumber={task.serialNumber}
                 imageUrl={task.url}

@@ -137,6 +137,7 @@ const TASK_OPTIONS: TaskOption[] = [
 // ---------------------------------------------------------------------------
 
 interface AnnotationPanelProps {
+  taskType:     TaskType;
   taskId:       string;
   serialNumber: number;
   imageUrl:     string;
@@ -146,46 +147,6 @@ interface AnnotationPanelProps {
 // ---------------------------------------------------------------------------
 // Sub-components
 // ---------------------------------------------------------------------------
-
-/** One big card per task type — shows the friendly name and what to look for */
-function TaskTypeCard({
-  option, isSelected, onClick,
-}: { option: TaskOption; isSelected: boolean; onClick: () => void }) {
-  return (
-    <motion.button
-      initial="rest" whileHover="hover" whileTap="tap"
-      animate={isSelected ? 'selected' : 'rest'}
-      onClick={onClick}
-      className={[
-        'w-full flex items-start gap-3 p-3.5 rounded-xl text-left transition-colors',
-        'duration-200 outline-none border',
-        isSelected
-          ? `${option.bg} ${option.color} ${option.border}`
-          : 'bg-white/3 border-white/8 text-slate-400 hover:bg-white/5 hover:text-slate-200',
-      ].join(' ')}
-      aria-pressed={isSelected}
-    >
-      <span className="text-xl mt-0.5 flex-shrink-0">{option.icon}</span>
-      <div className="flex-1 min-w-0">
-        <p className="font-semibold text-sm leading-tight">{option.label}</p>
-        <p className={`text-xs mt-0.5 leading-snug ${isSelected ? 'opacity-70' : 'text-slate-600'}`}>
-          Look for: {option.lookFor}
-        </p>
-      </div>
-      {isSelected && (
-        <motion.div
-          className={`mt-0.5 w-5 h-5 rounded-full flex-shrink-0 flex items-center justify-center ${option.bg} border ${option.border}`}
-          initial={{ scale: 0 }} animate={{ scale: 1 }}
-          transition={{ type: 'spring', stiffness: 500, damping: 25 }}
-        >
-          <svg viewBox="0 0 12 12" className={`w-3 h-3 ${option.color}`} fill="none" stroke="currentColor" strokeWidth={2.5}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M2 6l3 3 5-5" />
-          </svg>
-        </motion.div>
-      )}
-    </motion.button>
-  );
-}
 
 /** Sub-label card — shows the label and a one-line hint */
 function SubLabelCard({
@@ -276,8 +237,7 @@ function SuccessOverlay({ issueUrl, onDone }: { issueUrl?: string; onDone: () =>
 // Main component
 // ---------------------------------------------------------------------------
 
-export default function AnnotationPanel({ taskId, serialNumber, imageUrl, onSubmit }: AnnotationPanelProps) {
-  const [taskType,    setTaskType]    = useState<TaskType   | null>(null);
+export default function AnnotationPanel({ taskType, taskId, serialNumber, imageUrl, onSubmit }: AnnotationPanelProps) {
   const [userLabel,   setUserLabel]   = useState<UserLabel  | null>(null);
   const [confidence,  setConfidence]  = useState(75);
   const [comments,    setComments]    = useState('');
@@ -286,13 +246,8 @@ export default function AnnotationPanel({ taskId, serialNumber, imageUrl, onSubm
   const [issueUrl,    setIssueUrl]    = useState<string | undefined>();
   const [submitError, setSubmitError] = useState<string | null>(null);
 
-  const handleTaskTypeSelect = useCallback((tt: TaskType) => {
-    setTaskType(tt);
-    setUserLabel(null);
-  }, []);
-
   const handleSubmit = useCallback(async () => {
-    if (!taskType || !userLabel) return;
+    if (!userLabel) return;
     setSubmitting(true);
     setSubmitError(null);
 
@@ -324,7 +279,6 @@ export default function AnnotationPanel({ taskId, serialNumber, imageUrl, onSubm
 
   const handleSuccessDone = useCallback(() => {
     setShowSuccess(false);
-    setTaskType(null);
     setUserLabel(null);
     setConfidence(75);
     setComments('');
@@ -333,8 +287,9 @@ export default function AnnotationPanel({ taskId, serialNumber, imageUrl, onSubm
   }, []);
 
   const selectedOption = TASK_OPTIONS.find(o => o.value === taskType);
-  const step           = !taskType ? 1 : !userLabel ? 2 : 3;
-  const canSubmit      = Boolean(taskType && userLabel && !submitting);
+  if (!selectedOption) return null;
+  const step           = !userLabel ? 1 : 2;
+  const canSubmit      = Boolean(userLabel && !submitting);
 
   return (
     <div className="relative">
@@ -360,7 +315,7 @@ export default function AnnotationPanel({ taskId, serialNumber, imageUrl, onSubm
 
         {/* ── Step indicator ────────────────────────────────────────────── */}
         <motion.div variants={itemVariants} className="flex items-center gap-2">
-          {[1, 2].map(n => (
+          {[1].map(n => (
             <div key={n} className={`flex items-center gap-1.5 ${n < step ? 'opacity-40' : ''}`}>
               <div className={[
                 'w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold border',
@@ -373,7 +328,7 @@ export default function AnnotationPanel({ taskId, serialNumber, imageUrl, onSubm
                 {step > n ? '✓' : n}
               </div>
               <span className={`text-xs ${step === n ? 'text-slate-300 font-medium' : 'text-slate-600'}`}>
-                {n === 1 ? 'What type?' : 'What do you see?'}
+                What do you see?
               </span>
             </div>
           ))}
@@ -385,56 +340,43 @@ export default function AnnotationPanel({ taskId, serialNumber, imageUrl, onSubm
           )}
         </motion.div>
 
-        {/* ── Question 1: Task type ──────────────────────────────────────── */}
+        {/* ── Task context ─────────────────────────────────────────────────── */}
         <motion.div variants={itemVariants} className="flex flex-col gap-2">
-          <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide">
-            Question 1 — What kind of solar image is this?
-          </p>
-          {TASK_OPTIONS.map(option => (
-            <TaskTypeCard
-              key={option.value}
-              option={option}
-              isSelected={taskType === option.value}
-              onClick={() => handleTaskTypeSelect(option.value)}
-            />
-          ))}
+          <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Task type for this image</p>
+          <div className={`rounded-xl border p-3.5 ${selectedOption.bg} ${selectedOption.border}`}>
+            <p className={`text-sm font-semibold ${selectedOption.color}`}>
+              {selectedOption.icon} {selectedOption.label}
+            </p>
+            <p className="text-xs text-slate-400 mt-1">Look for: {selectedOption.lookFor}</p>
+          </div>
         </motion.div>
 
-        {/* ── Question 2: Sub-label (shown after Q1) ────────────────────── */}
-        <AnimatePresence>
-          {selectedOption && (
-            <motion.div
-              variants={itemVariants}
-              initial={{ opacity: 0, y: 12 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -8 }}
-              transition={{ duration: 0.25 }}
-              className="flex flex-col gap-2"
-            >
-              <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide">
-                Question 2 — Which best describes what you see?
-              </p>
-              <p className="text-xs text-slate-500 -mt-1">
-                You chose <span className="text-slate-300 font-medium">{selectedOption.icon} {selectedOption.label}</span>.
-                Now pick the closest match:
-              </p>
-              <div className="flex flex-col gap-2 mt-1">
-                {selectedOption.subLabels.map(sub => (
-                  <SubLabelCard
-                    key={sub.value}
-                    sub={sub}
-                    isSelected={userLabel === sub.value}
-                    onSelect={setUserLabel}
-                    option={selectedOption}
-                  />
-                ))}
-              </div>
-              <p className="text-xs text-slate-600 italic mt-1">
-                💡 Not 100% sure? That's fine — pick the closest one!
-              </p>
-            </motion.div>
-          )}
-        </AnimatePresence>
+        {/* ── Task-specific label question ────────────────────────────────── */}
+        <motion.div
+          variants={itemVariants}
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.25 }}
+          className="flex flex-col gap-2"
+        >
+          <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide">
+            Question — Which best describes this {selectedOption.label.toLowerCase()} image?
+          </p>
+          <div className="flex flex-col gap-2 mt-1">
+            {selectedOption.subLabels.map(sub => (
+              <SubLabelCard
+                key={sub.value}
+                sub={sub}
+                isSelected={userLabel === sub.value}
+                onSelect={setUserLabel}
+                option={selectedOption}
+              />
+            ))}
+          </div>
+          <p className="text-xs text-slate-600 italic mt-1">
+            💡 Not 100% sure? That's fine — pick the closest one!
+          </p>
+        </motion.div>
 
         {/* ── Confidence slider ─────────────────────────────────────────── */}
         <motion.div variants={itemVariants} className="glass rounded-xl p-4 flex flex-col gap-2">
@@ -513,10 +455,8 @@ export default function AnnotationPanel({ taskId, serialNumber, imageUrl, onSubm
               </span>
             ) : canSubmit ? (
               'Submit My Observation →'
-            ) : !taskType ? (
-              '↑ Start by picking an image type above'
             ) : (
-              '↑ Now pick what you see in Question 2'
+              '↑ Pick the best matching label above'
             )}
           </motion.button>
         </motion.div>

@@ -67,6 +67,26 @@ function idFromUrl(url: string): string {
   }
 }
 
+/**
+ * Convert Aurora image URLs into browser-safe embeddable URLs.
+ *
+ * Aurora currently stores JSOC links as `http://...`, which are blocked as
+ * mixed content on our HTTPS GitHub Pages frontend.
+ *
+ * We keep the same source image bytes and only switch transport/host:
+ *   http://jsoc.stanford.edu/... -> https://jsoc1.stanford.edu/...
+ *   http://jsoc1.stanford.edu/... -> https://jsoc1.stanford.edu/...
+ */
+function toEmbeddableImageUrl(url: string): string {
+  if (url.startsWith('http://jsoc.stanford.edu/')) {
+    return url.replace('http://jsoc.stanford.edu/', 'https://jsoc1.stanford.edu/');
+  }
+  if (url.startsWith('http://jsoc1.stanford.edu/')) {
+    return url.replace('http://', 'https://');
+  }
+  return url;
+}
+
 // ---------------------------------------------------------------------------
 // Public API
 // ---------------------------------------------------------------------------
@@ -104,7 +124,7 @@ export async function fetchAuroraTasksByType(
       .filter((record): record is RawAuroraRecord & { url: string } => Boolean(record?.url))
       .map((record, index): AuroraTask => ({
         id:           record.id?.trim() || idFromUrl(record.url),
-        url:          record.url,
+        url:          toEmbeddableImageUrl(record.url),
         taskType:     taskType,
         date:         record.metadata?.captured_at ?? record.metadata?.date ?? '',
         source:       record.metadata?.source ?? 'NASA SDO',
