@@ -9,9 +9,7 @@
  */
 
 import { useMemo } from 'react';
-import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
-import { pageVariants, containerVariants, itemVariants } from '@/animations/pageTransitions';
 import { usePuterAuth } from '@/hooks/usePuterAuth';
 import { useGitHubAuth } from '@/hooks/useGitHubAuth';
 import { AUTH_CONFIG } from '@/config/endpoints';
@@ -79,27 +77,21 @@ export default function Connect() {
   }
 
   return (
-    <motion.div
-      variants={pageVariants}
-      initial="hidden"
-      animate="visible"
-      exit="exit"
-      className="min-h-screen pt-24 pb-16 px-4 cosmic-bg"
-    >
-      <div className="max-w-3xl mx-auto flex flex-col gap-6">
+    <div className="min-h-screen pt-24 pb-16 px-4 cosmic-bg">
+      <div className="max-w-3xl mx-auto flex flex-col gap-6 relative z-10">
 
-        <motion.div variants={itemVariants} className="text-center flex flex-col gap-2">
+        <div className="text-center flex flex-col gap-2">
           <h1 className="text-3xl font-black text-slate-100">Connect your accounts</h1>
           <p className="text-slate-400 text-sm leading-relaxed">
             Step 1 signs you into <span className="text-solar-300">Puter</span> so this app can store your GitHub token in <em>your own</em> cloud account.
             Step 2 connects <span className="text-solar-300">GitHub</span> using the official Device Flow.
           </p>
-        </motion.div>
+        </div>
 
-        <motion.div variants={containerVariants} initial="hidden" animate="visible" className="flex flex-col gap-4">
+        <div className="flex flex-col gap-4">
 
           {/* Step 1: Puter */}
-          <motion.div variants={itemVariants}>
+          <div>
             <Card>
               <div className="flex items-start justify-between gap-4">
                 <div className="flex flex-col gap-1">
@@ -142,10 +134,10 @@ export default function Connect() {
                 </div>
               </div>
             </Card>
-          </motion.div>
+          </div>
 
           {/* Step 2: GitHub */}
-          <motion.div variants={itemVariants}>
+          <div>
             <Card>
               <div className="flex items-start justify-between gap-4">
                 <div className="flex flex-col gap-1">
@@ -258,11 +250,11 @@ export default function Connect() {
                 )}
               </div>
             </Card>
-          </motion.div>
+          </div>
 
-        </motion.div>
+        </div>
 
-        <motion.div variants={itemVariants} className="flex items-center justify-center gap-3 pt-2">
+        <div className="flex items-center justify-center gap-3 pt-2">
           <button
             onClick={() => navigate('/classify')}
             className="px-5 py-2.5 rounded-xl border border-white/10 text-slate-300 hover:bg-white/5 transition-colors"
@@ -275,9 +267,9 @@ export default function Connect() {
           >
             Back Home
           </button>
-        </motion.div>
+        </div>
 
       </div>
-    </motion.div>
+    </div>
   );
 }
