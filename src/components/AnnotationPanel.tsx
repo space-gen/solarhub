@@ -19,6 +19,7 @@ import { motion, AnimatePresence }   from 'framer-motion';
 import { submitAnnotation }          from '@/services/annotationService';
 import type { TaskType, UserLabel, AnnotationInput } from '@/services/annotationService';
 import { containerVariants, itemVariants } from '@/animations/pageTransitions';
+import GuidePanel from '@/components/GuidePanel';
 
 // ---------------------------------------------------------------------------
 // Citizen-friendly task option definitions
@@ -496,85 +497,8 @@ export default function AnnotationPanel({ taskType, taskId, serialNumber, imageU
       <motion.div variants={containerVariants} initial="hidden" animate="visible"
         className="flex flex-col gap-5">
 
-        {/* ── Intro banner ──────────────────────────────────────────────── */}
-        <motion.div variants={itemVariants}
-          className="flex items-start gap-3 p-3.5 rounded-xl bg-solar-500/8 border border-solar-500/20">
-          <span className="text-xl flex-shrink-0 mt-0.5">👈</span>
-          <div>
-            <p className="text-sm font-semibold text-solar-200">Look at the image and answer 2 questions</p>
-            <p className="text-xs text-slate-400 mt-0.5 leading-relaxed">
-              No expertise needed — just describe what you see. Every observation helps scientists
-              predict solar storms and protect satellites.
-            </p>
-          </div>
-        </motion.div>
-
-        {/* ── Step indicator ────────────────────────────────────────────── */}
-        <motion.div variants={itemVariants} className="flex items-center gap-2">
-          {[1].map(n => (
-            <div key={n} className={`flex items-center gap-1.5 ${n < step ? 'opacity-40' : ''}`}>
-              <div className={[
-                'w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold border',
-                step === n
-                  ? 'bg-solar-500/30 text-solar-300 border-solar-500/50'
-                  : step > n
-                    ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40'
-                    : 'bg-white/5 text-slate-600 border-white/10',
-              ].join(' ')}>
-                {step > n ? '✓' : n}
-              </div>
-              <span className={`text-xs ${step === n ? 'text-slate-300 font-medium' : 'text-slate-600'}`}>
-                What do you see?
-              </span>
-            </div>
-          ))}
-          {step > 1 && (
-            <div className="ml-auto w-5 h-5 rounded-full bg-white/5 border border-white/10
-                            flex items-center justify-center">
-              <div className="w-1.5 h-1.5 rounded-full bg-slate-600" />
-            </div>
-          )}
-        </motion.div>
-
-        {/* ── Task context ─────────────────────────────────────────────────── */}
-        <motion.div variants={itemVariants} className="flex flex-col gap-2">
-          <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Task type for this image</p>
-          <div className={`rounded-xl border p-3.5 ${selectedOption.bg} ${selectedOption.border}`}>
-            <p className={`text-sm font-semibold ${selectedOption.color}`}>
-              {selectedOption.icon} {selectedOption.label}
-            </p>
-            <p className="text-xs text-slate-400 mt-1">Look for: {selectedOption.lookFor}</p>
-          </div>
-          {/* Scientific phrasing + plain-English helper */}
-          {SCIENTIFIC_HELP[taskType] && (
-            <div className="mt-2 text-xs text-slate-400">
-              <p><strong>Scientific phrasing:</strong> {SCIENTIFIC_HELP[taskType].scientific}</p>
-              <p className="mt-1"><strong>Plain English:</strong> {SCIENTIFIC_HELP[taskType].plain}</p>
-              <p className="mt-1 text-xs text-slate-500"><strong>Scientific command:</strong> <code>annotate_{taskType}</code></p>
-              <div className="mt-2">
-                <button
-                  type="button"
-                  onClick={() => setUserLabel(SCIENTIFIC_HELP[taskType].uncertainLabel)}
-                  className="text-xs text-amber-300 underline hover:text-amber-400"
-                >
-                  Can't classify this image — mark as 'no / quiet' for scientists
-                </button>
-              </div>
-
-              {/* More detailed help and examples */}
-              <details className="mt-3 bg-white/3 p-3 rounded-lg">
-                <summary className="cursor-pointer text-slate-200 text-sm font-semibold">More info & examples</summary>
-                <div className="mt-2 text-xs text-slate-400">
-                  <p className="mb-2"><strong>How to mark spots</strong>: Click the image to add numbered markers. Drag a marker to reposition it. For groups, place markers on the main visible centers.</p>
-                  <p className="mb-2"><strong>Sunspots</strong>: Mark dark circular spots on the disk. Try to place markers on spot centres; for groups place 1–3 markers on the most prominent spots.</p>
-                  <p className="mb-2"><strong>Magnetograms</strong>: Place a marker on the centre of the region. Use the "Region radius" slider to cover the area. If the region is offset from your first click, place the center marker last and use the "Set center" control below.</p>
-                  <p className="mb-2"><strong>Flares</strong>: Click the brightest point of the flash.</p>
-                  <p className="mb-2"><strong>Coronal holes & prominences</strong>: Use 1–2 markers to describe extent or place center and increase region radius.</p>
-                  <p className="mb-2">If unsure, pick the "I don't know / none" option — scientists will review ambiguous cases.</p>
-                </div>
-              </details>
-            </div>
-          )}
+        <motion.div variants={itemVariants}>
+          <GuidePanel selectedOption={selectedOption} help={SCIENTIFIC_HELP[taskType]} />
         </motion.div>
 
         {/* ── Task-specific label question ────────────────────────────────── */}
