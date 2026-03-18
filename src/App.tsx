@@ -14,7 +14,8 @@
  * Auth UX is intentionally handled on /connect (not in the header).
  */
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { loadDailyProgress } from '@/services/dailyProgressService';
 import { HashRouter, Routes, Route, useLocation } from 'react-router-dom';
 import { AnimatePresence } from 'framer-motion';
 import NavigationBar from '@/components/NavigationBar';
@@ -81,6 +82,17 @@ export default function App() {
     setPoints(newPoints);
     savePoints(newPoints);
   }
+
+  // Sync points from dailyProgressService on app startup so header shows accurate value
+  useEffect(() => {
+    void loadDailyProgress().then(progress => {
+      if (typeof progress.points === 'number' && progress.points !== points) {
+        handlePointsChange(progress.points);
+      }
+    }).catch(() => {
+      // ignore — keep current points
+    });
+  }, []);
 
   return (
     <HashRouter>

@@ -473,6 +473,19 @@ export default function AnnotationPanel({ taskType, taskId, serialNumber, imageU
                   Can't classify this image — mark as 'no / quiet' for scientists
                 </button>
               </div>
+
+              {/* More detailed help and examples */}
+              <details className="mt-3 bg-white/3 p-3 rounded-lg">
+                <summary className="cursor-pointer text-slate-200 text-sm font-semibold">More info & examples</summary>
+                <div className="mt-2 text-xs text-slate-400">
+                  <p className="mb-2"><strong>How to mark spots</strong>: Click the image to add numbered markers. Drag a marker to reposition it. For groups, place markers on the main visible centers.</p>
+                  <p className="mb-2"><strong>Sunspots</strong>: Mark dark circular spots on the disk. Try to place markers on spot centres; for groups place 1–3 markers on the most prominent spots.</p>
+                  <p className="mb-2"><strong>Magnetograms</strong>: Place a marker on the centre of the region. Use the "Region radius" slider to cover the area. If the region is offset from your first click, place the center marker last and use the "Set center" control below.</p>
+                  <p className="mb-2"><strong>Flares</strong>: Click the brightest point of the flash.</p>
+                  <p className="mb-2"><strong>Coronal holes & prominences</strong>: Use 1–2 markers to describe extent or place center and increase region radius.</p>
+                  <p className="mb-2">If unsure, pick the "I don't know / none" option — scientists will review ambiguous cases.</p>
+                </div>
+              </details>
             </div>
           )}
         </motion.div>
@@ -536,6 +549,18 @@ export default function AnnotationPanel({ taskType, taskId, serialNumber, imageU
                     <svg
                       viewBox="0 0 100 100"
                       preserveAspectRatio="none"
+                      onPointerDown={(e: React.PointerEvent<SVGSVGElement>) => {
+                        // Add a marker when user clicks empty SVG background (not on an existing circle)
+                        const target = e.target as Element;
+                        if (target && target.tagName.toLowerCase() !== 'svg') return;
+                        const rect = imageRef.current?.getBoundingClientRect();
+                        if (!rect) return;
+                        const xPct = Math.min(Math.max((e.clientX - rect.left) / rect.width, 0), 1);
+                        const yPct = Math.min(Math.max((e.clientY - rect.top) / rect.height, 0), 1);
+                        const x1024 = Math.round(xPct * 1024);
+                        const y1024 = Math.round(yPct * 1024);
+                        setPixelCoords(prev => [...prev, { x: x1024, y: y1024, xPct, yPct }]);
+                      }}
                       style={{ position: 'absolute', left: 0, top: 0, width: '100%', height: '100%', pointerEvents: 'auto' }}
                     >
                       {pixelCoords.map((p, idx) => (
@@ -585,6 +610,17 @@ export default function AnnotationPanel({ taskType, taskId, serialNumber, imageU
                     <svg
                       viewBox="0 0 100 100"
                       preserveAspectRatio="none"
+                      onPointerDown={(e: React.PointerEvent<SVGSVGElement>) => {
+                        const target = e.target as Element;
+                        if (target && target.tagName.toLowerCase() !== 'svg') return;
+                        const rect = imageRef.current?.getBoundingClientRect();
+                        if (!rect) return;
+                        const xPct = Math.min(Math.max((e.clientX - rect.left) / rect.width, 0), 1);
+                        const yPct = Math.min(Math.max((e.clientY - rect.top) / rect.height, 0), 1);
+                        const x1024 = Math.round(xPct * 1024);
+                        const y1024 = Math.round(yPct * 1024);
+                        setPixelCoords(prev => [...prev, { x: x1024, y: y1024, xPct, yPct }]);
+                      }}
                       style={{ position: 'absolute', left: 0, top: 0, width: '100%', height: '100%', pointerEvents: 'auto' }}
                     >
                       {pixelCoords.map((p, idx) => (
@@ -660,6 +696,23 @@ export default function AnnotationPanel({ taskType, taskId, serialNumber, imageU
                   <label className="text-xs text-slate-400">Region radius (px, image scale 1024)</label>
                   <input type="range" min={1} max={1024} value={regionRadius || 10} onChange={handleRadiusChange} className="ml-2" />
                   <span className="ml-2 text-xs text-slate-500">{regionRadius || 10} px</span>
+
+                  <div className="mt-2">
+                    <button
+                      className="text-xs text-solar-300 underline"
+                      onClick={() => {
+                        // Make the last placed marker the center (move to index 0)
+                        setPixelCoords(prev => {
+                          if (prev.length <= 1) return prev;
+                          const next = [...prev];
+                          const last = next.pop()!;
+                          next.unshift(last);
+                          return next;
+                        });
+                      }}
+                    >Set center to last placed marker</button>
+                    <p className="text-xs text-slate-500 mt-1">Tip: place the center marker last, then click this to use it as the region centre.</p>
+                  </div>
                 </div>
               )}
             </div>
