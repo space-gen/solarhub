@@ -19,6 +19,8 @@ import type { TaskType } from '@/services/annotationService';
 export interface AuroraTask {
   /** Filename portion of the URL, used as a stable ID (e.g. "20260313_000000_Ic_1k") */
   id: string;
+  /** Original filename (with extension) as found in the raw aurora JSON/url */
+  filename: string;
   /** Full image URL as stored in aurora (may be http or https) */
   url: string;
   /** The aurora task type this image belongs to */
@@ -122,14 +124,26 @@ export async function fetchAuroraTasksByType(
 
     return raw
       .filter((record): record is RawAuroraRecord & { url: string } => Boolean(record?.url))
-      .map((record, index): AuroraTask => ({
-        id:           record.id?.trim() || idFromUrl(record.url),
-        url:          toEmbeddableImageUrl(record.url),
-        taskType:     taskType,
-        date:         record.metadata?.captured_at ?? record.metadata?.date ?? '',
-        source:       record.metadata?.source ?? 'NASA SDO',
-        serialNumber: record.serial_number ?? index + 1,
-      }));
+      .map((record, index): AuroraTask => {
+        const url = record.url;
+        let filename = '';
+        try {
+          const pathname = new URL(url).pathname;
+          filename = pathname.split('/').pop() ?? '';
+        } catch {
+          filename = url.split('/').pop() ?? url;
+        }
+
+        return {
+          id:           record.id?.trim() || idFromUrl(url),
+          filename:     filename,
+          url:          toEmbeddableImageUrl(url),
+          taskType:     taskType,
+          date:         record.metadata?.captured_at ?? record.metadata?.date ?? '',
+          source:       record.metadata?.source ?? 'NASA SDO',
+          serialNumber: record.serial_number ?? index + 1,
+        } as AuroraTask;
+      });
   } catch (err) {
     console.warn(`[AuroraService] Error fetching ${url}:`, err);
     return null;

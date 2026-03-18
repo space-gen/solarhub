@@ -14,6 +14,7 @@
  */
 
 import { useState, useCallback, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence }   from 'framer-motion';
 import { submitAnnotation }          from '@/services/annotationService';
 import type { TaskType, UserLabel, AnnotationInput } from '@/services/annotationService';
@@ -177,6 +178,7 @@ interface AnnotationPanelProps {
   taskId:       string;
   serialNumber: number;
   imageUrl:     string;
+  externalImageId?: string; // if provided, use an external image element for overlays (prevents duplicate image)
   onSubmit:     (input: AnnotationInput) => void;
 }
 
@@ -276,7 +278,7 @@ function SuccessOverlay({ issueUrl, onDone }: { issueUrl?: string; onDone: () =>
 // Main component
 // ---------------------------------------------------------------------------
 
-export default function AnnotationPanel({ taskType, taskId, serialNumber, imageUrl, onSubmit }: AnnotationPanelProps) {
+export default function AnnotationPanel({ taskType, taskId, serialNumber, imageUrl, externalImageId, onSubmit }: AnnotationPanelProps) {
   const [userLabel,   setUserLabel]   = useState<UserLabel  | null>(null);
   const [confidence,  setConfidence]  = useState(75);
   const [comments,    setComments]    = useState('');
@@ -288,6 +290,8 @@ export default function AnnotationPanel({ taskType, taskId, serialNumber, imageU
   const [submitError, setSubmitError] = useState<string | null>(null);
   // Dragging state for markers (pointer events)
   const [draggingIndex, setDraggingIndex] = useState<number | null>(null);
+  // Portal container when rendering overlays onto an external image element
+  const [portalContainer, setPortalContainer] = useState<HTMLElement | null>(null);
 
   const imageRef = useRef<HTMLImageElement | null>(null);
   const [naturalSize, setNaturalSize] = useState<{ w: number; h: number } | null>(null);
@@ -297,6 +301,23 @@ export default function AnnotationPanel({ taskType, taskId, serialNumber, imageU
     const img = e.currentTarget as HTMLImageElement;
     setNaturalSize({ w: img.naturalWidth, h: img.naturalHeight });
   };
+
+  // If an external image ID is provided, find its parent container and use it
+  // as the overlay portal. Also attach the external image element to imageRef
+  // so coordinate math remains identical to the internal image case.
+  useEffect(() => {
+    if (!externalImageId) return;
+    const imgEl = document.getElementById(externalImageId) as HTMLImageElement | null;
+    if (!imgEl) return;
+    imageRef.current = imgEl;
+    setPortalContainer(imgEl.parentElement);
+    if (imgEl.naturalWidth && imgEl.naturalHeight) {
+      setNaturalSize({ w: imgEl.naturalWidth, h: imgEl.naturalHeight });
+    }
+    const onLoad = () => setNaturalSize({ w: imgEl.naturalWidth, h: imgEl.naturalHeight });
+    imgEl.addEventListener('load', onLoad);
+    return () => imgEl.removeEventListener('load', onLoad);
+  }, [externalImageId]);
 
   // Click to add a selection — map to 1024x1024 canonical pixels and store percent for rendering
   const handleImageClick = (e: React.MouseEvent<HTMLImageElement>) => {
@@ -484,59 +505,116 @@ export default function AnnotationPanel({ taskType, taskId, serialNumber, imageU
                 }}
                 onPointerUp={() => setDraggingIndex(null)}
               >
-                <img
-                  ref={imageRef}
-                  src={imageUrl}
-                  alt="Solar observation"
-                  style={{ width: '100%', borderRadius: 8, border: '1px solid #333', cursor: 'crosshair', display: 'block' }}
-                  onClick={handleImageClick}
-                  onLoad={handleImageLoad}
-                />
-                <svg
-                  viewBox="0 0 100 100"
-                  preserveAspectRatio="none"
-                  style={{ position: 'absolute', left: 0, top: 0, width: '100%', height: '100%', pointerEvents: 'auto' }}
-                >
-                  {pixelCoords.map((p, idx) => (
-                    <g key={idx}>
-                      <circle
-                        onPointerDown={e => { e.stopPropagation(); setDraggingIndex(idx); }}
-                        cx={`${(p.xPct ?? 0) * 100}`}
-                        cy={`${(p.yPct ?? 0) * 100}`}
-                        r={2.8}
-                        style={{ cursor: 'grab' }}
-                        fill="rgba(34,197,94,0.95)"
-                        stroke="#fff"
-                        strokeWidth={0.5}
-                      />
-                      <text
-                        x={`${(p.xPct ?? 0) * 100 + 3}`}
-                        y={`${(p.yPct ?? 0) * 100 + 3}`}
-                        fontSize={3}
-                        fill="#fff"
-                        style={{ textAnchor: 'start' }}
-                      >{idx + 1}</text>
-                    </g>
-                  ))}
-                  {taskType === 'magnetogram' && regionRadius && pixelCoords.length > 0 && (
-                    (() => {
-                      const center = pixelCoords[0];
-                      const radiusPct = ((regionRadius ?? 0) / 1024) * 100;
-                      return (
-                        <circle
-                          onPointerDown={e => { e.stopPropagation(); setDraggingIndex(0); }}
-                          cx={`${(center.xPct ?? 0) * 100}`}
-                          cy={`${(center.yPct ?? 0) * 100}`}
-                          r={radiusPct}
-                          style={{ cursor: 'grab' }}
-                          fill="rgba(99,102,241,0.08)"
-                          stroke="rgba(99,102,241,0.8)"
-                          strokeWidth={0.6}
-                        />
-                      );
-                    })()
-                  )}
-                </svg>
+                {/* If an external image is provided, we render the image elsewhere and mount
+                    the interactive SVG overlay onto its parent via a portal. This avoids
+                    showing the image twice while keeping all coordinate math identical. */}
+                {!externalImageId ? (
+                  <>
+                    <img
+                      ref={imageRef}
+                      src={imageUrl}
+                      alt="Solar observation"
+                      style={{ width: '100%', borderRadius: 8, border: '1px solid #333', cursor: 'crosshair', display: 'block' }}
+                      onClick={handleImageClick}
+                      onLoad={handleImageLoad}
+                    />
+                    <svg
+                      viewBox="0 0 100 100"
+                      preserveAspectRatio="none"
+                      style={{ position: 'absolute', left: 0, top: 0, width: '100%', height: '100%', pointerEvents: 'auto' }}
+                    >
+                      {pixelCoords.map((p, idx) => (
+                        <g key={idx}>
+                          <circle
+                            onPointerDown={e => { e.stopPropagation(); setDraggingIndex(idx); }}
+                            cx={`${(p.xPct ?? 0) * 100}`}
+                            cy={`${(p.yPct ?? 0) * 100}`}
+                            r={2.8}
+                            style={{ cursor: 'grab' }}
+                            fill="rgba(34,197,94,0.95)"
+                            stroke="#fff"
+                            strokeWidth={0.5}
+                          />
+                          <text
+                            x={`${(p.xPct ?? 0) * 100 + 3}`}
+                            y={`${(p.yPct ?? 0) * 100 + 3}`}
+                            fontSize={3}
+                            fill="#fff"
+                            style={{ textAnchor: 'start' }}
+                          >{idx + 1}</text>
+                        </g>
+                      ))}
+                      {taskType === 'magnetogram' && regionRadius && pixelCoords.length > 0 && (
+                        (() => {
+                          const center = pixelCoords[0];
+                          const radiusPct = ((regionRadius ?? 0) / 1024) * 100;
+                          return (
+                            <circle
+                              onPointerDown={e => { e.stopPropagation(); setDraggingIndex(0); }}
+                              cx={`${(center.xPct ?? 0) * 100}`}
+                              cy={`${(center.yPct ?? 0) * 100}`}
+                              r={radiusPct}
+                              style={{ cursor: 'grab' }}
+                              fill="rgba(99,102,241,0.08)"
+                              stroke="rgba(99,102,241,0.8)"
+                              strokeWidth={0.6}
+                            />
+                          );
+                        })()
+                      )}
+                    </svg>
+                  </>
+                ) : (
+                  // external image mode: mount svg overlay into the external image's parent
+                  portalContainer && createPortal(
+                    <svg
+                      viewBox="0 0 100 100"
+                      preserveAspectRatio="none"
+                      style={{ position: 'absolute', left: 0, top: 0, width: '100%', height: '100%', pointerEvents: 'auto' }}
+                    >
+                      {pixelCoords.map((p, idx) => (
+                        <g key={idx}>
+                          <circle
+                            onPointerDown={e => { e.stopPropagation(); setDraggingIndex(idx); }}
+                            cx={`${(p.xPct ?? 0) * 100}`}
+                            cy={`${(p.yPct ?? 0) * 100}`}
+                            r={2.8}
+                            style={{ cursor: 'grab' }}
+                            fill="rgba(34,197,94,0.95)"
+                            stroke="#fff"
+                            strokeWidth={0.5}
+                          />
+                          <text
+                            x={`${(p.xPct ?? 0) * 100 + 3}`}
+                            y={`${(p.yPct ?? 0) * 100 + 3}`}
+                            fontSize={3}
+                            fill="#fff"
+                            style={{ textAnchor: 'start' }}
+                          >{idx + 1}</text>
+                        </g>
+                      ))}
+                      {taskType === 'magnetogram' && regionRadius && pixelCoords.length > 0 && (
+                        (() => {
+                          const center = pixelCoords[0];
+                          const radiusPct = ((regionRadius ?? 0) / 1024) * 100;
+                          return (
+                            <circle
+                              onPointerDown={e => { e.stopPropagation(); setDraggingIndex(0); }}
+                              cx={`${(center.xPct ?? 0) * 100}`}
+                              cy={`${(center.yPct ?? 0) * 100}`}
+                              r={radiusPct}
+                              style={{ cursor: 'grab' }}
+                              fill="rgba(99,102,241,0.08)"
+                              stroke="rgba(99,102,241,0.8)"
+                              strokeWidth={0.6}
+                            />
+                          );
+                        })()
+                      )}
+                    </svg>,
+                    portalContainer,
+                  )
+                )}
               </div>
               <div className="mt-2 text-xs text-slate-500">
                 <div className="mb-1">Coordinates (preview):</div>

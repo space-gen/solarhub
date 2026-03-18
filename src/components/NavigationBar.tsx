@@ -27,7 +27,6 @@ interface NavItem {
 const NAV_ITEMS: NavItem[] = [
   { label: 'Home',     to: '/'         },
   { label: 'Classify', to: '/classify' },
-  { label: 'Connect',  to: '/connect'  },
 ];
 
 function SunLogo() {
@@ -234,7 +233,7 @@ export default function NavigationBar({ points }: NavBarProps) {
 
             <div className="flex items-center gap-3">
               <GitHubStatusPill user={ghUser} />
-              <PointsDisplay points={points} compact />
+              {ghUser && <PointsDisplay points={points} compact />}
               <HamburgerButton isOpen={menuOpen} onClick={() => setMenuOpen(v => !v)} />
             </div>
           </div>

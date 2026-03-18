@@ -166,6 +166,7 @@ function AnnotationView({
                 </div>
               ) : (
                 <img
+                  id={`aurora-img-${task.id}`}
                   src={task.url}
                   alt={`Solar observation – ${meta.friendlyName} – ${task.date}`}
                   className={`w-full h-full object-contain transition-opacity duration-500 ${imgLoaded ? 'opacity-100' : 'opacity-0'}`}
@@ -175,8 +176,14 @@ function AnnotationView({
               )}
             </div>
             <div className="px-4 py-3 flex items-center justify-between text-xs text-slate-500 border-t border-white/5">
-              <span>{task.source}</span>
-              {task.date && <span>{task.date}</span>}
+              <div className="flex items-center gap-3">
+                <span>{task.source}</span>
+                {task.date && <span>{task.date}</span>}
+              </div>
+              <div className="flex items-center gap-3">
+                <span className="text-xs text-slate-400">Raw filename:</span>
+                <code className="text-xs bg-white/6 px-2 py-0.5 rounded">{(task as any).filename || task.id}</code>
+              </div>
             </div>
           </motion.div>
 
@@ -188,6 +195,7 @@ function AnnotationView({
                 taskId={task.id}
                 serialNumber={task.serialNumber}
                 imageUrl={task.url}
+                externalImageId={`aurora-img-${task.id}`}
                 onSubmit={onSubmit}
               />
             </div>
