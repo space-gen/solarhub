@@ -485,7 +485,6 @@ export default function AnnotationPanel({ taskType, taskId, serialNumber, imageU
 
   const selectedOption = TASK_OPTIONS.find(o => o.value === taskType);
   if (!selectedOption) return null;
-  const step           = !userLabel ? 1 : 2;
   const canSubmit      = Boolean(userLabel && !submitting);
 
   return (
