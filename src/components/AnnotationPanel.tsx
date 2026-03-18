@@ -280,6 +280,9 @@ export default function AnnotationPanel({ taskType, taskId, serialNumber, imageU
   const [confidence,  setConfidence]  = useState(75);
   const [comments,    setComments]    = useState('');
   const [pixelCoords, setPixelCoords] = useState<Array<{ x: number; y: number; xPct?: number; yPct?: number }>>([]);
+  // per-spot labels (parallel array to pixelCoords) — null means unlabeled
+  const [pixelLabels, setPixelLabels] = useState<Array<UserLabel | null>>([]);
+  const [activeSpotIndex, setActiveSpotIndex] = useState<number | null>(null);
   const [regionRadius, setRegionRadius] = useState<number | undefined>(10);
   const [submitting,  setSubmitting]  = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
@@ -287,6 +290,13 @@ export default function AnnotationPanel({ taskType, taskId, serialNumber, imageU
   const [submitError, setSubmitError] = useState<string | null>(null);
   // Dragging state for markers (pointer events)
   const [draggingIndex, setDraggingIndex] = useState<number | null>(null);
+  // When the user starts dragging a marker, make it the active spot so the
+  // classification controls show for that marker.
+  useEffect(() => {
+    if (draggingIndex === null) return;
+    setActiveSpotIndex(draggingIndex);
+  }, [draggingIndex]);
+
   // Portal container when rendering overlays onto an external image element
   const [portalContainer, setPortalContainer] = useState<HTMLElement | null>(null);
 
@@ -332,7 +342,13 @@ export default function AnnotationPanel({ taskType, taskId, serialNumber, imageU
       const yPct = Math.min(Math.max((e.clientY - rect.top) / rect.height, 0), 1);
       const x1024 = Math.round(xPct * 1024);
       const y1024 = Math.round(yPct * 1024);
-      setPixelCoords(prev => [...prev, { x: x1024, y: y1024, xPct, yPct }]);
+      setPixelCoords(prev => {
+        const next = [...prev, { x: x1024, y: y1024, xPct, yPct }];
+        // keep pixelLabels aligned
+        setPixelLabels(pl => [...pl, null]);
+        setActiveSpotIndex(next.length - 1);
+        return next;
+      });
     };
 
     // Touch handlers for pinch to zoom
@@ -394,7 +410,12 @@ export default function AnnotationPanel({ taskType, taskId, serialNumber, imageU
     // Map to canonical 1024x1024 pixel grid regardless of source resolution
     const x1024 = Math.round(xPct * 1024);
     const y1024 = Math.round(yPct * 1024);
-    setPixelCoords(prev => [...prev, { x: x1024, y: y1024, xPct, yPct }]);
+    setPixelCoords(prev => {
+      const next = [...prev, { x: x1024, y: y1024, xPct, yPct }];
+      setPixelLabels(pl => [...pl, null]);
+      setActiveSpotIndex(next.length - 1);
+      return next;
+    });
   };
 
   const handleRadiusChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -442,6 +463,8 @@ export default function AnnotationPanel({ taskType, taskId, serialNumber, imageU
     setSubmitError(null);
     setIssueUrl(undefined);
     setPixelCoords([]);
+    setPixelLabels([]);
+    setActiveSpotIndex(null);
     setRegionRadius(10);
   }, []);
 
@@ -611,7 +634,12 @@ export default function AnnotationPanel({ taskType, taskId, serialNumber, imageU
                         const yPct = Math.min(Math.max((e.clientY - rect.top) / rect.height, 0), 1);
                         const x1024 = Math.round(xPct * 1024);
                         const y1024 = Math.round(yPct * 1024);
-                        setPixelCoords(prev => [...prev, { x: x1024, y: y1024, xPct, yPct }]);
+                        setPixelCoords(prev => {
+                          const next = [...prev, { x: x1024, y: y1024, xPct, yPct }];
+                          setPixelLabels(pl => [...pl, null]);
+                          setActiveSpotIndex(next.length - 1);
+                          return next;
+                        });
                       }}
                       style={{ position: 'absolute', left: 0, top: 0, width: '100%', height: '100%', pointerEvents: 'auto' }}
                     >
@@ -673,7 +701,12 @@ export default function AnnotationPanel({ taskType, taskId, serialNumber, imageU
                         const yPct = Math.min(Math.max((e.clientY - rect.top) / rect.height, 0), 1);
                         const x1024 = Math.round(xPct * 1024);
                         const y1024 = Math.round(yPct * 1024);
-                        setPixelCoords(prev => [...prev, { x: x1024, y: y1024, xPct, yPct }]);
+                        setPixelCoords(prev => {
+                          const next = [...prev, { x: x1024, y: y1024, xPct, yPct }];
+                          setPixelLabels(pl => [...pl, null]);
+                          setActiveSpotIndex(next.length - 1);
+                          return next;
+                        });
                       }}
                       style={{ position: 'absolute', left: 0, top: 0, width: '100%', height: '100%', pointerEvents: 'auto' }}
                     >
@@ -727,14 +760,33 @@ export default function AnnotationPanel({ taskType, taskId, serialNumber, imageU
                   <div>
                     <div className="text-xs mb-2">Format: x,y[,radius] ; multiple entries separated by ` ; `</div>
                     <ul className="mt-1">
+                      {activeSpotIndex !== null && (
+                        <li className="text-xs text-slate-400 mb-1">Selected spot: #{activeSpotIndex + 1}</li>
+                      )}
                       {pixelCoords.map((p, idx) => {
                         const coordStr = `${p.x},${p.y}${taskType === 'magnetogram' && regionRadius ? `,${regionRadius}` : ''}`;
+                        const label = pixelLabels[idx] ?? null;
                         return (
                           <li key={idx} className="flex items-center gap-3">
                             <code className="bg-white/6 px-2 py-1 rounded text-xs">{coordStr}</code>
+                            {label ? (
+                              <span className="text-xs text-slate-300">{label}</span>
+                            ) : (
+                              <span className="text-xs text-slate-500 italic">(unlabeled)</span>
+                            )}
                             <button
                               className="text-xs text-red-400 hover:text-red-600 underline"
-                              onClick={e => { e.stopPropagation(); setPixelCoords(pixelCoords.filter((_, i) => i !== idx)); }}
+                              onClick={e => { e.stopPropagation(); setPixelCoords(pc => {
+                                const next = pc.filter((_, i) => i !== idx);
+                                setPixelLabels(pl => pl.filter((_, i) => i !== idx));
+                                setActiveSpotIndex(prev => {
+                                  if (prev === null) return null;
+                                  if (idx < prev) return prev - 1;
+                                  if (idx === prev) return next.length > 0 ? Math.max(0, prev - 1) : null;
+                                  return prev;
+                                });
+                                return next;
+                              }); }}
                             >Remove</button>
                           </li>
                         );
