@@ -481,36 +481,6 @@ export default function AnnotationPanel({ taskType, taskId, serialNumber, imageU
     setRegionRadius(10);
   }, []);
 
-  // Render points centrally so both internal and external overlays share identical UI
-  const renderPoints = () => pixelCoords.map((p, idx) => (
-    <g key={idx}>
-      <circle
-        onPointerDown={e => { e.stopPropagation(); setDraggingIndex(idx); setActiveSpotIndex(idx); }}
-        cx={`${(p.xPct ?? 0) * 100}`}
-        cy={`${(p.yPct ?? 0) * 100}`}
-        r={2.8}
-        style={{ cursor: 'grab' }}
-        fill={activeSpotIndex === idx ? 'rgba(59,130,246,0.95)' : 'rgba(34,197,94,0.95)'}
-        stroke="#fff"
-        strokeWidth={0.5}
-      />
-      <text
-        x={`${(p.xPct ?? 0) * 100 + 3}`}
-        y={`${(p.yPct ?? 0) * 100 + 3}`}
-        fontSize={3}
-        fill="#fff"
-        style={{ textAnchor: 'start' }}
-      >{idx + 1}</text>
-      <rect x={`${(p.xPct ?? 0) * 100 + 6}`} y={`${(p.yPct ?? 0) * 100 - 1}`} width={14} height={5} rx={1} fill="rgba(0,0,0,0.45)" />
-      <text
-        x={`${(p.xPct ?? 0) * 100 + 7}`}
-        y={`${(p.yPct ?? 0) * 100 + 2.5}`}
-        fontSize={2.5}
-        fill="#fff"
-        style={{ textAnchor: 'start' }}
-      >{(pixelLabels[idx] ?? '...').toString().slice(0,6)}</text>
-    </g>
-  ));
 
   const selectedOption = TASK_OPTIONS.find(o => o.value === taskType);
   if (!selectedOption) return null;
