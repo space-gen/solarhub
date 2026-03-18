@@ -180,9 +180,15 @@ function AnnotationView({
                 <span>{task.source}</span>
                 {task.date && <span>{task.date}</span>}
               </div>
-              <div className="flex items-center gap-3">
-                <span className="text-xs text-slate-400">Raw filename:</span>
-                <code className="text-xs bg-white/6 px-2 py-0.5 rounded">{(task as any).filename || task.id}</code>
+              <div className="flex flex-col items-end gap-1">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-slate-400">Record ID:</span>
+                  <code className="text-xs bg-white/6 px-2 py-0.5 rounded">{task.id}</code>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-slate-400">Raw filename:</span>
+                  <code className="text-xs bg-white/6 px-2 py-0.5 rounded">{(task as any).filename || task.id}</code>
+                </div>
               </div>
             </div>
           </motion.div>
