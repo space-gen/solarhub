@@ -306,6 +306,42 @@ export default function AnnotationPanel({ taskType, taskId, serialNumber, imageU
   const pinchStartDistRef = useRef<number | null>(null);
   const pinchStartScaleRef = useRef<number>(1);
 
+  // Native touch handlers (usable by both addEventListener and React handlers)
+  const onTouchStartNative = (ev: TouchEvent) => {
+    if (ev.touches.length >= 2) {
+      isPinchingRef.current = true;
+      const t0 = ev.touches[0];
+      const t1 = ev.touches[1];
+      const dx = t1.clientX - t0.clientX;
+      const dy = t1.clientY - t0.clientY;
+      pinchStartDistRef.current = Math.hypot(dx, dy);
+      pinchStartScaleRef.current = scale;
+    }
+  };
+  const onTouchMoveNative = (ev: TouchEvent) => {
+    if (!isPinchingRef.current || ev.touches.length < 2) return;
+    const t0 = ev.touches[0];
+    const t1 = ev.touches[1];
+    const dx = t1.clientX - t0.clientX;
+    const dy = t1.clientY - t0.clientY;
+    const dist = Math.hypot(dx, dy);
+    const start = pinchStartDistRef.current || dist;
+    const newScale = Math.min(4, Math.max(0.5, (pinchStartScaleRef.current * (dist / start))));
+    setScale(newScale);
+    try { ev.preventDefault(); } catch {}
+  };
+  const onTouchEndNative = (ev: TouchEvent) => {
+    if (ev.touches.length < 2) {
+      isPinchingRef.current = false;
+      pinchStartDistRef.current = null;
+    }
+  };
+
+  // React-friendly wrappers for JSX handlers
+  const overlayTouchStart = (e: React.TouchEvent) => onTouchStartNative(e.nativeEvent as TouchEvent);
+  const overlayTouchMove = (e: React.TouchEvent) => onTouchMoveNative(e.nativeEvent as TouchEvent);
+  const overlayTouchEnd = (e: React.TouchEvent) => onTouchEndNative(e.nativeEvent as TouchEvent);
+
   const imageRef = useRef<HTMLImageElement | null>(null);
   const [naturalSize, setNaturalSize] = useState<{ w: number; h: number } | null>(null);
 
@@ -325,7 +361,7 @@ export default function AnnotationPanel({ taskType, taskId, serialNumber, imageU
     imageRef.current = imgEl;
     setPortalContainer(imgEl.parentElement);
     // apply current scale to external image
-    try { imgEl.style.transform = `scale(${scale})`; imgEl.style.transformOrigin = 'center center'; } catch {}
+    try { imgEl.style.transform = `scale(${scale})`; imgEl.style.transformOrigin = 'center center'; imgEl.style.touchAction = 'none'; } catch {}
     if (imgEl.naturalWidth && imgEl.naturalHeight) {
       setNaturalSize({ w: imgEl.naturalWidth, h: imgEl.naturalHeight });
     }
@@ -351,50 +387,22 @@ export default function AnnotationPanel({ taskType, taskId, serialNumber, imageU
       });
     };
 
-    // Touch handlers for pinch to zoom
-    const onTouchStart = (ev: TouchEvent) => {
-      if (ev.touches.length >= 2) {
-        isPinchingRef.current = true;
-        const t0 = ev.touches[0];
-        const t1 = ev.touches[1];
-        const dx = t1.clientX - t0.clientX;
-        const dy = t1.clientY - t0.clientY;
-        pinchStartDistRef.current = Math.hypot(dx, dy);
-        pinchStartScaleRef.current = scale;
-      }
-    };
-    const onTouchMove = (ev: TouchEvent) => {
-      if (!isPinchingRef.current || ev.touches.length < 2) return;
-      const t0 = ev.touches[0];
-      const t1 = ev.touches[1];
-      const dx = t1.clientX - t0.clientX;
-      const dy = t1.clientY - t0.clientY;
-      const dist = Math.hypot(dx, dy);
-      const start = pinchStartDistRef.current || dist;
-      const newScale = Math.min(4, Math.max(0.5, (pinchStartScaleRef.current * (dist / start))));
-      setScale(newScale);
-    };
-    const onTouchEnd = (ev: TouchEvent) => {
-      if (ev.touches.length < 2) {
-        isPinchingRef.current = false;
-        pinchStartDistRef.current = null;
-      }
-    };
+    // Use native handlers defined at component scope so JSX can call them too
 
     imgEl.addEventListener('load', onLoad);
     imgEl.addEventListener('pointerdown', onPointerDown);
-    imgEl.addEventListener('touchstart', onTouchStart, { passive: true });
-    imgEl.addEventListener('touchmove', onTouchMove, { passive: false });
-    imgEl.addEventListener('touchend', onTouchEnd);
-    imgEl.addEventListener('touchcancel', onTouchEnd);
+    imgEl.addEventListener('touchstart', onTouchStartNative, { passive: true });
+    imgEl.addEventListener('touchmove', onTouchMoveNative, { passive: false });
+    imgEl.addEventListener('touchend', onTouchEndNative);
+    imgEl.addEventListener('touchcancel', onTouchEndNative);
 
     return () => {
       imgEl.removeEventListener('load', onLoad);
       imgEl.removeEventListener('pointerdown', onPointerDown);
-      imgEl.removeEventListener('touchstart', onTouchStart as EventListener);
-      imgEl.removeEventListener('touchmove', onTouchMove as EventListener);
-      imgEl.removeEventListener('touchend', onTouchEnd as EventListener);
-      imgEl.removeEventListener('touchcancel', onTouchEnd as EventListener);
+      imgEl.removeEventListener('touchstart', onTouchStartNative as EventListener);
+      imgEl.removeEventListener('touchmove', onTouchMoveNative as EventListener);
+      imgEl.removeEventListener('touchend', onTouchEndNative as EventListener);
+      imgEl.removeEventListener('touchcancel', onTouchEndNative as EventListener);
     };
   }, [externalImageId, scale]);
 
@@ -615,7 +623,16 @@ export default function AnnotationPanel({ taskType, taskId, serialNumber, imageU
                       ref={imageRef}
                       src={imageUrl}
                       alt="Solar observation"
-                      style={{ width: '100%', borderRadius: 8, border: '1px solid #333', cursor: 'crosshair', display: 'block', transform: `scale(${scale})`, transformOrigin: 'center center' }}
+                      style={{ width: '100%', borderRadius: 8, border: '1px solid #333', cursor: 'crosshair', display: 'block', transform: `scale(${scale})`, transformOrigin: 'center center', touchAction: 'none' }}
+                       onWheel={(e) => {
+                         // Ctrl/Cmd + wheel to zoom (desktop)
+                         if (e.ctrlKey || e.metaKey) {
+                           e.preventDefault();
+                           const delta = -e.deltaY;
+                           const factor = delta > 0 ? 1.03 : 0.97;
+                           setScale(s => Math.min(4, Math.max(0.5, s * factor)));
+                         }
+                       }}
                       onClick={handleImageClick}
                       onLoad={handleImageLoad}
                     />
@@ -641,7 +658,10 @@ export default function AnnotationPanel({ taskType, taskId, serialNumber, imageU
                           return next;
                         });
                       }}
-                      style={{ position: 'absolute', left: 0, top: 0, width: '100%', height: '100%', pointerEvents: 'auto' }}
+                      onTouchStart={overlayTouchStart}
+                      onTouchMove={overlayTouchMove}
+                      onTouchEnd={overlayTouchEnd}
+                      style={{ position: 'absolute', left: 0, top: 0, width: '100%', height: '100%', pointerEvents: 'auto', touchAction: 'none' }}
                     >
                       {pixelCoords.map((p, idx) => (
                         <g key={idx}>
@@ -708,7 +728,10 @@ export default function AnnotationPanel({ taskType, taskId, serialNumber, imageU
                           return next;
                         });
                       }}
-                      style={{ position: 'absolute', left: 0, top: 0, width: '100%', height: '100%', pointerEvents: 'auto' }}
+                      onTouchStart={overlayTouchStart}
+                      onTouchMove={overlayTouchMove}
+                      onTouchEnd={overlayTouchEnd}
+                      style={{ position: 'absolute', left: 0, top: 0, width: '100%', height: '100%', pointerEvents: 'auto', touchAction: 'none' }}
                     >
                       {pixelCoords.map((p, idx) => (
                         <g key={idx}>
