@@ -46,20 +46,20 @@ export type TaskType =
  * Valid values mirror aurora's VALID_LABELS dict in parse_issue_annotation.py.
  */
 export type UserLabel =
-  // Sunspot McIntosh-like classes + descriptive aliases
-  | 'class_a' | 'class_b' | 'class_c' | 'class_d' | 'class_e' | 'class_f' | 'class_h' | 'quiet_sun' | 'single_spot' | 'spot_cluster' | 'none'
+  // Sunspot McIntosh-like classes
+  | 'class_a' | 'class_b' | 'class_c' | 'class_d' | 'class_e' | 'class_f' | 'class_h' | 'none'
   // Solar flare GOES classes
-  | 'x_class' | 'm_class' | 'c_class' | 'b_class' | 'a_class' | 'no_flare' | 'microflare' | 'flare_region'
-  // Magnetogram Mount Wilson classes + aliases
-  | 'alpha' | 'beta' | 'gamma' | 'beta-gamma' | 'delta' | 'beta-delta' | 'beta-gamma-delta' | 'gamma-delta' | 'quiet' | 'bipolar_region' | 'complex_magnetic'
+  | 'x_class' | 'm_class' | 'c_class' | 'b_class' | 'a_class' | 'none'
+  // Magnetogram Mount Wilson classes
+  | 'alpha' | 'beta' | 'gamma' | 'beta-gamma' | 'delta' | 'beta-delta' | 'beta-gamma-delta' | 'gamma-delta' | 'none'
   // Coronal hole
-  | 'polar' | 'equatorial' | 'mid-latitude' | 'transequatorial' | 'calm_region' | 'isolated_hole'
+  | 'polar' | 'equatorial' | 'mid-latitude' | 'transequatorial' | 'none'
   // Prominence
-  | 'quiescent' | 'active' | 'eruptive' | 'intermediate' | 'no_prominence' | 'filament' | 'prominence_loop'
+  | 'quiescent' | 'active' | 'eruptive' | 'intermediate' | 'none'
   // Active region structural
-  | 'quiet_region' | 'active_group' | 'emerging_flux'
+  | 'alpha' | 'beta' | 'gamma' | 'beta-gamma' | 'beta-gamma-delta' | 'none'
   // CME
-  | 'full_halo' | 'partial_halo' | 'normal' | 'narrow' | 'quiet_corona' | 'jet' | 'streamer_blowout' | 'none';
+  | 'full_halo' | 'partial_halo' | 'normal' | 'narrow' | 'none';
 
 /** Fields the caller must supply to create an annotation. */
 export interface AnnotationInput {
