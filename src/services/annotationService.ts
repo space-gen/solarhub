@@ -73,7 +73,9 @@ export interface AnnotationInput {
   pixel_coords?: Array<{ x: number; y: number }>;
   // Per-spot labels parallel to pixel_coords; null means unlabeled for that spot
   pixel_labels?: Array<UserLabel | null>;
-  region_radius?: number;
+  // Per-spot radii in canonical pixels (parallel to pixel_coords). Optional.
+  pixel_radii?: Array<number>;
+  region_radius?: number; // legacy single radius; prefer pixel_radii
 }
 
 /** Full annotation record (AnnotationInput + generated fields). */
@@ -160,6 +162,16 @@ async function saveToPuterCloud(annotation: Annotation): Promise<void> {
  * parse_issue_annotation.py splits and extracts automatically.
  */
 function formatIssueBody(annotation: Annotation): string {
+  const regions = annotation.pixel_coords && annotation.pixel_coords.length > 0
+    ? annotation.pixel_coords.map((p, i) => {
+        const label = annotation.pixel_labels && annotation.pixel_labels[i] ? annotation.pixel_labels[i] : annotation.user_label;
+        const radius = annotation.pixel_radii && typeof annotation.pixel_radii[i] === 'number'
+          ? annotation.pixel_radii[i]
+          : (typeof annotation.region_radius === 'number' ? annotation.region_radius : undefined);
+        return radius ? `${label},${p.x},${p.y},${radius}` : `${label},${p.x},${p.y}`;
+      }).join(' ; ')
+    : '_No response_';
+
   return `### Image URL
 ${annotation.image_url}
 
@@ -178,11 +190,8 @@ ${annotation.serial_number}
 ### Your Label
 ${annotation.user_label}
 
-### Pixel Coordinates (optional)
-${annotation.pixel_coords && annotation.pixel_coords.length > 0 ? annotation.pixel_coords.map((p, i) => {
-    const labelPart = annotation.pixel_labels && annotation.pixel_labels[i] ? `,${annotation.pixel_labels[i]}` : '';
-    return (typeof annotation.region_radius === 'number' ? `${p.x},${p.y},${annotation.region_radius}${labelPart}` : `${p.x},${p.y}${labelPart}`);
-  }).join(' ; ') : '_No response_'}
+### Regions
+${regions}
 
 ### Region Radius (optional)
 ${typeof annotation.region_radius === 'number' ? annotation.region_radius : '_No response_'}

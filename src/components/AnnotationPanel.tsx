@@ -282,6 +282,8 @@ export default function AnnotationPanel({ taskType, taskId, serialNumber, imageU
   const [pixelCoords, setPixelCoords] = useState<Array<{ x: number; y: number; xPct?: number; yPct?: number }>>([]);
   // per-spot labels (parallel array to pixelCoords) — null means unlabeled
   const [pixelLabels, setPixelLabels] = useState<Array<UserLabel | null>>([]);
+  const [pixelRadii, setPixelRadii] = useState<number[]>([]);
+  const DEFAULT_RADIUS = 10;
   const [activeSpotIndex, setActiveSpotIndex] = useState<number | null>(null);
   const [regionRadius, setRegionRadius] = useState<number | undefined>(10);
   const [submitting,  setSubmitting]  = useState(false);
@@ -300,40 +302,24 @@ export default function AnnotationPanel({ taskType, taskId, serialNumber, imageU
   // Portal container when rendering overlays onto an external image element
   const [portalContainer, setPortalContainer] = useState<HTMLElement | null>(null);
 
-  // Pinch/zoom state
-  const [scale, setScale] = useState<number>(1);
+  // Pinch/multi-touch state — detect multi-finger gestures so we don't create markers
   const isPinchingRef = useRef(false);
-  const pinchStartDistRef = useRef<number | null>(null);
-  const pinchStartScaleRef = useRef<number>(1);
 
   // Native touch handlers (usable by both addEventListener and React handlers)
   const onTouchStartNative = (ev: TouchEvent) => {
     if (ev.touches.length >= 2) {
+      // mark that a multi-touch gesture is active; do NOT apply any scaling
       isPinchingRef.current = true;
-      const t0 = ev.touches[0];
-      const t1 = ev.touches[1];
-      const dx = t1.clientX - t0.clientX;
-      const dy = t1.clientY - t0.clientY;
-      pinchStartDistRef.current = Math.hypot(dx, dy);
-      pinchStartScaleRef.current = scale;
     }
   };
   const onTouchMoveNative = (ev: TouchEvent) => {
     if (!isPinchingRef.current || ev.touches.length < 2) return;
-    const t0 = ev.touches[0];
-    const t1 = ev.touches[1];
-    const dx = t1.clientX - t0.clientX;
-    const dy = t1.clientY - t0.clientY;
-    const dist = Math.hypot(dx, dy);
-    const start = pinchStartDistRef.current || dist;
-    const newScale = Math.min(4, Math.max(0.5, (pinchStartScaleRef.current * (dist / start))));
-    setScale(newScale);
+    // Prevent default browser pinch-zoom, but intentionally do not change scale.
     try { ev.preventDefault(); } catch {}
   };
   const onTouchEndNative = (ev: TouchEvent) => {
     if (ev.touches.length < 2) {
       isPinchingRef.current = false;
-      pinchStartDistRef.current = null;
     }
   };
 
@@ -360,8 +346,8 @@ export default function AnnotationPanel({ taskType, taskId, serialNumber, imageU
     if (!imgEl) return;
     imageRef.current = imgEl;
     setPortalContainer(imgEl.parentElement);
-    // apply current scale to external image
-    try { imgEl.style.transform = `scale(${scale})`; imgEl.style.transformOrigin = 'center center'; imgEl.style.touchAction = 'none'; } catch {}
+    // disable default touch-action on the image so custom handlers work
+    try { imgEl.style.touchAction = 'none'; } catch {}
     if (imgEl.naturalWidth && imgEl.naturalHeight) {
       setNaturalSize({ w: imgEl.naturalWidth, h: imgEl.naturalHeight });
     }
@@ -380,8 +366,9 @@ export default function AnnotationPanel({ taskType, taskId, serialNumber, imageU
       const y1024 = Math.round(yPct * 1024);
       setPixelCoords(prev => {
         const next = [...prev, { x: x1024, y: y1024, xPct, yPct }];
-        // keep pixelLabels aligned
+        // keep pixelLabels and radii aligned
         setPixelLabels(pl => [...pl, null]);
+        setPixelRadii(pr => [...pr, regionRadius ?? DEFAULT_RADIUS]);
         setActiveSpotIndex(next.length - 1);
         return next;
       });
@@ -404,7 +391,7 @@ export default function AnnotationPanel({ taskType, taskId, serialNumber, imageU
       imgEl.removeEventListener('touchend', onTouchEndNative as EventListener);
       imgEl.removeEventListener('touchcancel', onTouchEndNative as EventListener);
     };
-  }, [externalImageId, scale]);
+  }, [externalImageId]);
 
   // Click to add a selection — map to 1024x1024 canonical pixels and store percent for rendering
   const handleImageClick = (e: React.MouseEvent<HTMLImageElement>) => {
@@ -421,6 +408,7 @@ export default function AnnotationPanel({ taskType, taskId, serialNumber, imageU
     setPixelCoords(prev => {
       const next = [...prev, { x: x1024, y: y1024, xPct, yPct }];
       setPixelLabels(pl => [...pl, null]);
+      setPixelRadii(pr => [...pr, regionRadius ?? DEFAULT_RADIUS]);
       setActiveSpotIndex(next.length - 1);
       return next;
     });
@@ -429,6 +417,20 @@ export default function AnnotationPanel({ taskType, taskId, serialNumber, imageU
   const handleRadiusChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setRegionRadius(Number(e.target.value));
   };
+
+  // Keep pixelRadii array aligned with pixelCoords. If a new coord is added
+  // ensure a default radius is appended; if coords are removed, trim radii.
+  useEffect(() => {
+    setPixelRadii(pr => {
+      if (pr.length < pixelCoords.length) {
+        return [...pr, ...Array(pixelCoords.length - pr.length).fill(regionRadius ?? DEFAULT_RADIUS)];
+      }
+      if (pr.length > pixelCoords.length) {
+        return pr.slice(0, pixelCoords.length);
+      }
+      return pr;
+    });
+  }, [pixelCoords, regionRadius]);
 
   const handleSubmit = useCallback(async () => {
     if (!userLabel) return;
@@ -444,6 +446,8 @@ export default function AnnotationPanel({ taskType, taskId, serialNumber, imageU
       confidence,
       comments:      comments.trim(),
       pixel_coords:  taskType === 'sunspot' || taskType === 'magnetogram' ? pixelCoords.map(p => ({ x: p.x, y: p.y })) : undefined,
+      pixel_labels:  pixelLabels.length ? pixelLabels : undefined,
+      pixel_radii:   pixelRadii.length ? pixelRadii : undefined,
       region_radius: taskType === 'magnetogram' ? regionRadius : undefined,
     };
 
@@ -472,6 +476,7 @@ export default function AnnotationPanel({ taskType, taskId, serialNumber, imageU
     setIssueUrl(undefined);
     setPixelCoords([]);
     setPixelLabels([]);
+    setPixelRadii([]);
     setActiveSpotIndex(null);
     setRegionRadius(10);
   }, []);
@@ -623,16 +628,7 @@ export default function AnnotationPanel({ taskType, taskId, serialNumber, imageU
                       ref={imageRef}
                       src={imageUrl}
                       alt="Solar observation"
-                      style={{ width: '100%', borderRadius: 8, border: '1px solid #333', cursor: 'crosshair', display: 'block', transform: `scale(${scale})`, transformOrigin: 'center center', touchAction: 'none' }}
-                       onWheel={(e) => {
-                         // Ctrl/Cmd + wheel to zoom (desktop)
-                         if (e.ctrlKey || e.metaKey) {
-                           e.preventDefault();
-                           const delta = -e.deltaY;
-                           const factor = delta > 0 ? 1.03 : 0.97;
-                           setScale(s => Math.min(4, Math.max(0.5, s * factor)));
-                         }
-                       }}
+                      style={{ width: '100%', borderRadius: 8, border: '1px solid #333', cursor: 'crosshair', display: 'block', touchAction: 'none' }}
                       onClick={handleImageClick}
                       onLoad={handleImageLoad}
                     />
@@ -787,7 +783,8 @@ export default function AnnotationPanel({ taskType, taskId, serialNumber, imageU
                         <li className="text-xs text-slate-400 mb-1">Selected spot: #{activeSpotIndex + 1}</li>
                       )}
                       {pixelCoords.map((p, idx) => {
-                        const coordStr = `${p.x},${p.y}${taskType === 'magnetogram' && regionRadius ? `,${regionRadius}` : ''}`;
+                        const r = pixelRadii[idx] ?? regionRadius ?? 0;
+                        const coordStr = `${p.x},${p.y}${taskType === 'magnetogram' ? `,${r}` : ''}`;
                         const label = pixelLabels[idx] ?? null;
                         return (
                           <li key={idx} className="flex items-center gap-3">
@@ -802,6 +799,7 @@ export default function AnnotationPanel({ taskType, taskId, serialNumber, imageU
                               onClick={e => { e.stopPropagation(); setPixelCoords(pc => {
                                 const next = pc.filter((_, i) => i !== idx);
                                 setPixelLabels(pl => pl.filter((_, i) => i !== idx));
+                                setPixelRadii(pr => pr.filter((_, i) => i !== idx));
                                 setActiveSpotIndex(prev => {
                                   if (prev === null) return null;
                                   if (idx < prev) return prev - 1;
@@ -820,6 +818,22 @@ export default function AnnotationPanel({ taskType, taskId, serialNumber, imageU
                   <div className="text-xs italic text-slate-600">No coordinates selected</div>
                 )}
               </div>
+
+              {/* Per-spot radius control (magnetograms): when a spot is selected allow setting its radius in px */}
+              {taskType === 'magnetogram' && activeSpotIndex !== null && pixelRadii[activeSpotIndex] !== undefined && (
+                <div className="mt-2">
+                  <label className="text-xs text-slate-400">Radius for selected spot (px)</label>
+                  <input type="range" min={1} max={1024}
+                    value={pixelRadii[activeSpotIndex]}
+                    onChange={e => {
+                      const v = Number(e.target.value);
+                      setPixelRadii(pr => pr.map((r, i) => i === activeSpotIndex ? v : r));
+                    }}
+                    className="ml-2" />
+                  <span className="ml-2 text-xs text-slate-500">{pixelRadii[activeSpotIndex]} px</span>
+                </div>
+              )}
+
               {taskType === 'magnetogram' && (
                 <div className="mt-2">
                   <label className="text-xs text-slate-400">Region radius (px, image scale 1024)</label>
