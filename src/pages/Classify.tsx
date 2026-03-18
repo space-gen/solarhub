@@ -155,7 +155,19 @@ function AnnotationView({
           <span>Total points: <strong className="text-solar-300">{points}</strong></span>
         </motion.div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-[1fr_400px] gap-5 items-start">
+        {/* Reordered: questions first, then image, then points */}
+        <div className="flex flex-col gap-5">
+          <motion.div variants={itemVariants} className="glass rounded-2xl p-5">
+            <AnnotationPanel
+              taskType={taskType}
+              taskId={task.id}
+              serialNumber={task.serialNumber}
+              imageUrl={task.url}
+              externalImageId={`aurora-img-${task.id}`}
+              onSubmit={onSubmit}
+            />
+          </motion.div>
+
           <motion.div variants={itemVariants} className="glass rounded-2xl overflow-hidden">
             <div className="relative aspect-square bg-cosmic-900">
               {!imgLoaded && !imgError && <div className="absolute inset-0 shimmer-skeleton" />}
@@ -199,18 +211,8 @@ function AnnotationView({
             </div>
           </motion.div>
 
-          <motion.div variants={itemVariants} className="flex flex-col gap-4">
+          <motion.div variants={itemVariants} className="flex justify-end">
             <PointsDisplay points={points} />
-            <div className="glass rounded-2xl p-5">
-              <AnnotationPanel
-                taskType={taskType}
-                taskId={task.id}
-                serialNumber={task.serialNumber}
-                imageUrl={task.url}
-                externalImageId={`aurora-img-${task.id}`}
-                onSubmit={onSubmit}
-              />
-            </div>
           </motion.div>
         </div>
       </div>

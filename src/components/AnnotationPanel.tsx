@@ -40,20 +40,20 @@ interface TaskOption {
 // maps to the aurora-compatible label to use when the image doesn't match.
 const SCIENTIFIC_HELP: Record<TaskType, { scientific: string; plain: string; uncertainLabel: UserLabel }> = {
   sunspot: {
-    scientific: 'Identify sunspot group classification (e.g. alpha, beta, beta-gamma, delta).',
-    plain: 'Is there a group of dark sunspots? If yes, is it simple or complex?',
+    scientific: 'Find dark spots on the bright sun surface.',
+    plain: 'Look for dark dots (like freckles). Mark the biggest ones you see.',
     uncertainLabel: 'none',
   },
   magnetogram: {
-    scientific: 'Characterise the magnetic polarity distribution (bipolar, unipolar, complex).',
-    plain: 'Do you see clear opposite-polarity regions, mostly one polarity, or a tangled pattern?',
+    scientific: 'Show where small patches of opposite signs appear (display helper).',
+    plain: 'Look for clear patches or messy areas. Mark the middle of the patch and use the radius to cover it.',
     uncertainLabel: 'none',
   },
-  solar_flare: { scientific: 'Classify flare magnitude (A/B/C/M/X).', plain: 'How bright is the flash?', uncertainLabel: 'none' },
-  coronal_hole: { scientific: 'Identify coronal hole location and extent (polar/equatorial).', plain: 'Is there a large dark hole? Where is it?', uncertainLabel: 'none' },
-  prominence: { scientific: 'Classify prominence as eruptive, quiescent, or active.', plain: 'Is the arch calm or erupting?', uncertainLabel: 'none' },
-  active_region: { scientific: 'Classify magnetic complexity (alpha/beta/beta-gamma/delta).', plain: 'Is the active region simple or complex?', uncertainLabel: 'none' },
-  cme: { scientific: 'Describe CME morphology (halo/partial/narrow).', plain: 'Do you see a ring, arc, or narrow jet?', uncertainLabel: 'none' },
+  solar_flare: { scientific: 'A very bright quick flash on the sun.', plain: 'Find the brightest flash and mark its centre.', uncertainLabel: 'none' },
+  coronal_hole: { scientific: 'A big dark area on the sun.', plain: 'Find the large dark patch and mark its middle. If long, put one or two markers along it.', uncertainLabel: 'none' },
+  prominence: { scientific: 'A bright arch sticking out from the sun edge.', plain: 'Look at the edge of the sun for a bright looping arch and mark the top or a footpoint.', uncertainLabel: 'none' },
+  active_region: { scientific: 'A busy area with lots happening.', plain: 'Find the busy bright area with spots and mark where most activity is.', uncertainLabel: 'none' },
+  cme: { scientific: 'A cloud shooting away from the sun.', plain: 'Find the place the cloud came from and mark it.', uncertainLabel: 'none' },
 };
 
 const TASK_OPTIONS: TaskOption[] = [
@@ -61,91 +61,91 @@ const TASK_OPTIONS: TaskOption[] = [
     value:   'sunspot',
     label:   'Sun Spots',
     icon:    '🟤',
-    lookFor: 'Dark circular patches on the bright surface of the sun',
+    lookFor: 'Dark dots on the bright sun (like freckles).',
     color:   'text-orange-300', bg: 'bg-orange-500/15', border: 'border-orange-500/40',
     subLabels: [
-      { value: 'class_a', label: 'Class A (tiny)', hint: 'Very small, simple spot or group' },
-      { value: 'class_b', label: 'Class B (small)', hint: 'Small but defined spot/group' },
-      { value: 'class_c', label: 'Class C (medium)', hint: 'Moderate-sized group' },
-      { value: 'class_d', label: 'Class D (large)', hint: 'Large sunspot group' },
-      { value: 'class_e', label: 'Class E (very large)', hint: 'Very large group with complex structure' },
-      { value: 'class_f', label: 'Class F (extensive)', hint: 'Extensive group across the disk' },
-      { value: 'class_h', label: 'Class H (giant)', hint: 'Exceptionally large group' },
-      { value: 'none', label: "I don't know / none", hint: 'Not sure or not applicable' },
+      { value: 'class_a', label: 'Class A (tiny)', hint: 'Very tiny dot, like a tiny freckle' },
+      { value: 'class_b', label: 'Class B (small)', hint: 'A small dark dot you can see clearly' },
+      { value: 'class_c', label: 'Class C (medium)', hint: 'A medium-sized group of dots' },
+      { value: 'class_d', label: 'Class D (large)', hint: 'A large group of dark spots' },
+      { value: 'class_e', label: 'Class E (very large)', hint: 'Very big group covering lots of area' },
+      { value: 'class_f', label: 'Class F (extensive)', hint: 'Many spots spread across the sun' },
+      { value: 'class_h', label: 'Class H (giant)', hint: 'Huge, very noticeable spot group' },
+      { value: 'none', label: "I don't know / none", hint: 'Not sure or I don\'t see any spots' },
     ],
   },
   {
     value:   'solar_flare',
     label:   'Bright Flash',
     icon:    '🔥',
-    lookFor: "A sudden bright glow or explosion on the sun's surface",
+    lookFor: "A quick very bright flash — looks like a tiny sun explosion",
     color:   'text-rose-300', bg: 'bg-rose-500/15', border: 'border-rose-500/40',
     subLabels: [
-      { value: 'x_class',  label: 'X-class (very large)',          hint: 'Extremely bright — the most powerful type' },
-      { value: 'm_class',  label: 'M-class (large)',              hint: 'Very bright, large release of energy' },
-      { value: 'c_class',  label: 'C-class (medium)',             hint: 'A clearly visible bright burst of energy' },
-      { value: 'b_class',  label: 'B-class (small)',              hint: 'A small but visible bright spot' },
-      { value: 'a_class',  label: 'A-class (tiny)',               hint: 'Very faint brightening, barely noticeable' },
-      { value: 'none',     label: "No flash / none",            hint: 'No bright burst of light visible' },
+      { value: 'x_class',  label: 'X-class (very large)', hint: 'Very, very bright flash' },
+      { value: 'm_class',  label: 'M-class (large)', hint: 'A big bright flash' },
+      { value: 'c_class',  label: 'C-class (medium)', hint: 'A normal bright burst' },
+      { value: 'b_class',  label: 'B-class (small)', hint: 'A small bright spot' },
+      { value: 'a_class',  label: 'A-class (tiny)', hint: 'A very faint brightening' },
+      { value: 'none',     label: "No flash / none", hint: 'No bright flash seen' },
     ],
   },
   {
     value:   'magnetogram',
     label:   'Magnetic Map',
     icon:    '🧲',
-    lookFor: "A black & white image showing invisible magnetic forces — like a zebra pattern",
+    lookFor: "A black & white map that looks like stripes or patches",
     color:   'text-violet-300', bg: 'bg-violet-500/15', border: 'border-violet-500/40',
     subLabels: [
-      { value: 'alpha', label: 'Alpha (simple)', hint: 'Single, simple polarity region' },
-      { value: 'beta', label: 'Beta (two spots)', hint: 'Two distinct opposite-polarity areas' },
-      { value: 'gamma', label: 'Gamma (complex)', hint: 'Multiple mixed polarities tangled together' },
-      { value: 'beta-gamma', label: 'Beta-Gamma (mixed)', hint: 'Mixed polarities with complex boundary' },
-      { value: 'delta', label: 'Delta (high energy)', hint: 'Very complex with closely packed opposite spots' },
-      { value: 'beta-delta', label: 'Beta-Delta', hint: 'Combination of beta and delta characteristics' },
-      { value: 'beta-gamma-delta', label: 'Beta-Gamma-Delta', hint: 'Highly complex and energetic region' },
-      { value: 'gamma-delta', label: 'Gamma-Delta', hint: 'Mixed complex magnetic structure' },
-      { value: 'none', label: "I don't know / none", hint: 'Not sure or not applicable' },
+      { value: 'alpha', label: 'Alpha (simple)', hint: 'Just one simple patch' },
+      { value: 'beta', label: 'Beta (two spots)', hint: 'Two nearby patches' },
+      { value: 'gamma', label: 'Gamma (complex)', hint: 'Many small mixed patches' },
+      { value: 'beta-gamma', label: 'Beta-Gamma (mixed)', hint: 'A tangled or messy area' },
+      { value: 'delta', label: 'Delta (very messy)', hint: 'Very messy with lots of small bits' },
+      { value: 'beta-delta', label: 'Beta-Delta', hint: 'A mix of two and messy bits' },
+      { value: 'beta-gamma-delta', label: 'Beta-Gamma-Delta', hint: 'Very mixed and messy' },
+      { value: 'gamma-delta', label: 'Gamma-Delta', hint: 'Mixed messy patches' },
+      { value: 'none', label: "I don't know / none", hint: 'Not sure or not visible' },
     ],
   },
   {
     value:   'coronal_hole',
     label:   'Dark Region',
     icon:    '🕳️',
-    lookFor: 'A large, clearly dark patch against an otherwise bright glowing image',
+    lookFor: 'A big dark area on the sun, like a missing patch',
     color:   'text-cyan-300', bg: 'bg-cyan-500/15', border: 'border-cyan-500/40',
     subLabels: [
-      { value: 'polar',        label: 'Top or bottom (near a pole)', hint: "Dark area near the sun's north or south pole"       },
-      { value: 'equatorial',   label: 'In the middle band',          hint: "Dark area near the sun's equator (the middle belt)" },
-      { value: 'mid-latitude', label: 'Somewhere in between',        hint: 'Dark area between the equator and a pole'           },
-      { value: 'none',         label: "I don't see a dark region",   hint: 'No large dark area visible'                         },
+      { value: 'polar',        label: 'Top or bottom (near a pole)', hint: 'Dark area near the top or bottom of the sun'       },
+      { value: 'equatorial',   label: 'In the middle band',          hint: 'Dark area near the middle of the sun' },
+      { value: 'mid-latitude', label: 'Somewhere in between',        hint: 'Dark area between top and middle'           },
+      { value: 'none',         label: "I don't see a dark region",   hint: 'I do not see a big dark patch'                         },
     ],
   },
   {
     value:   'prominence',
     label:   'Glowing Arch',
     icon:    '🌊',
-    lookFor: 'A bright arch or loop of plasma rising above the edge of the sun',
+    lookFor: 'A bright arch sticking out from the edge of the sun',
     color:   'text-sky-300', bg: 'bg-sky-500/15', border: 'border-sky-500/40',
     subLabels: [
-      { value: 'eruptive',  label: 'Erupting outward into space', hint: 'The arch is bursting apart and shooting outward'      },
-      { value: 'quiescent', label: 'Calm and stable',             hint: 'A steady, quiet arch just hanging there'              },
-      { value: 'active',    label: 'Moving and changing',         hint: 'The arch looks dynamic, unstable, or shifting'        },
-      { value: 'none',      label: "I don't see an arch",         hint: 'No visible loop or arch at the edge of the sun'       },
+      { value: 'eruptive',  label: 'Erupting outward into space', hint: 'The arch looks like it is breaking and flying away'      },
+      { value: 'quiescent', label: 'Calm and stable',             hint: 'A calm arch that is not moving much'              },
+      { value: 'active',    label: 'Moving and changing',         hint: 'The arch is wobbling or changing shape'        },
+      { value: 'none',      label: "I don't see an arch",         hint: 'No arch at the sun edge'       },
     ],
   },
   {
     value:   'active_region',
     label:   'Active Region',
     icon:    '⚡',
-    lookFor: 'A bright, busy cluster of activity — often the source of flares and storms',
+    lookFor: 'A busy, bright area with lots going on',
     color:   'text-yellow-300', bg: 'bg-yellow-500/15', border: 'border-yellow-500/40',
     subLabels: [
-      { value: 'alpha', label: 'Alpha (simple)', hint: 'Single, simple magnetic area' },
-      { value: 'beta', label: 'Beta (paired)', hint: 'Two nearby magnetic areas' },
-      { value: 'gamma', label: 'Gamma (complex)', hint: 'Multiple mixed magnetic areas' },
-      { value: 'beta-gamma', label: 'Beta-Gamma', hint: 'Mixed beta and gamma complexity' },
-      { value: 'beta-gamma-delta', label: 'Beta-Gamma-Delta', hint: 'Highly complex and potentially energetic' },
-      { value: 'none', label: "I don't see an active region", hint: 'No significant active cluster visible' },
+      { value: 'alpha', label: 'Alpha (simple)', hint: 'A single simple bright area' },
+      { value: 'beta', label: 'Beta (paired)', hint: 'Two bright spots close together' },
+      { value: 'gamma', label: 'Gamma (complex)', hint: 'Many bright bits mixed together' },
+      { value: 'beta-gamma', label: 'Beta-Gamma', hint: 'A mix of two and many bits' },
+      { value: 'beta-gamma-delta', label: 'Beta-Gamma-Delta', hint: 'Very mixed and busy area' },
+      { value: 'none', label: "I don't see an active region", hint: 'No busy area visible' },
     ],
   },
   {
@@ -290,6 +290,12 @@ export default function AnnotationPanel({ taskType, taskId, serialNumber, imageU
   // Portal container when rendering overlays onto an external image element
   const [portalContainer, setPortalContainer] = useState<HTMLElement | null>(null);
 
+  // Pinch/zoom state
+  const [scale, setScale] = useState<number>(1);
+  const isPinchingRef = useRef(false);
+  const pinchStartDistRef = useRef<number | null>(null);
+  const pinchStartScaleRef = useRef<number>(1);
+
   const imageRef = useRef<HTMLImageElement | null>(null);
   const [naturalSize, setNaturalSize] = useState<{ w: number; h: number } | null>(null);
 
@@ -308,6 +314,8 @@ export default function AnnotationPanel({ taskType, taskId, serialNumber, imageU
     if (!imgEl) return;
     imageRef.current = imgEl;
     setPortalContainer(imgEl.parentElement);
+    // apply current scale to external image
+    try { imgEl.style.transform = `scale(${scale})`; imgEl.style.transformOrigin = 'center center'; } catch {}
     if (imgEl.naturalWidth && imgEl.naturalHeight) {
       setNaturalSize({ w: imgEl.naturalWidth, h: imgEl.naturalHeight });
     }
@@ -315,6 +323,8 @@ export default function AnnotationPanel({ taskType, taskId, serialNumber, imageU
 
     // Click / pointer handler so clicks on the external image add markers here
     const onPointerDown = (e: PointerEvent) => {
+      // If pinch gesture active, ignore pointer-down to avoid adding markers
+      if (isPinchingRef.current) return;
       // Only respond to primary button / touch
       if ((e as PointerEvent).button && (e as PointerEvent).button !== 0) return;
       const rect = imgEl.getBoundingClientRect();
@@ -325,17 +335,57 @@ export default function AnnotationPanel({ taskType, taskId, serialNumber, imageU
       setPixelCoords(prev => [...prev, { x: x1024, y: y1024, xPct, yPct }]);
     };
 
+    // Touch handlers for pinch to zoom
+    const onTouchStart = (ev: TouchEvent) => {
+      if (ev.touches.length >= 2) {
+        isPinchingRef.current = true;
+        const t0 = ev.touches[0];
+        const t1 = ev.touches[1];
+        const dx = t1.clientX - t0.clientX;
+        const dy = t1.clientY - t0.clientY;
+        pinchStartDistRef.current = Math.hypot(dx, dy);
+        pinchStartScaleRef.current = scale;
+      }
+    };
+    const onTouchMove = (ev: TouchEvent) => {
+      if (!isPinchingRef.current || ev.touches.length < 2) return;
+      const t0 = ev.touches[0];
+      const t1 = ev.touches[1];
+      const dx = t1.clientX - t0.clientX;
+      const dy = t1.clientY - t0.clientY;
+      const dist = Math.hypot(dx, dy);
+      const start = pinchStartDistRef.current || dist;
+      const newScale = Math.min(4, Math.max(0.5, (pinchStartScaleRef.current * (dist / start))));
+      setScale(newScale);
+    };
+    const onTouchEnd = (ev: TouchEvent) => {
+      if (ev.touches.length < 2) {
+        isPinchingRef.current = false;
+        pinchStartDistRef.current = null;
+      }
+    };
+
     imgEl.addEventListener('load', onLoad);
     imgEl.addEventListener('pointerdown', onPointerDown);
+    imgEl.addEventListener('touchstart', onTouchStart, { passive: true });
+    imgEl.addEventListener('touchmove', onTouchMove, { passive: false });
+    imgEl.addEventListener('touchend', onTouchEnd);
+    imgEl.addEventListener('touchcancel', onTouchEnd);
 
     return () => {
       imgEl.removeEventListener('load', onLoad);
       imgEl.removeEventListener('pointerdown', onPointerDown);
+      imgEl.removeEventListener('touchstart', onTouchStart as EventListener);
+      imgEl.removeEventListener('touchmove', onTouchMove as EventListener);
+      imgEl.removeEventListener('touchend', onTouchEnd as EventListener);
+      imgEl.removeEventListener('touchcancel', onTouchEnd as EventListener);
     };
-  }, [externalImageId]);
+  }, [externalImageId, scale]);
 
   // Click to add a selection — map to 1024x1024 canonical pixels and store percent for rendering
   const handleImageClick = (e: React.MouseEvent<HTMLImageElement>) => {
+    // Prevent adding during pinch gesture
+    if (isPinchingRef.current) return;
     const rect = e.currentTarget.getBoundingClientRect();
     const dispX = e.clientX - rect.left;
     const dispY = e.clientY - rect.top;
@@ -542,7 +592,7 @@ export default function AnnotationPanel({ taskType, taskId, serialNumber, imageU
                       ref={imageRef}
                       src={imageUrl}
                       alt="Solar observation"
-                      style={{ width: '100%', borderRadius: 8, border: '1px solid #333', cursor: 'crosshair', display: 'block' }}
+                      style={{ width: '100%', borderRadius: 8, border: '1px solid #333', cursor: 'crosshair', display: 'block', transform: `scale(${scale})`, transformOrigin: 'center center' }}
                       onClick={handleImageClick}
                       onLoad={handleImageLoad}
                     />
@@ -550,6 +600,8 @@ export default function AnnotationPanel({ taskType, taskId, serialNumber, imageU
                       viewBox="0 0 100 100"
                       preserveAspectRatio="none"
                       onPointerDown={(e: React.PointerEvent<SVGSVGElement>) => {
+                        // If pinching, ignore adding markers
+                        if (isPinchingRef.current) return;
                         // Add a marker when user clicks empty SVG background (not on an existing circle)
                         const target = e.target as Element;
                         if (target && target.tagName.toLowerCase() !== 'svg') return;
@@ -611,6 +663,8 @@ export default function AnnotationPanel({ taskType, taskId, serialNumber, imageU
                       viewBox="0 0 100 100"
                       preserveAspectRatio="none"
                       onPointerDown={(e: React.PointerEvent<SVGSVGElement>) => {
+                        // If pinching, ignore adding markers
+                        if (isPinchingRef.current) return;
                         const target = e.target as Element;
                         if (target && target.tagName.toLowerCase() !== 'svg') return;
                         const rect = imageRef.current?.getBoundingClientRect();
