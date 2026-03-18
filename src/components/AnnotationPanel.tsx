@@ -481,6 +481,37 @@ export default function AnnotationPanel({ taskType, taskId, serialNumber, imageU
     setRegionRadius(10);
   }, []);
 
+  // Render points centrally so both internal and external overlays share identical UI
+  const renderPoints = () => pixelCoords.map((p, idx) => (
+    <g key={idx}>
+      <circle
+        onPointerDown={e => { e.stopPropagation(); setDraggingIndex(idx); setActiveSpotIndex(idx); }}
+        cx={`${(p.xPct ?? 0) * 100}`}
+        cy={`${(p.yPct ?? 0) * 100}`}
+        r={2.8}
+        style={{ cursor: 'grab' }}
+        fill={activeSpotIndex === idx ? 'rgba(59,130,246,0.95)' : 'rgba(34,197,94,0.95)'}
+        stroke="#fff"
+        strokeWidth={0.5}
+      />
+      <text
+        x={`${(p.xPct ?? 0) * 100 + 3}`}
+        y={`${(p.yPct ?? 0) * 100 + 3}`}
+        fontSize={3}
+        fill="#fff"
+        style={{ textAnchor: 'start' }}
+      >{idx + 1}</text>
+      <rect x={`${(p.xPct ?? 0) * 100 + 6}`} y={`${(p.yPct ?? 0) * 100 - 1}`} width={14} height={5} rx={1} fill="rgba(0,0,0,0.45)" />
+      <text
+        x={`${(p.xPct ?? 0) * 100 + 7}`}
+        y={`${(p.yPct ?? 0) * 100 + 2.5}`}
+        fontSize={2.5}
+        fill="#fff"
+        style={{ textAnchor: 'start' }}
+      >{(pixelLabels[idx] ?? '...').toString().slice(0,6)}</text>
+    </g>
+  ));
+
   const selectedOption = TASK_OPTIONS.find(o => o.value === taskType);
   if (!selectedOption) return null;
   const step           = !userLabel ? 1 : 2;
@@ -650,6 +681,7 @@ export default function AnnotationPanel({ taskType, taskId, serialNumber, imageU
                         setPixelCoords(prev => {
                           const next = [...prev, { x: x1024, y: y1024, xPct, yPct }];
                           setPixelLabels(pl => [...pl, null]);
+                          setPixelRadii(pr => [...pr, regionRadius ?? DEFAULT_RADIUS]);
                           setActiveSpotIndex(next.length - 1);
                           return next;
                         });
@@ -662,12 +694,12 @@ export default function AnnotationPanel({ taskType, taskId, serialNumber, imageU
                       {pixelCoords.map((p, idx) => (
                         <g key={idx}>
                           <circle
-                            onPointerDown={e => { e.stopPropagation(); setDraggingIndex(idx); }}
+                            onPointerDown={e => { e.stopPropagation(); setDraggingIndex(idx); setActiveSpotIndex(idx); }}
                             cx={`${(p.xPct ?? 0) * 100}`}
                             cy={`${(p.yPct ?? 0) * 100}`}
                             r={2.8}
                             style={{ cursor: 'grab' }}
-                            fill="rgba(34,197,94,0.95)"
+                            fill={activeSpotIndex === idx ? 'rgba(59,130,246,0.95)' : 'rgba(34,197,94,0.95)'}
                             stroke="#fff"
                             strokeWidth={0.5}
                           />
@@ -678,6 +710,14 @@ export default function AnnotationPanel({ taskType, taskId, serialNumber, imageU
                             fill="#fff"
                             style={{ textAnchor: 'start' }}
                           >{idx + 1}</text>
+                          <rect x={`${(p.xPct ?? 0) * 100 + 6}`} y={`${(p.yPct ?? 0) * 100 - 1}`} width={14} height={5} rx={1} fill="rgba(0,0,0,0.45)" />
+                          <text
+                            x={`${(p.xPct ?? 0) * 100 + 7}`}
+                            y={`${(p.yPct ?? 0) * 100 + 2.5}`}
+                            fontSize={2.5}
+                            fill="#fff"
+                            style={{ textAnchor: 'start' }}
+                          >{(pixelLabels[idx] ?? '...').toString().slice(0,6)}</text>
                         </g>
                       ))}
                       {taskType === 'magnetogram' && regionRadius && pixelCoords.length > 0 && (
@@ -686,7 +726,7 @@ export default function AnnotationPanel({ taskType, taskId, serialNumber, imageU
                           const radiusPct = ((regionRadius ?? 0) / 1024) * 100;
                           return (
                             <circle
-                              onPointerDown={e => { e.stopPropagation(); setDraggingIndex(0); }}
+                              onPointerDown={e => { e.stopPropagation(); setDraggingIndex(0); setActiveSpotIndex(0); }}
                               cx={`${(center.xPct ?? 0) * 100}`}
                               cy={`${(center.yPct ?? 0) * 100}`}
                               r={radiusPct}
@@ -720,6 +760,7 @@ export default function AnnotationPanel({ taskType, taskId, serialNumber, imageU
                         setPixelCoords(prev => {
                           const next = [...prev, { x: x1024, y: y1024, xPct, yPct }];
                           setPixelLabels(pl => [...pl, null]);
+                          setPixelRadii(pr => [...pr, regionRadius ?? DEFAULT_RADIUS]);
                           setActiveSpotIndex(next.length - 1);
                           return next;
                         });
@@ -732,12 +773,12 @@ export default function AnnotationPanel({ taskType, taskId, serialNumber, imageU
                       {pixelCoords.map((p, idx) => (
                         <g key={idx}>
                           <circle
-                            onPointerDown={e => { e.stopPropagation(); setDraggingIndex(idx); }}
+                            onPointerDown={e => { e.stopPropagation(); setDraggingIndex(idx); setActiveSpotIndex(idx); }}
                             cx={`${(p.xPct ?? 0) * 100}`}
                             cy={`${(p.yPct ?? 0) * 100}`}
                             r={2.8}
                             style={{ cursor: 'grab' }}
-                            fill="rgba(34,197,94,0.95)"
+                            fill={activeSpotIndex === idx ? 'rgba(59,130,246,0.95)' : 'rgba(34,197,94,0.95)'}
                             stroke="#fff"
                             strokeWidth={0.5}
                           />
@@ -748,6 +789,14 @@ export default function AnnotationPanel({ taskType, taskId, serialNumber, imageU
                             fill="#fff"
                             style={{ textAnchor: 'start' }}
                           >{idx + 1}</text>
+                          <rect x={`${(p.xPct ?? 0) * 100 + 6}`} y={`${(p.yPct ?? 0) * 100 - 1}`} width={14} height={5} rx={1} fill="rgba(0,0,0,0.45)" />
+                          <text
+                            x={`${(p.xPct ?? 0) * 100 + 7}`}
+                            y={`${(p.yPct ?? 0) * 100 + 2.5}`}
+                            fontSize={2.5}
+                            fill="#fff"
+                            style={{ textAnchor: 'start' }}
+                          >{(pixelLabels[idx] ?? '...').toString().slice(0,6)}</text>
                         </g>
                       ))}
                       {taskType === 'magnetogram' && regionRadius && pixelCoords.length > 0 && (
@@ -773,6 +822,28 @@ export default function AnnotationPanel({ taskType, taskId, serialNumber, imageU
                   )
                 )}
               </div>
+              {/* Per-spot label chooser (appears when a spot is selected) */}
+              {activeSpotIndex !== null && selectedOption && (
+                <div className="mt-2">
+                  <p className="text-xs text-slate-400 mb-1">Label for selected spot: #{activeSpotIndex + 1}</p>
+                  <div className="flex flex-wrap gap-2">
+                    {selectedOption.subLabels.map(sub => (
+                      <button
+                        key={sub.value}
+                        type="button"
+                        onClick={() => setPixelLabels(pl => pl.map((v, i) => i === activeSpotIndex ? sub.value : v))}
+                        className={`text-xs px-2 py-1 rounded ${pixelLabels[activeSpotIndex] === sub.value ? 'bg-solar-500 text-white' : 'bg-white/6 text-slate-200'}`}
+                      >{sub.label}</button>
+                    ))}
+                    <button
+                      type="button"
+                      onClick={() => setPixelLabels(pl => pl.map((v, i) => i === activeSpotIndex ? null : v))}
+                      className="text-xs px-2 py-1 rounded bg-red-600/10 text-red-300"
+                    >Clear</button>
+                  </div>
+                </div>
+              )}
+
               <div className="mt-2 text-xs text-slate-500">
                 <div className="mb-1">Coordinates (preview):</div>
                 {pixelCoords.length > 0 ? (
