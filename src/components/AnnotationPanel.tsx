@@ -210,6 +210,9 @@ function SubLabelCard({
           <p className={`text-xs mt-0.5 leading-snug ${isSelected ? 'opacity-60' : 'text-slate-600'}`}>
             {sub.hint}
           </p>
+          {isSelected && (
+            <p className="text-xs mt-1 italic text-slate-400">Scientific value: <code className="bg-white/6 px-1 py-0.5 rounded">{sub.value}</code></p>
+          )}
         </div>
       </div>
     </button>
@@ -309,8 +312,26 @@ export default function AnnotationPanel({ taskType, taskId, serialNumber, imageU
       setNaturalSize({ w: imgEl.naturalWidth, h: imgEl.naturalHeight });
     }
     const onLoad = () => setNaturalSize({ w: imgEl.naturalWidth, h: imgEl.naturalHeight });
+
+    // Click / pointer handler so clicks on the external image add markers here
+    const onPointerDown = (e: PointerEvent) => {
+      // Only respond to primary button / touch
+      if ((e as PointerEvent).button && (e as PointerEvent).button !== 0) return;
+      const rect = imgEl.getBoundingClientRect();
+      const xPct = Math.min(Math.max((e.clientX - rect.left) / rect.width, 0), 1);
+      const yPct = Math.min(Math.max((e.clientY - rect.top) / rect.height, 0), 1);
+      const x1024 = Math.round(xPct * 1024);
+      const y1024 = Math.round(yPct * 1024);
+      setPixelCoords(prev => [...prev, { x: x1024, y: y1024, xPct, yPct }]);
+    };
+
     imgEl.addEventListener('load', onLoad);
-    return () => imgEl.removeEventListener('load', onLoad);
+    imgEl.addEventListener('pointerdown', onPointerDown);
+
+    return () => {
+      imgEl.removeEventListener('load', onLoad);
+      imgEl.removeEventListener('pointerdown', onPointerDown);
+    };
   }, [externalImageId]);
 
   // Click to add a selection — map to 1024x1024 canonical pixels and store percent for rendering
