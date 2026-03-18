@@ -71,6 +71,8 @@ export interface AnnotationInput {
   confidence:    number;
   comments:      string;
   pixel_coords?: Array<{ x: number; y: number }>;
+  // Per-spot labels parallel to pixel_coords; null means unlabeled for that spot
+  pixel_labels?: Array<UserLabel | null>;
   region_radius?: number;
 }
 
@@ -177,7 +179,10 @@ ${annotation.serial_number}
 ${annotation.user_label}
 
 ### Pixel Coordinates (optional)
-${annotation.pixel_coords && annotation.pixel_coords.length > 0 ? annotation.pixel_coords.map(p => (typeof annotation.region_radius === 'number' ? `${p.x},${p.y},${annotation.region_radius}` : `${p.x},${p.y}`)).join(' ; ') : '_No response_'}
+${annotation.pixel_coords && annotation.pixel_coords.length > 0 ? annotation.pixel_coords.map((p, i) => {
+    const labelPart = annotation.pixel_labels && annotation.pixel_labels[i] ? `,${annotation.pixel_labels[i]}` : '';
+    return (typeof annotation.region_radius === 'number' ? `${p.x},${p.y},${annotation.region_radius}${labelPart}` : `${p.x},${p.y}${labelPart}`);
+  }).join(' ; ') : '_No response_'}
 
 ### Region Radius (optional)
 ${typeof annotation.region_radius === 'number' ? annotation.region_radius : '_No response_'}
