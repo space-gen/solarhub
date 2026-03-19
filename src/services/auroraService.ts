@@ -105,22 +105,63 @@ function toEmbeddableImageUrl(url: string): string {
 export async function fetchAuroraTasksByType(
   taskType: TaskType,
 ): Promise<AuroraTask[] | null> {
-  const url = `${BASE_URL}/${taskType}.json`;
+  const url = `${BASE_URL}/${taskType}.jsonl`; // Ensure .jsonl is used
+
+  console.log(`[AuroraService] Attempting to fetch: ${url}`); // Added log
 
   try {
     const res = await fetch(url);
 
+    console.log(`[AuroraService] Fetch response status for ${url}: ${res.status}`); // Added log
+
     // 404 → type not yet available
-    if (res.status === 404) return null;
+    if (res.status === 404) {
+      console.log(`[AuroraService] ${url} returned 404. Treating as "Coming soon".`); // Added log
+      return null;
+    }
 
     if (!res.ok) {
       console.warn(`[AuroraService] Failed to fetch ${url}: HTTP ${res.status}`);
       return null;
     }
 
-    const raw = (await res.json()) as RawAuroraRecord[];
+    // aurora now publishes newline-delimited JSON (.jsonl). Support both array JSON and JSONL.
+    const text = await res.text();
+    let raw: RawAuroraRecord[] | null = null;
 
-    if (!Array.isArray(raw)) return null;
+    // First try full JSON parse (old format: array)
+    try {
+      const parsed = JSON.parse(text);
+      if (Array.isArray(parsed)) raw = parsed as RawAuroraRecord[];
+      console.log(`[AuroraService] Parsed ${url} as JSON array.`); // Added log
+    } catch (e) {
+      console.log(`[AuroraService] Failed to parse ${url} as JSON array: ${e}`); // Added log
+      // ignore
+    }
+
+    // Fallback: parse as JSONL (one JSON object per non-empty line)
+    if (!raw) {
+      try {
+        raw = text
+          .split(/\r?\n/)
+          .map(s => s.trim())
+          .filter(Boolean)
+          .map(line => JSON.parse(line) as RawAuroraRecord);
+        console.log(`[AuroraService] Parsed ${url} as JSONL.`); // Added log
+      } catch (err) {
+        console.warn(`[AuroraService] Failed to parse JSON/JSONL for ${url}:`, err);
+        return null;
+      }
+    }
+
+    if (!Array.isArray(raw)) {
+        console.error(`[AuroraService] Parsed data for ${url} is not an array after JSONL parsing.`); // Added log
+        return null;
+    }
+
+    if (raw.length === 0) {
+        console.log(`[AuroraService] ${url} returned an empty array after parsing.`); // Added log
+    }
 
     return raw
       .filter((record): record is RawAuroraRecord & { url: string } => Boolean(record?.url))
