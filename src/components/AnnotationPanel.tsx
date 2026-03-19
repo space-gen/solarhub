@@ -39,7 +39,7 @@ interface TaskOption {
 
 // Scientific phrasing + plain-English helper per task type. The `uncertainLabel`
 // maps to the aurora-compatible label to use when the image doesn't match.
-const SCIENTIFIC_HELP: Record<TaskType, { scientific: string; plain: string; uncertainLabel: UserLabel }> = {
+export const SCIENTIFIC_HELP: Record<TaskType, { scientific: string; plain: string; uncertainLabel: UserLabel }> = {
   sunspot: {
     scientific: 'Find dark spots on the bright sun surface.',
     plain: 'Look for dark dots (like freckles). Mark the biggest ones you see.',
@@ -57,7 +57,7 @@ const SCIENTIFIC_HELP: Record<TaskType, { scientific: string; plain: string; unc
   cme: { scientific: 'A cloud shooting away from the sun.', plain: 'Find the place the cloud came from and mark it.', uncertainLabel: 'none' },
 };
 
-const TASK_OPTIONS: TaskOption[] = [
+export const TASK_OPTIONS: TaskOption[] = [
   {
     value:   'sunspot',
     label:   'Sun Spots',
@@ -175,6 +175,7 @@ interface AnnotationPanelProps {
   imageUrl:     string;
   externalImageId?: string; // if provided, use an external image element for overlays (prevents duplicate image)
   onSubmit:     (input: AnnotationInput) => void;
+  showGuide?:    boolean; // when false, the parent is expected to render GuidePanel above the image
 }
 
 // ---------------------------------------------------------------------------
@@ -276,7 +277,7 @@ function SuccessOverlay({ issueUrl, onDone }: { issueUrl?: string; onDone: () =>
 // Main component
 // ---------------------------------------------------------------------------
 
-export default function AnnotationPanel({ taskType, taskId, serialNumber, imageUrl, externalImageId, onSubmit }: AnnotationPanelProps) {
+export default function AnnotationPanel({ taskType, taskId, serialNumber, imageUrl, externalImageId, onSubmit, showGuide = true }: AnnotationPanelProps) {
   const [userLabel,   setUserLabel]   = useState<UserLabel  | null>(null);
   const [confidence,  setConfidence]  = useState(75);
   const [comments,    setComments]    = useState('');
@@ -497,7 +498,7 @@ export default function AnnotationPanel({ taskType, taskId, serialNumber, imageU
         className="flex flex-col gap-5">
 
         <motion.div variants={itemVariants}>
-          <GuidePanel selectedOption={selectedOption} help={SCIENTIFIC_HELP[taskType]} />
+          {showGuide && <GuidePanel selectedOption={selectedOption} help={SCIENTIFIC_HELP[taskType]} /> }
         </motion.div>
 
         {/* ── Task-specific label question ────────────────────────────────── */}
