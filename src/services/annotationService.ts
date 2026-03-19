@@ -167,7 +167,7 @@ function formatIssueBody(annotation: Annotation): string {
         const label = annotation.pixel_labels && annotation.pixel_labels[i] ? annotation.pixel_labels[i] : annotation.user_label;
         const radius = annotation.pixel_radii && typeof annotation.pixel_radii[i] === 'number'
           ? annotation.pixel_radii[i]
-          : (typeof annotation.region_radius === 'number' ? annotation.region_radius : undefined);
+          : undefined;
         return radius ? `${label},${p.x},${p.y},${radius}` : `${label},${p.x},${p.y}`;
       }).join(' ; ')
     : '_No response_';
@@ -177,9 +177,6 @@ ${annotation.image_url}
 
 ### Task Type
 ${annotation.task_type}
-
-### Scientific Command
-${annotation.scientific_command || '_No response_'}
 
 ### Record ID
 ${annotation.task_id}
@@ -192,9 +189,6 @@ ${annotation.user_label}
 
 ### Regions
 ${regions}
-
-### Region Radius (optional)
-${typeof annotation.region_radius === 'number' ? annotation.region_radius : '_No response_'}
 
 ### Notes (optional)
 ${annotation.comments.trim() || '_No response_'}

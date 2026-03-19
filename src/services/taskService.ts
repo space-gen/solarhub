@@ -25,13 +25,11 @@
 
 import { ENDPOINTS } from '@/config/endpoints';
 import { generateTaskCacheKey } from '@/utils/helpers';
+import type { TaskType } from '@/services/annotationService';
 
 // ---------------------------------------------------------------------------
 // Task data model
 // ---------------------------------------------------------------------------
-
-/** Type strings that classify what phenomenon is visible in the image. */
-export type TaskType = 'sunspot' | 'solar_flare' | 'coronal_hole' | 'unknown';
 
 /**
  * Task
@@ -68,6 +66,54 @@ export interface Task {
 
   /** Integer serial number from the aurora task dataset */
   serial_number?: number;
+}
+
+/** Raw shape of a single record in aurora's data JSON files. */
+interface RawAuroraRecord {
+  id?: string;
+  serial_number?: number;
+  url: string;
+  task_type?: string;
+  metadata?: {
+    source?: string;
+    date?: string;
+    captured_at?: string;
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+/**
+ * Convert Aurora image URLs into browser-safe embeddable URLs.
+ *
+ * Aurora currently stores JSOC links as `http://...`, which are blocked as
+ * mixed content on our HTTPS GitHub Pages frontend.
+ */
+function toEmbeddableImageUrl(url: string): string {
+  if (url.startsWith('http://jsoc.stanford.edu/')) {
+    return url.replace('http://jsoc.stanford.edu/', 'https://jsoc1.stanford.edu/');
+  }
+  if (url.startsWith('http://jsoc1.stanford.edu/')) {
+    return url.replace('http://', 'https://');
+  }
+  return url;
+}
+
+/** Map a raw aurora record to the Task interface used by the frontend. */
+function mapRawToTask(raw: RawAuroraRecord, index: number): Task {
+  return {
+    id:               raw.id || `task-${index}`,
+    image_url:        toEmbeddableImageUrl(raw.url),
+    ml_prediction:    (raw.task_type as TaskType) || 'sunspot',
+    ml_confidence:    0.95,
+    description:      `Solar observation from ${raw.metadata?.source || 'NASA SDO'}`,
+    observation_date: raw.metadata?.captured_at || raw.metadata?.date || new Date().toISOString(),
+    instrument:       raw.metadata?.source || 'NASA SDO',
+    serial_number:    raw.serial_number ?? index + 1,
+    annotation_count: 0,
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -256,14 +302,35 @@ export async function fetchTasks(): Promise<Task[]> {
       throw new Error(`HTTP ${response.status}: ${response.statusText}`);
     }
 
-    const data = (await response.json()) as unknown;
+    const text = await response.text();
+    let tasks: Task[] = [];
 
-    // ── Step 3: validate & cache ──────────────────────────────────────────
-    if (!Array.isArray(data)) {
-      throw new Error('Tasks endpoint did not return an array.');
+    // Try parsing as JSON array first (legacy format)
+    try {
+      const parsed = JSON.parse(text);
+      if (Array.isArray(parsed)) {
+        tasks = parsed as Task[];
+      }
+    } catch {
+      // Fallback: Parse as JSONL (aurora format)
+      try {
+        const raw = text
+          .split(/\r?\n/)
+          .map(line => line.trim())
+          .filter(Boolean)
+          .map(line => JSON.parse(line) as RawAuroraRecord);
+
+        tasks = raw.map((r, i) => mapRawToTask(r, i));
+      } catch (err) {
+        throw new Error(`Failed to parse tasks as JSON or JSONL: ${err instanceof Error ? err.message : 'Unknown error'}`);
+      }
     }
 
-    const tasks = data as Task[];
+    // ── Step 3: validate & cache ──────────────────────────────────────────
+    if (!tasks || tasks.length === 0) {
+      throw new Error('No valid tasks found in response.');
+    }
+
     writeTasksToCache(tasks);
     console.info('[TaskService] Fetched and cached %d tasks.', tasks.length);
     return tasks;

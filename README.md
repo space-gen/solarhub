@@ -136,8 +136,8 @@ sdo-2024-0001
 ### Your Label
 active_region
 
-### Pixel Coordinates (optional)
-_No response_
+### Regions
+class_a,450,320,15 ; class_f,890,110,10
 
 ### Notes (optional)
 Large sunspot group near the equator.

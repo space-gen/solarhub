@@ -13,6 +13,8 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import AnnotationPanel from '@/components/AnnotationPanel';
 import PointsDisplay from '@/components/PointsDisplay';
+import GuidePanel from '@/components/GuidePanel';
+import { TASK_OPTIONS, SCIENTIFIC_HELP } from '@/components/AnnotationPanel';
 import type { AnnotationInput, TaskType } from '@/services/annotationService';
 import { fetchAuroraTasksByType } from '@/services/auroraService';
 import type { AuroraTask } from '@/services/auroraService';
@@ -155,19 +157,17 @@ function AnnotationView({
           <span>Total points: <strong className="text-solar-300">{points}</strong></span>
         </motion.div>
 
-        {/* Reordered: questions first, then image, then points */}
+        {/* Guide above image, then image, then annotation controls */}
         <div className="flex flex-col gap-5">
+          {/* Render the guide here so it sits above the image */}
           <motion.div variants={itemVariants} className="glass rounded-2xl p-5">
-            <AnnotationPanel
-              taskType={taskType}
-              taskId={task.id}
-              serialNumber={task.serialNumber}
-              imageUrl={task.url}
-              externalImageId={`aurora-img-${task.id}`}
-              onSubmit={onSubmit}
-            />
+            {(() => {
+              const selectedOption = TASK_OPTIONS.find(o => o.value === taskType)!;
+              return <GuidePanel selectedOption={selectedOption} help={SCIENTIFIC_HELP[taskType]} />;
+            })()}
           </motion.div>
 
+          {/* Image */}
           <motion.div variants={itemVariants} className="glass rounded-2xl overflow-hidden">
             <div className="relative aspect-square bg-cosmic-900">
               {!imgLoaded && !imgError && <div className="absolute inset-0 shimmer-skeleton" />}
@@ -209,6 +209,19 @@ function AnnotationView({
                 )}
               </div>
             </div>
+          </motion.div>
+
+          {/* Annotation controls (render without the guide to avoid duplication) */}
+          <motion.div variants={itemVariants} className="glass rounded-2xl p-5">
+            <AnnotationPanel
+              taskType={taskType}
+              taskId={task.id}
+              serialNumber={task.serialNumber}
+              imageUrl={task.url}
+              externalImageId={`aurora-img-${task.id}`}
+              onSubmit={onSubmit}
+              showGuide={false}
+            />
           </motion.div>
 
           <motion.div variants={itemVariants} className="flex justify-end">
@@ -308,6 +321,15 @@ export default function Classify({ points, onPointsChange }: ClassifyProps) {
               <div className="glass rounded-2xl p-8 max-w-md text-center flex flex-col gap-4">
                 <span className="text-4xl">🔭</span>
                 <h2 className="font-bold text-slate-200">No images available yet</h2>
+                <button onClick={handleBackToTypes} className="btn-solar mt-2">Choose another type</button>
+              </div>
+            </div>
+          ) : !currentTask ? (
+            <div className="min-h-screen pt-24 flex items-center justify-center cosmic-bg px-4">
+              <div className="glass rounded-2xl p-8 max-w-md text-center flex flex-col gap-4">
+                <span className="text-4xl">🎉</span>
+                <h2 className="font-bold text-slate-200">All done for today in this category</h2>
+                <p className="text-sm text-slate-500">Daily rotation resets tomorrow. Nothing will be shown twice today.</p>
                 <button onClick={handleBackToTypes} className="btn-solar mt-2">Choose another type</button>
               </div>
             </div>

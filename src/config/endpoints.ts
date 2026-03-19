@@ -5,8 +5,8 @@
  */
 
 export const ENDPOINTS = {
-  /** Task list JSON served from the aurora data directory. */
-  TASKS: 'https://raw.githubusercontent.com/space-gen/aurora/main/data/tasks.json',
+  /** Task list JSONL served from the aurora data directory (newline-delimited JSON). */
+  TASKS: '/solarhub/data/tasks.jsonl',
   /** GitHub Issues REST API for the aurora backend repo. */
   GITHUB_ISSUES_API: 'https://api.github.com/repos/space-gen/aurora/issues',
   /** Human-readable link to the aurora repo. */
