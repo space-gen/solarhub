@@ -3,9 +3,9 @@
  *
  * Fetches solar image task lists from aurora's GitHub data directory at runtime.
  * No URLs or image data are hardcoded here — everything comes from:
- *   https://raw.githubusercontent.com/space-gen/aurora/main/data/{taskType}.json
+ *   https://raw.githubusercontent.com/space-gen/aurora/main/data/{taskType}.jsonl
  *
- * If a task type's JSON file doesn't exist yet (HTTP 404), returns null so the
+ * If a task type's JSONL file doesn't exist yet (HTTP 404), returns null so the
  * UI can show a "Coming soon" state for that type.
  */
 
@@ -105,7 +105,7 @@ function toEmbeddableImageUrl(url: string): string {
 export async function fetchAuroraTasksByType(
   taskType: TaskType,
 ): Promise<AuroraTask[] | null> {
-  const url = `${BASE_URL}/${taskType}.json`;
+  const url = `${BASE_URL}/${taskType}.jsonl`;
 
   try {
     const res = await fetch(url);
@@ -118,7 +118,31 @@ export async function fetchAuroraTasksByType(
       return null;
     }
 
-    const raw = (await res.json()) as RawAuroraRecord[];
+    // aurora now publishes newline-delimited JSON (.jsonl). Support both array JSON and JSONL.
+    const text = await res.text();
+    let raw: RawAuroraRecord[] | null = null;
+
+    // First try full JSON parse (old format: array)
+    try {
+      const parsed = JSON.parse(text);
+      if (Array.isArray(parsed)) raw = parsed as RawAuroraRecord[];
+    } catch {
+      // ignore
+    }
+
+    // Fallback: parse as JSONL (one JSON object per non-empty line)
+    if (!raw) {
+      try {
+        raw = text
+          .split(/\r?\n/)
+          .map(s => s.trim())
+          .filter(Boolean)
+          .map(line => JSON.parse(line) as RawAuroraRecord);
+      } catch (err) {
+        console.warn('[AuroraService] Failed to parse JSON/JSONL for', url, err);
+        return null;
+      }
+    }
 
     if (!Array.isArray(raw)) return null;
 

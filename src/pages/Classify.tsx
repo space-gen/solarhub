@@ -320,6 +320,15 @@ export default function Classify({ points, onPointsChange }: ClassifyProps) {
                 <button onClick={handleBackToTypes} className="btn-solar mt-2">Choose another type</button>
               </div>
             </div>
+          ) : !currentTask ? (
+            <div className="min-h-screen pt-24 flex items-center justify-center cosmic-bg px-4">
+              <div className="glass rounded-2xl p-8 max-w-md text-center flex flex-col gap-4">
+                <span className="text-4xl">🎉</span>
+                <h2 className="font-bold text-slate-200">All done for today in this category</h2>
+                <p className="text-sm text-slate-500">Daily rotation resets tomorrow. Nothing will be shown twice today.</p>
+                <button onClick={handleBackToTypes} className="btn-solar mt-2">Choose another type</button>
+              </div>
+            </div>
           ) : (
             <AnnotationView
               task={currentTask}
