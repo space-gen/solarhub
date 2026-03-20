@@ -20,7 +20,7 @@ import { fetchAuroraTasksByType } from '@/services/auroraService';
 import type { AuroraTask } from '@/services/auroraService';
 import { classifyTaskType } from '@/utils/helpers';
 import { loadDailyProgress, markTaskCompletedForToday } from '@/services/dailyProgressService';
-import { pageVariants, itemVariants, containerVariants } from '@/animations/pageTransitions';
+import { pageVariants, itemVariants } from '@/animations/pageTransitions';
 
 interface TaskTypeMeta {
   value: TaskType;
@@ -57,61 +57,6 @@ function BackButton({ label, onClick }: { label: string; onClick: () => void }) 
       </svg>
       {label}
     </motion.button>
-  );
-}
-
-function TypePicker({
-  onSelect,
-  availability,
-}: {
-  onSelect: (type: TaskType) => void;
-  availability: Record<TaskType, boolean | null>;
-}) {
-  const style = (tt: TaskType) => classifyTaskType(tt);
-
-  return (
-    <motion.div variants={pageVariants} initial="hidden" animate="visible" exit="exit" className="min-h-screen pt-24 pb-16 px-4 cosmic-bg">
-      <div className="max-w-3xl mx-auto flex flex-col gap-8">
-        <motion.div variants={itemVariants} className="text-center flex flex-col gap-2">
-          <h1 className="text-2xl font-bold text-slate-100">What would you like to classify today?</h1>
-          <p className="text-slate-500 text-sm">We now show tasks one-by-one and skip anything you've already completed today.</p>
-        </motion.div>
-
-        <motion.div variants={containerVariants} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {TASK_TYPES.map(tt => {
-            const avail = availability[tt.value];
-            const s = style(tt.value);
-            const ready = avail === true;
-            const loading = avail === null;
-
-            return (
-              <motion.button
-                key={tt.value}
-                variants={itemVariants}
-                onClick={() => ready ? onSelect(tt.value) : undefined}
-                whileHover={ready ? { scale: 1.03, y: -2 } : {}}
-                whileTap={ready ? { scale: 0.97 } : {}}
-                className={[
-                  'relative flex flex-col items-start gap-3 p-5 rounded-2xl text-left border transition-all duration-200 outline-none',
-                  ready ? `${s.bg} ${s.border} hover:border-opacity-70 cursor-pointer` : 'bg-white/3 border-white/8 cursor-default opacity-60',
-                ].join(' ')}
-              >
-                {!ready && (
-                  <span className="absolute top-3 right-3 text-xs px-2 py-0.5 rounded-full bg-white/8 border border-white/15 text-slate-500">
-                    {loading ? '…' : 'Coming soon'}
-                  </span>
-                )}
-                <span className="text-3xl">{tt.icon}</span>
-                <div>
-                  <p className={`font-semibold text-sm ${ready ? s.text : 'text-slate-400'}`}>{tt.friendlyName}</p>
-                  <p className="text-xs text-slate-600 mt-0.5 leading-snug">{tt.description}</p>
-                </div>
-              </motion.button>
-            );
-          })}
-        </motion.div>
-      </div>
-    </motion.div>
   );
 }
 
@@ -303,11 +248,17 @@ export default function Classify({ points, onPointsChange }: ClassifyProps) {
 
   return (
     <AnimatePresence mode="wait">
-      {!selectedType && (
-        <TypePicker key="picker" onSelect={handleTypeSelect} availability={availability} />
-      )}
-
-      {selectedType && (
+      {!selectedType ? (
+        <motion.div key="picker" variants={pageVariants} initial="hidden" animate="visible" exit="exit" className="min-h-screen pt-24 pb-16 px-4 cosmic-bg">
+          <div className="max-w-3xl mx-auto">
+            <GuidePanel 
+              onSelect={handleTypeSelect} 
+              availability={availability} 
+              taskTypes={TASK_TYPES} 
+            />
+          </div>
+        </motion.div>
+      ) : (
         <motion.div key="selected" variants={pageVariants} initial="hidden" animate="visible" exit="exit">
           {progressLoading || gridLoading ? (
             <div className="min-h-screen pt-24 flex items-center justify-center cosmic-bg">
@@ -321,15 +272,6 @@ export default function Classify({ points, onPointsChange }: ClassifyProps) {
               <div className="glass rounded-2xl p-8 max-w-md text-center flex flex-col gap-4">
                 <span className="text-4xl">🔭</span>
                 <h2 className="font-bold text-slate-200">No images available yet</h2>
-                <button onClick={handleBackToTypes} className="btn-solar mt-2">Choose another type</button>
-              </div>
-            </div>
-          ) : !currentTask ? (
-            <div className="min-h-screen pt-24 flex items-center justify-center cosmic-bg px-4">
-              <div className="glass rounded-2xl p-8 max-w-md text-center flex flex-col gap-4">
-                <span className="text-4xl">🎉</span>
-                <h2 className="font-bold text-slate-200">All done for today in this category</h2>
-                <p className="text-sm text-slate-500">Daily rotation resets tomorrow. Nothing will be shown twice today.</p>
                 <button onClick={handleBackToTypes} className="btn-solar mt-2">Choose another type</button>
               </div>
             </div>
