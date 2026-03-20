@@ -179,6 +179,7 @@ export interface AnnotationPanelProps {
   userLabel?:   UserLabel;
   onUserLabelChange?: (label: UserLabel) => void;
   showLabels?:  boolean;
+  isLocked?:    boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -189,10 +190,10 @@ export interface AnnotationPanelProps {
 export function SubLabelCard({
   sub, isSelected, onSelect, option,
 }: { sub: SubLabel; isSelected: boolean; onSelect: (v: UserLabel) => void; option: TaskOption }) {
-
   return (
     <button
       onClick={() => onSelect(sub.value)}
+      disabled={isSelected}
       className={[
         'w-full text-left p-3 rounded-lg border transition-all duration-150',
         isSelected
@@ -225,65 +226,13 @@ export function SubLabelCard({
   );
 }
 
-function SuccessOverlay({ issueUrl, onDone }: { issueUrl?: string; onDone: () => void }) {
-  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  useEffect(() => {
-    timerRef.current = setTimeout(onDone, 4_000);
-    return () => { if (timerRef.current) clearTimeout(timerRef.current); };
-  }, [onDone]);
-
-  return (
-    <motion.div
-      className="absolute inset-0 z-10 glass-strong rounded-2xl flex flex-col
-                 items-center justify-center gap-4 text-center p-6"
-      initial={{ opacity: 0, scale: 0.95 }}
-      animate={{ opacity: 1, scale: 1 }}
-      exit={{ opacity: 0, scale: 0.95 }}
-      transition={{ duration: 0.3 }}
-    >
-      <motion.div
-        className="w-16 h-16 rounded-full bg-emerald-500/20 border border-emerald-500/40
-                   flex items-center justify-center text-3xl"
-        animate={{ scale: [1, 1.2, 1] }}
-        transition={{ duration: 0.5, delay: 0.1 }}
-      >
-        🎉
-      </motion.div>
-      <div>
-        <p className="text-lg font-bold text-emerald-300 mb-1">Thank you!</p>
-        <p className="text-sm text-slate-300 leading-relaxed">
-          Your observation has been recorded.<br />
-          You're helping scientists study the sun!
-        </p>
-        {issueUrl && (
-          <a
-            href={issueUrl} target="_blank" rel="noopener noreferrer"
-            className="mt-3 inline-flex items-center gap-1.5 text-xs text-solar-400
-                       hover:text-solar-300 underline underline-offset-2 transition-colors"
-            onClick={e => e.stopPropagation()}
-          >
-            See your contribution on GitHub →
-          </a>
-        )}
-        <p className="text-xs text-slate-500 mt-3">+1 point earned 🌟</p>
-      </div>
-      <button
-        onClick={onDone}
-        className="text-xs text-slate-600 hover:text-slate-400 transition-colors mt-1"
-      >
-        Classify another image
-      </button>
-    </motion.div>
-  );
-}
-
 // ---------------------------------------------------------------------------
 // Main component
 // ---------------------------------------------------------------------------
 
 export default function AnnotationPanel({
   taskType, taskId, serialNumber, imageUrl, externalImageId, onSubmit,
-  showGuide = true, userLabel: externalUserLabel, onUserLabelChange, showLabels = true
+  showGuide = true, userLabel: externalUserLabel, onUserLabelChange, showLabels = true, isLocked = false
 }: AnnotationPanelProps) {
   const [internalUserLabel, setInternalUserLabel] = useState<UserLabel>('none');
   const userLabel = externalUserLabel !== undefined ? externalUserLabel : internalUserLabel;
@@ -294,12 +243,9 @@ export default function AnnotationPanel({
   // per-spot labels (parallel array to pixelCoords) — null means unlabeled
   const [pixelLabels, setPixelLabels] = useState<Array<UserLabel | null>>([]);
   const [pixelRadii, setPixelRadii] = useState<number[]>([]);
-  const DEFAULT_RADIUS = 10;
+  const DEFAULT_RADIUS = 5;
   const [activeSpotIndex, setActiveSpotIndex] = useState<number | null>(null);
-  const [regionRadius, setRegionRadius] = useState<number | undefined>(10);
   const [submitting,  setSubmitting]  = useState(false);
-  const [showSuccess, setShowSuccess] = useState(false);
-  const [issueUrl,    setIssueUrl]    = useState<string | undefined>();
   const [submitError, setSubmitError] = useState<string | null>(null);
   // Dragging state for markers (pointer events)
   const [draggingIndex, setDraggingIndex] = useState<number | null>(null);
@@ -366,8 +312,8 @@ export default function AnnotationPanel({
 
     // Click / pointer handler so clicks on the external image add markers here
     const onPointerDown = (e: PointerEvent) => {
-      // If pinch gesture active, ignore pointer-down to avoid adding markers
-      if (isPinchingRef.current) return;
+      // If locked or pinch gesture active, ignore pointer-down to avoid adding markers
+      if (isLocked || isPinchingRef.current) return;
       // Only respond to primary button / touch
       if ((e as PointerEvent).button && (e as PointerEvent).button !== 0) return;
       const rect = imgEl.getBoundingClientRect();
@@ -379,7 +325,7 @@ export default function AnnotationPanel({
         const next = [...prev, { x: x1024, y: y1024, xPct, yPct }];
         // keep pixelLabels and radii aligned
         setPixelLabels(pl => [...pl, null]);
-        setPixelRadii(pr => [...pr, regionRadius ?? DEFAULT_RADIUS]);
+        setPixelRadii(pr => [...pr, DEFAULT_RADIUS]);
         setActiveSpotIndex(next.length - 1);
         return next;
       });
@@ -406,8 +352,8 @@ export default function AnnotationPanel({
 
   // Click to add a selection — map to 1024x1024 canonical pixels and store percent for rendering
   const handleImageClick = (e: React.MouseEvent<HTMLImageElement>) => {
-    // Prevent adding during pinch gesture
-    if (isPinchingRef.current) return;
+    // Prevent adding during pinch gesture or if locked
+    if (isLocked || isPinchingRef.current) return;
     const rect = e.currentTarget.getBoundingClientRect();
     const dispX = e.clientX - rect.left;
     const dispY = e.clientY - rect.top;
@@ -419,29 +365,11 @@ export default function AnnotationPanel({
     setPixelCoords(prev => {
       const next = [...prev, { x: x1024, y: y1024, xPct, yPct }];
       setPixelLabels(pl => [...pl, null]);
-      setPixelRadii(pr => [...pr, regionRadius ?? DEFAULT_RADIUS]);
+      setPixelRadii(pr => [...pr, DEFAULT_RADIUS]);
       setActiveSpotIndex(next.length - 1);
       return next;
     });
   };
-
-  const handleRadiusChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setRegionRadius(Number(e.target.value));
-  };
-
-  // Keep pixelRadii array aligned with pixelCoords. If a new coord is added
-  // ensure a default radius is appended; if coords are removed, trim radii.
-  useEffect(() => {
-    setPixelRadii(pr => {
-      if (pr.length < pixelCoords.length) {
-        return [...pr, ...Array(pixelCoords.length - pr.length).fill(regionRadius ?? DEFAULT_RADIUS)];
-      }
-      if (pr.length > pixelCoords.length) {
-        return pr.slice(0, pixelCoords.length);
-      }
-      return pr;
-    });
-  }, [pixelCoords, regionRadius]);
 
   const selectedOption = TASK_OPTIONS.find(o => o.value === taskType);
 
@@ -449,7 +377,7 @@ export default function AnnotationPanel({
   const derivedUserLabel = userLabel || pixelLabels.find(l => l !== null) || 'none';
 
   const handleSubmit = useCallback(async () => {
-    if (!derivedUserLabel) return;
+    if (!derivedUserLabel || isLocked) return;
     setSubmitting(true);
     setSubmitError(null);
 
@@ -464,15 +392,21 @@ export default function AnnotationPanel({
       pixel_coords:  pixelCoords.map(p => ({ x: p.x, y: p.y })),
       pixel_labels:  pixelLabels.length ? pixelLabels : undefined,
       pixel_radii:   pixelRadii.length ? pixelRadii : undefined,
-      region_radius: taskType === 'magnetogram' ? regionRadius : undefined,
     };
 
     try {
       const result = await submitAnnotation(input);
       if (result.success) {
-        setIssueUrl(result.issueUrl);
-        setShowSuccess(true);
         onSubmit(input);
+        // Reset local state immediately
+        setUserLabel('none');
+        setConfidence(75);
+        setComments('');
+        setSubmitError(null);
+        setPixelCoords([]);
+        setPixelLabels([]);
+        setPixelRadii([]);
+        setActiveSpotIndex(null);
       } else if (result.error) {
         setSubmitError(result.error);
       }
@@ -481,22 +415,7 @@ export default function AnnotationPanel({
     } finally {
       setSubmitting(false);
     }
-  }, [taskType, derivedUserLabel, confidence, comments, taskId, serialNumber, imageUrl, onSubmit, pixelCoords, regionRadius, naturalSize]);
-
-  const handleSuccessDone = useCallback(() => {
-    setShowSuccess(false);
-    setUserLabel('none');
-    setConfidence(75);
-    setComments('');
-    setSubmitError(null);
-    setIssueUrl(undefined);
-    setPixelCoords([]);
-    setPixelLabels([]);
-    setPixelRadii([]);
-    setActiveSpotIndex(null);
-    setRegionRadius(10);
-  }, [setUserLabel]);
-
+  }, [taskType, derivedUserLabel, confidence, comments, taskId, serialNumber, imageUrl, onSubmit, pixelCoords, pixelRadii, pixelLabels, naturalSize, isLocked]);
 
   if (!selectedOption) return null;
 
@@ -505,9 +424,6 @@ export default function AnnotationPanel({
 
   return (
     <div className="relative">
-      <AnimatePresence>
-        {showSuccess && <SuccessOverlay issueUrl={issueUrl} onDone={handleSuccessDone} />}
-      </AnimatePresence>
 
       <motion.div variants={containerVariants} initial="hidden" animate="visible"
         className="flex flex-col gap-5">
@@ -544,8 +460,8 @@ export default function AnnotationPanel({
         )}
 
         {/* Pixel/region selection UI */}
-        <motion.div variants={itemVariants} className="mt-3">
-          <p className="text-xs text-slate-400 mb-1">Select spots on the image:</p>
+        <motion.div variants={itemVariants} className="mt-3" style={{ pointerEvents: isLocked ? 'none' : 'auto' }}>
+          <p className="text-xs text-slate-400 mb-1">Select regions on the image:</p>
           <div
             style={{ position: 'relative', display: 'inline-block', maxWidth: 320 }}
             onPointerMove={(e: React.PointerEvent) => {
@@ -577,8 +493,8 @@ export default function AnnotationPanel({
                   viewBox="0 0 100 100"
                   preserveAspectRatio="none"
                   onPointerDown={(e: React.PointerEvent<SVGSVGElement>) => {
-                    // If pinching, ignore adding markers
-                    if (isPinchingRef.current) return;
+                    // If locked or pinching, ignore adding markers
+                    if (isLocked || isPinchingRef.current) return;
                     // Add a marker when user clicks empty SVG background (not on an existing circle)
                     const target = e.target as Element;
                     if (target && target.tagName.toLowerCase() !== 'svg') return;
@@ -591,7 +507,7 @@ export default function AnnotationPanel({
                     setPixelCoords(prev => {
                       const next = [...prev, { x: x1024, y: y1024, xPct, yPct }];
                       setPixelLabels(pl => [...pl, null]);
-                      setPixelRadii(pr => [...pr, regionRadius ?? DEFAULT_RADIUS]);
+                      setPixelRadii(pr => [...pr, DEFAULT_RADIUS]);
                       setActiveSpotIndex(next.length - 1);
                       return next;
                     });
@@ -599,56 +515,66 @@ export default function AnnotationPanel({
                   onTouchStart={overlayTouchStart}
                   onTouchMove={overlayTouchMove}
                   onTouchEnd={overlayTouchEnd}
-                  style={{ position: 'absolute', left: 0, top: 0, width: '100%', height: '100%', pointerEvents: 'auto', touchAction: 'none' }}
+                  style={{ position: 'absolute', left: 0, top: 0, width: '100%', height: '100%', pointerEvents: isLocked ? 'none' : 'auto', touchAction: 'none' }}
                 >
-                  {pixelCoords.map((p, idx) => (
-                    <g key={idx}>
-                      <circle
-                        onPointerDown={e => { e.stopPropagation(); setDraggingIndex(idx); setActiveSpotIndex(idx); }}
-                        cx={`${(p.xPct ?? 0) * 100}`}
-                        cy={`${(p.yPct ?? 0) * 100}`}
-                        r={2.8}
-                        style={{ cursor: 'grab' }}
-                        fill={activeSpotIndex === idx ? 'rgba(59,130,246,0.95)' : 'rgba(34,197,94,0.95)'}
-                        stroke="#fff"
-                        strokeWidth={0.5}
-                      />
-                      <text
-                        x={`${(p.xPct ?? 0) * 100 + 3}`}
-                        y={`${(p.yPct ?? 0) * 100 + 3}`}
-                        fontSize={3}
-                        fill="#fff"
-                        style={{ textAnchor: 'start' }}
-                      >{idx + 1}</text>
-                      <rect x={`${(p.xPct ?? 0) * 100 + 6}`} y={`${(p.yPct ?? 0) * 100 - 1}`} width={14} height={5} rx={1} fill="rgba(0,0,0,0.45)" />
-                      <text
-                        x={`${(p.xPct ?? 0) * 100 + 7}`}
-                        y={`${(p.yPct ?? 0) * 100 + 2.5}`}
-                        fontSize={2.5}
-                        fill="#fff"
-                        style={{ textAnchor: 'start' }}
-                      >{(pixelLabels[idx] ?? '...').toString().slice(0,6)}</text>
-                    </g>
-                  ))}
-                  {taskType === 'magnetogram' && regionRadius && pixelCoords.length > 0 && (
-                    (() => {
-                      const center = pixelCoords[0];
-                      const radiusPct = ((regionRadius ?? 0) / 1024) * 100;
-                      return (
+                  {pixelCoords.map((p, idx) => {
+                    const radiusPct = ((pixelRadii[idx] ?? DEFAULT_RADIUS) / 1024) * 100;
+                    const isActive = activeSpotIndex === idx;
+                    return (
+                      <g key={idx}>
+                        {/* Translucent draggable region */}
                         <circle
-                          onPointerDown={e => { e.stopPropagation(); setDraggingIndex(0); setActiveSpotIndex(0); }}
-                          cx={`${(center.xPct ?? 0) * 100}`}
-                          cy={`${(center.yPct ?? 0) * 100}`}
+                          onPointerDown={e => {
+                            if (isLocked) return;
+                            e.stopPropagation();
+                            setDraggingIndex(idx);
+                            setActiveSpotIndex(idx);
+                          }}
+                          cx={`${(p.xPct ?? 0) * 100}`}
+                          cy={`${(p.yPct ?? 0) * 100}`}
                           r={radiusPct}
-                          style={{ cursor: 'grab' }}
-                          fill="rgba(99,102,241,0.08)"
-                          stroke="rgba(99,102,241,0.8)"
-                          strokeWidth={0.6}
+                          style={{ cursor: isLocked ? 'default' : 'grab', pointerEvents: isLocked ? 'none' : 'auto' }}
+                          fill={isActive ? 'rgba(59,130,246,0.15)' : 'rgba(34,197,94,0.15)'}
+                          stroke={isActive ? 'rgba(59,130,246,0.8)' : 'rgba(34,197,94,0.8)'}
+                          strokeWidth={0.5}
                         />
-                      );
-                    })()
-                  )}
+                        {/* Center point handle */}
+                        <circle
+                          onPointerDown={e => {
+                            if (isLocked) return;
+                            e.stopPropagation();
+                            setDraggingIndex(idx);
+                            setActiveSpotIndex(idx);
+                          }}
+                          cx={`${(p.xPct ?? 0) * 100}`}
+                          cy={`${(p.yPct ?? 0) * 100}`}
+                          r={isActive ? 1.5 : 1}
+                          style={{ cursor: isLocked ? 'default' : 'grab', pointerEvents: isLocked ? 'none' : 'auto' }}
+                          fill={isActive ? '#3b82f6' : '#22c55e'}
+                          stroke="#fff"
+                          strokeWidth={0.3}
+                        />
+
+                        <text
+                          x={`${(p.xPct ?? 0) * 100 + 3}`}
+                          y={`${(p.yPct ?? 0) * 100 + 3}`}
+                          fontSize={3}
+                          fill="#fff"
+                          style={{ textAnchor: 'start', pointerEvents: 'none' }}
+                        >{idx + 1}</text>
+                        <rect x={`${(p.xPct ?? 0) * 100 + 6}`} y={`${(p.yPct ?? 0) * 100 - 1}`} width={14} height={5} rx={1} fill="rgba(0,0,0,0.45)" style={{ pointerEvents: 'none' }} />
+                        <text
+                          x={`${(p.xPct ?? 0) * 100 + 7}`}
+                          y={`${(p.yPct ?? 0) * 100 + 2.5}`}
+                          fontSize={2.5}
+                          fill="#fff"
+                          style={{ textAnchor: 'start', pointerEvents: 'none' }}
+                        >{(pixelLabels[idx] ?? '...').toString().slice(0,6)}</text>
+                      </g>
+                    );
+                  })}
                 </svg>
+
               </>
             ) : (
               // external image mode: mount svg overlay into the external image's parent
@@ -657,8 +583,8 @@ export default function AnnotationPanel({
                   viewBox="0 0 100 100"
                   preserveAspectRatio="none"
                   onPointerDown={(e: React.PointerEvent<SVGSVGElement>) => {
-                    // If pinching, ignore adding markers
-                    if (isPinchingRef.current) return;
+                    // If locked or pinching, ignore adding markers
+                    if (isLocked || isPinchingRef.current) return;
                     const target = e.target as Element;
                     if (target && target.tagName.toLowerCase() !== 'svg') return;
                     const rect = imageRef.current?.getBoundingClientRect();
@@ -670,7 +596,7 @@ export default function AnnotationPanel({
                     setPixelCoords(prev => {
                       const next = [...prev, { x: x1024, y: y1024, xPct, yPct }];
                       setPixelLabels(pl => [...pl, null]);
-                      setPixelRadii(pr => [...pr, regionRadius ?? DEFAULT_RADIUS]);
+                      setPixelRadii(pr => [...pr, DEFAULT_RADIUS]);
                       setActiveSpotIndex(next.length - 1);
                       return next;
                     });
@@ -678,78 +604,87 @@ export default function AnnotationPanel({
                   onTouchStart={overlayTouchStart}
                   onTouchMove={overlayTouchMove}
                   onTouchEnd={overlayTouchEnd}
-                  style={{ position: 'absolute', left: 0, top: 0, width: '100%', height: '100%', pointerEvents: 'auto', touchAction: 'none' }}
+                  style={{ position: 'absolute', left: 0, top: 0, width: '100%', height: '100%', pointerEvents: isLocked ? 'none' : 'auto', touchAction: 'none' }}
                 >
-                  {pixelCoords.map((p, idx) => (
-                    <g key={idx}>
-                      <circle
-                        onPointerDown={e => { e.stopPropagation(); setDraggingIndex(idx); setActiveSpotIndex(idx); }}
-                        cx={`${(p.xPct ?? 0) * 100}`}
-                        cy={`${(p.yPct ?? 0) * 100}`}
-                        r={2.8}
-                        style={{ cursor: 'grab' }}
-                        fill={activeSpotIndex === idx ? 'rgba(59,130,246,0.95)' : 'rgba(34,197,94,0.95)'}
-                        stroke="#fff"
-                        strokeWidth={0.5}
-                      />
-                      <text
-                        x={`${(p.xPct ?? 0) * 100 + 3}`}
-                        y={`${(p.yPct ?? 0) * 100 + 3}`}
-                        fontSize={3}
-                        fill="#fff"
-                        style={{ textAnchor: 'start' }}
-                      >{idx + 1}</text>
-                      <rect x={`${(p.xPct ?? 0) * 100 + 6}`} y={`${(p.yPct ?? 0) * 100 - 1}`} width={14} height={5} rx={1} fill="rgba(0,0,0,0.45)" />
-                      <text
-                        x={`${(p.xPct ?? 0) * 100 + 7}`}
-                        y={`${(p.yPct ?? 0) * 100 + 2.5}`}
-                        fontSize={2.5}
-                        fill="#fff"
-                        style={{ textAnchor: 'start' }}
-                      >{(pixelLabels[idx] ?? '...').toString().slice(0,6)}</text>
-                    </g>
-                  ))}
-                  {taskType === 'magnetogram' && regionRadius && pixelCoords.length > 0 && (
-                    (() => {
-                      const center = pixelCoords[0];
-                      const radiusPct = ((regionRadius ?? 0) / 1024) * 100;
-                      return (
+                  {pixelCoords.map((p, idx) => {
+                    const radiusPct = ((pixelRadii[idx] ?? DEFAULT_RADIUS) / 1024) * 100;
+                    const isActive = activeSpotIndex === idx;
+                    return (
+                      <g key={idx}>
                         <circle
-                          onPointerDown={e => { e.stopPropagation(); setDraggingIndex(0); }}
-                          cx={`${(center.xPct ?? 0) * 100}`}
-                          cy={`${(center.yPct ?? 0) * 100}`}
+                          onPointerDown={e => {
+                            if (isLocked) return;
+                            e.stopPropagation();
+                            setDraggingIndex(idx);
+                            setActiveSpotIndex(idx);
+                          }}
+                          cx={`${(p.xPct ?? 0) * 100}`}
+                          cy={`${(p.yPct ?? 0) * 100}`}
                           r={radiusPct}
-                          style={{ cursor: 'grab' }}
-                          fill="rgba(99,102,241,0.08)"
-                          stroke="rgba(99,102,241,0.8)"
-                          strokeWidth={0.6}
+                          style={{ cursor: isLocked ? 'default' : 'grab', pointerEvents: isLocked ? 'none' : 'auto' }}
+                          fill={isActive ? 'rgba(59,130,246,0.15)' : 'rgba(34,197,94,0.15)'}
+                          stroke={isActive ? 'rgba(59,130,246,0.8)' : 'rgba(34,197,94,0.8)'}
+                          strokeWidth={0.5}
                         />
-                      );
-                    })()
-                  )}
+                        <circle
+                          onPointerDown={e => {
+                            if (isLocked) return;
+                            e.stopPropagation();
+                            setDraggingIndex(idx);
+                            setActiveSpotIndex(idx);
+                          }}
+                          cx={`${(p.xPct ?? 0) * 100}`}
+                          cy={`${(p.yPct ?? 0) * 100}`}
+                          r={isActive ? 1.5 : 1}
+                          style={{ cursor: isLocked ? 'default' : 'grab', pointerEvents: isLocked ? 'none' : 'auto' }}
+                          fill={isActive ? '#3b82f6' : '#22c55e'}
+                          stroke="#fff"
+                          strokeWidth={0.3}
+                        />
+
+                        <text
+                          x={`${(p.xPct ?? 0) * 100 + 3}`}
+                          y={`${(p.yPct ?? 0) * 100 + 3}`}
+                          fontSize={3}
+                          fill="#fff"
+                          style={{ textAnchor: 'start', pointerEvents: 'none' }}
+                        >{idx + 1}</text>
+                        <rect x={`${(p.xPct ?? 0) * 100 + 6}`} y={`${(p.yPct ?? 0) * 100 - 1}`} width={14} height={5} rx={1} fill="rgba(0,0,0,0.45)" style={{ pointerEvents: 'none' }} />
+                        <text
+                          x={`${(p.xPct ?? 0) * 100 + 7}`}
+                          y={`${(p.yPct ?? 0) * 100 + 2.5}`}
+                          fontSize={2.5}
+                          fill="#fff"
+                          style={{ textAnchor: 'start', pointerEvents: 'none' }}
+                        >{(pixelLabels[idx] ?? '...').toString().slice(0,6)}</text>
+                      </g>
+                    );
+                  })}
                 </svg>,
                 portalContainer,
               )
+
             )}
           </div>
           {/* Per-spot label chooser (appears when a spot is selected) */}
           {activeSpotIndex !== null && selectedOption && (
             <div className="mt-2">
-              <p className="text-xs text-slate-400 mb-1">Label for selected spot: #{activeSpotIndex + 1}</p>
+              <p className="text-xs text-slate-400 mb-1">Label for selected region: #{activeSpotIndex + 1}</p>
               <div className="flex flex-wrap gap-2">
                 {selectedOption.subLabels.map(sub => (
                   <button
                     key={sub.value}
                     type="button"
                     onClick={() => setPixelLabels(pl => pl.map((v, i) => i === activeSpotIndex ? sub.value : v))}
-                    className={`text-xs px-2 py-1 rounded ${pixelLabels[activeSpotIndex] === sub.value ? 'bg-solar-500 text-white' : 'bg-white/6 text-slate-200'}`}
+                    className={`text-xs px-2 py-1 rounded ${activeSpotIndex !== null && pixelLabels[activeSpotIndex] === sub.value ? 'bg-solar-500 text-white' : 'bg-white/6 text-slate-200'}`}
                   >{sub.label}</button>
                 ))}
+
                 <button
                   key="none"
                   type="button"
                   onClick={() => setPixelLabels(pl => pl.map((v, i) => i === activeSpotIndex ? 'none' : v))}
-                  className={`text-xs px-2 py-1 rounded ${pixelLabels[activeSpotIndex] === 'none' ? 'bg-solar-500 text-white' : 'bg-white/6 text-slate-200'}`}
+                  className={`text-xs px-2 py-1 rounded ${activeSpotIndex !== null && pixelLabels[activeSpotIndex] === 'none' ? 'bg-solar-500 text-white' : 'bg-white/6 text-slate-200'}`}
                 >None / I don't know</button>
                 <button
                   type="button"
@@ -760,91 +695,85 @@ export default function AnnotationPanel({
             </div>
           )}
 
-          <div className="mt-2 text-xs text-slate-500">
-            <div className="mb-1">Coordinates (preview):</div>
+          {/* Per-spot radius control: when a spot is selected allow setting its radius in px */}
+          {activeSpotIndex !== null && pixelRadii[activeSpotIndex] !== undefined && (
+            <div className="mt-2">
+              <div className="flex justify-between items-center mb-1">
+                <label className="text-xs text-slate-400">Region radius for selected region #{activeSpotIndex+1} (px)</label>
+                <span className="text-xs font-mono text-solar-300">{pixelRadii[activeSpotIndex]} px</span>
+              </div>
+              <input type="range" min={1} max={512}
+                value={pixelRadii[activeSpotIndex]}
+                onChange={e => {
+                  const v = Number(e.target.value);
+                  setPixelRadii(pr => pr.map((r, i) => i === activeSpotIndex ? v : r));
+                }}
+                className="w-full h-1.5 rounded-full appearance-none cursor-pointer bg-white/10 accent-solar-500" />
+            </div>
+          )}
+
+          <div className="mt-4 text-xs text-slate-500">
+            <div className="mb-1 font-semibold text-slate-400 uppercase tracking-tight">Active Regions (preview):</div>
             {pixelCoords.length > 0 ? (
-              <div>
-                <div className="text-xs mb-2">Format: x,y[,radius] ; multiple entries separated by ` ; `</div>
-                <ul className="mt-1">
-                  {activeSpotIndex !== null && (
-                    <li className="text-xs text-slate-400 mb-1">Selected spot: #{activeSpotIndex + 1}</li>
-                  )}
+              <div className="flex flex-col gap-2">
+                <div className="text-[10px] text-slate-600 italic">Format: x, y, radius</div>
+                <ul className="flex flex-col gap-1.5">
                   {pixelCoords.map((p, idx) => {
-                    const r = pixelRadii[idx] ?? regionRadius ?? 0;
-                    const coordStr = `${p.x},${p.y}${taskType === 'magnetogram' ? `,${r}` : ''}`;
+                    const r = pixelRadii[idx] ?? DEFAULT_RADIUS;
+                    const coordStr = `${p.x}, ${p.y}, ${r}`;
                     const label = pixelLabels[idx] ?? null;
+                    const isSelectedSpot = activeSpotIndex === idx;
                     return (
-                      <li key={idx} className="flex items-center gap-3">
-                        <code className="bg-white/6 px-2 py-1 rounded text-xs">{coordStr}</code>
-                        {label ? (
-                          <span className="text-xs text-slate-300">{label}</span>
-                        ) : (
-                          <span className="text-xs text-slate-500 italic">(unlabeled)</span>
-                        )}
+                      <li key={idx} 
+                        onClick={() => setActiveSpotIndex(idx)}
+                        className={`flex items-center justify-between p-2 rounded-lg border transition-colors cursor-pointer ${
+                          isSelectedSpot ? 'bg-solar-500/10 border-solar-500/30' : 'bg-white/4 border-white/8 hover:bg-white/6'
+                        }`}>
+                        <div className="flex items-center gap-3">
+                          <span className={`w-5 h-5 flex items-center justify-center rounded-full text-[10px] font-bold ${
+                            isSelectedSpot ? 'bg-solar-500 text-white' : 'bg-slate-700 text-slate-300'
+                          }`}>{idx + 1}</span>
+                          <code className="bg-black/20 px-1.5 py-0.5 rounded text-[10px] text-slate-300 font-mono">{coordStr}</code>
+                          {label ? (
+                            <span className="text-[11px] font-medium text-slate-200">{label}</span>
+                          ) : (
+                            <span className="text-[10px] text-slate-500 italic">(unlabeled)</span>
+                          )}
+                        </div>
                         <button
-                          className="text-xs text-red-400 hover:text-red-600 underline"
-                          onClick={e => { e.stopPropagation(); setPixelCoords(pc => {
-                            const next = pc.filter((_, i) => i !== idx);
-                            setPixelLabels(pl => pl.filter((_, i) => i !== idx));
-                            setPixelRadii(pr => pr.filter((_, i) => i !== idx));
-                            setActiveSpotIndex(prev => {
-                              if (prev === null) return null;
-                              if (idx < prev) return prev - 1;
-                              if (idx === prev) return next.length > 0 ? Math.max(0, prev - 1) : null;
-                              return prev;
-                            });
-                            return next;
-                          }); }}
-                        >Remove</button>
+                          className="p-1 text-slate-500 hover:text-red-400 transition-colors"
+                          title="Remove region"
+                          onClick={e => { 
+                            e.stopPropagation(); 
+                            setPixelCoords(pc => {
+                              const next = pc.filter((_, i) => i !== idx);
+                              setPixelLabels(pl => pl.filter((_, i) => i !== idx));
+                              setPixelRadii(pr => pr.filter((_, i) => i !== idx));
+                              setActiveSpotIndex(prev => {
+                                if (prev === null) return null;
+                                if (idx < prev) return prev - 1;
+                                if (idx === prev) return next.length > 0 ? Math.max(0, prev - 1) : null;
+                                return prev;
+                              });
+                              return next;
+                            }); 
+                          }}
+                        >
+                          <svg viewBox="0 0 24 24" className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2.5}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                          </svg>
+                        </button>
                       </li>
                     );
                   })}
                 </ul>
               </div>
             ) : (
-              <div className="text-xs italic text-slate-600">No coordinates selected</div>
+              <div className="p-4 rounded-xl border border-dashed border-white/10 text-center text-[11px] italic text-slate-600">
+                No regions marked yet. Click the solar image to start.
+              </div>
             )}
           </div>
-
-          {/* Per-spot radius control (magnetograms): when a spot is selected allow setting its radius in px */}
-          {taskType === 'magnetogram' && activeSpotIndex !== null && pixelRadii[activeSpotIndex] !== undefined && (
-            <div className="mt-2">
-              <label className="text-xs text-slate-400">Radius for selected spot (px)</label>
-              <input type="range" min={1} max={1024}
-                value={pixelRadii[activeSpotIndex]}
-                onChange={e => {
-                  const v = Number(e.target.value);
-                  setPixelRadii(pr => pr.map((r, i) => i === activeSpotIndex ? v : r));
-                }}
-                className="ml-2" />
-              <span className="ml-2 text-xs text-slate-500">{pixelRadii[activeSpotIndex]} px</span>
-            </div>
-          )}
-
-          {taskType === 'magnetogram' && (
-            <div className="mt-2">
-              <label className="text-xs text-slate-400">Region radius (px, image scale 1024)</label>
-              <input type="range" min={1} max={1024} value={regionRadius || 10} onChange={handleRadiusChange} className="ml-2" />
-              <span className="ml-2 text-xs text-slate-500">{regionRadius || 10} px</span>
-
-              <div className="mt-2">
-                <button
-                  className="text-xs text-solar-300 underline"
-                  onClick={() => {
-                    // Make the last placed marker the center (move to index 0)
-                    setPixelCoords(prev => {
-                      if (prev.length <= 1) return prev;
-                      const next = [...prev];
-                      const last = next.pop()!;
-                      next.unshift(last);
-                      return next;
-                    });
-                  }}
-                >Set center to last placed marker</button>
-                <p className="text-xs text-slate-500 mt-1">Tip: place the center marker last, then click this to use it as the region centre.</p>
-              </div>
-            </div>
-          )}
         </motion.div>
 
         {/* ── Confidence slider ─────────────────────────────────────────── */}
@@ -877,7 +806,7 @@ export default function AnnotationPanel({
           <textarea
             id="comments" value={comments}
             onChange={e => setComments(e.target.value)}
-            placeholder="e.g. 'There's a very bright spot in the upper right corner' or 'The arch looks like it's about to erupt'"
+            placeholder="e.g. 'There's a very bright region in the upper right corner' or 'The arch looks like it's about to erupt'"
             rows={3}
             className="w-full bg-white/4 border border-white/8 rounded-xl px-4 py-3
                        text-sm text-slate-300 placeholder-slate-700
@@ -925,7 +854,7 @@ export default function AnnotationPanel({
             ) : canSubmit ? (
               'Submit My Observation →'
             ) : (
-              '↑ Mark & label at least one spot on the image'
+              '↑ Mark & label at least one region on the image'
             )}
           </motion.button>
         </motion.div>

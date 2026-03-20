@@ -158,19 +158,29 @@ async function saveToPuterCloud(annotation: Annotation): Promise<void> {
 /**
  * formatIssueBody
  *
- * Produces a Markdown body using `### Heading` sections that aurora's
- * parse_issue_annotation.py splits and extracts automatically.
+ * Produces a Markdown body strictly matching the .github/ISSUE_TEMPLATE/annotate.yml structure.
+ * Headers must match the 'label' attributes in the YML form definition.
  */
 function formatIssueBody(annotation: Annotation): string {
-  const regions = annotation.pixel_coords && annotation.pixel_coords.length > 0
+  // Format: label,x,y,r ; label2,x2,y2,r2
+  const formattedLabel = annotation.pixel_coords && annotation.pixel_coords.length > 0
     ? annotation.pixel_coords.map((p, i) => {
-        const label = annotation.pixel_labels && annotation.pixel_labels[i] ? annotation.pixel_labels[i] : annotation.user_label;
+        // Use per-spot label if available, otherwise fallback to the user's global selection (or 'none')
+        const l = (annotation.pixel_labels && annotation.pixel_labels[i]) 
+          ? annotation.pixel_labels[i] 
+          : annotation.user_label;
+        
+        // Ensure a valid label is used; if user somehow submitted without one, default to 'none'
+        const labelStr = l || 'none';
+
+        // Use per-spot radius if available, default to 0 if not (though UI defaults to 5)
         const radius = annotation.pixel_radii && typeof annotation.pixel_radii[i] === 'number'
           ? annotation.pixel_radii[i]
-          : undefined;
-        return radius ? `${label},${p.x},${p.y},${radius}` : `${label},${p.x},${p.y}`;
+          : 0;
+          
+        return `${labelStr},${p.x},${p.y},${radius}`;
       }).join(' ; ')
-    : '_No response_';
+    : `${annotation.user_label || 'none'},0,0,0`; // Fallback for no-region tasks if any
 
   return `### Image URL
 ${annotation.image_url}
@@ -181,14 +191,11 @@ ${annotation.task_type}
 ### Record ID
 ${annotation.task_id}
 
-### Serial Number
-${annotation.serial_number}
+### Your Label (label,x,y,r ; label2,x2,y2,r2)
+${formattedLabel}
 
-### Your Label
-${annotation.user_label}
-
-### Regions
-${regions}
+### Confidence Score (0-100)
+${annotation.confidence}
 
 ### Notes (optional)
 ${annotation.comments.trim() || '_No response_'}

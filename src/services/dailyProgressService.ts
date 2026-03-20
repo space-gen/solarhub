@@ -29,16 +29,15 @@ function toDateKeyUTC(date: Date): string {
   return `${y}-${m}-${d}`;
 }
 
-// day cutoff is 00:30 UTC; use a shifted time so the "today" key flips at 00:30 UTC
+// day cutoff is 00:00 UTC; use standard UTC date
 function todayKey(): string {
-  const shifted = new Date(Date.now() - 30 * 60 * 1000); // subtract 30 minutes
-  return toDateKeyUTC(shifted);
+  return toDateKeyUTC(new Date());
 }
 
 function yesterdayKey(): string {
-  const shifted = new Date(Date.now() - 30 * 60 * 1000);
-  shifted.setUTCDate(shifted.getUTCDate() - 1);
-  return toDateKeyUTC(shifted);
+  const d = new Date();
+  d.setUTCDate(d.getUTCDate() - 1);
+  return toDateKeyUTC(d);
 }
 
 function parseStringArray(raw: string | null): string[] {
@@ -121,29 +120,36 @@ export async function loadDailyProgress(): Promise<DailyProgress> {
   const dateKey = todayKey();
   const dailyKey = localDailyKey(dateKey);
 
+  // Try cloud first (source of truth)
+  let cloudIds: string[] | null = null;
+  let cloudStats: StoredStats | null = null;
+  
+  if (await isPuterSignedIn()) {
+    cloudIds = parseStringArray(await puterGet(dailyKey));
+    cloudStats = parseStats(await puterGet(STATS_KEY));
+  }
+
+  // Fallback to local if cloud unavailable (offline or not signed in)
   const localIds = parseStringArray(safeLocalGet(dailyKey));
   const localStats = parseStats(safeLocalGet(STATS_KEY));
 
-  const cloudIds = parseStringArray(await puterGet(dailyKey));
-  const cloudStats = parseStats(await puterGet(STATS_KEY));
+  // If cloud data exists, it overrides local. Otherwise use local.
+  // We do NOT merge sets anymore as per strict "cloud is source of truth" instruction.
+  // However, for best UX, if cloud is null, we use local.
+  const finalIds = cloudIds !== null ? new Set(cloudIds) : new Set(localIds);
+  const finalStats = cloudStats !== null ? cloudStats : localStats;
 
-  const mergedIds = new Set<string>([...localIds, ...cloudIds]);
-  const mergedStats: StoredStats = {
-    points: Math.max(localStats.points, cloudStats.points),
-    streak: Math.max(localStats.streak, cloudStats.streak),
-    lastActiveDate: localStats.lastActiveDate ?? cloudStats.lastActiveDate,
-  };
+  // Sync back to local to keep it fresh
+  safeLocalSet(dailyKey, JSON.stringify([...finalIds]));
+  safeLocalSet(STATS_KEY, JSON.stringify(finalStats));
 
-  // Refresh local cache with merged data.
-  safeLocalSet(dailyKey, JSON.stringify([...mergedIds]));
-  safeLocalSet(STATS_KEY, JSON.stringify(mergedStats));
-
-  // Clean up yesterday's key so IDs do not persist past the 00:30 UTC cutoff.
+  // Clean up yesterday's key so IDs do not persist past 00:00 UTC.
   try {
     const yKey = localDailyKey(yesterdayKey());
+    // Only cleanup if yesterday is strictly not today
     if (yKey !== dailyKey) {
-      // clear local storage for yesterday and attempt to clear cloud copy as well
       try { localStorage.removeItem(yKey); } catch {}
+      // We also clean up cloud for yesterday to save space/keep it clean
       await puterSet(yKey, JSON.stringify([]));
     }
   } catch {
@@ -152,10 +158,10 @@ export async function loadDailyProgress(): Promise<DailyProgress> {
 
   return {
     dateKey,
-    completedTaskIds: mergedIds,
-    points: mergedStats.points,
-    streak: mergedStats.streak,
-    lastActiveDate: mergedStats.lastActiveDate,
+    completedTaskIds: finalIds,
+    points: finalStats.points,
+    streak: finalStats.streak,
+    lastActiveDate: finalStats.lastActiveDate,
   };
 }
 

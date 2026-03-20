@@ -21,6 +21,8 @@ import { classifyTaskType } from '@/utils/helpers';
 import { loadDailyProgress, markTaskCompletedForToday } from '@/services/dailyProgressService';
 import { pageVariants, itemVariants } from '@/animations/pageTransitions';
 
+// ... existing interfaces ...
+
 interface TaskTypeMeta {
   value: TaskType;
   friendlyName: string;
@@ -59,6 +61,51 @@ function BackButton({ label, onClick }: { label: string; onClick: () => void }) 
   );
 }
 
+function SuccessPopup({ points }: { points: number }) {
+  return (
+    <motion.div
+      initial={{ opacity: 0, scale: 0.9 }}
+      animate={{ opacity: 1, scale: 1 }}
+      exit={{ opacity: 0, scale: 0.9 }}
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+    >
+      <div className="bg-cosmic-800 border border-white/10 rounded-2xl p-8 max-w-sm w-full shadow-2xl flex flex-col items-center text-center gap-4 relative overflow-hidden">
+        {/* Shine effect */}
+        <div className="absolute inset-0 bg-gradient-to-br from-solar-500/10 to-transparent opacity-50 pointer-events-none" />
+        
+        <motion.div
+          initial={{ scale: 0 }}
+          animate={{ scale: 1 }}
+          transition={{ type: "spring", stiffness: 200, damping: 10 }}
+          className="w-20 h-20 rounded-full bg-emerald-500/20 flex items-center justify-center mb-2"
+        >
+          <span className="text-4xl">🎉</span>
+        </motion.div>
+        
+        <div>
+          <h2 className="text-2xl font-bold text-white mb-2">Great Job!</h2>
+          <p className="text-slate-300 mb-1">Your contribution helps science.</p>
+          <div className="text-sm font-mono text-emerald-400 bg-emerald-500/10 px-3 py-1 rounded-full inline-block mt-2">
+            +1 Point · Total: {points}
+          </div>
+        </div>
+
+        <div className="flex flex-col gap-2 w-full mt-2">
+          <div className="text-xs text-slate-500">Loading next image...</div>
+          <div className="h-1 w-full bg-white/10 rounded-full overflow-hidden">
+            <motion.div 
+              className="h-full bg-solar-500"
+              initial={{ width: "0%" }}
+              animate={{ width: "100%" }}
+              transition={{ duration: 2, ease: "linear" }}
+            />
+          </div>
+        </div>
+      </div>
+    </motion.div>
+  );
+}
+
 function AnnotationView({
   task,
   taskType,
@@ -68,6 +115,7 @@ function AnnotationView({
   remainingToday,
   onSubmit,
   onBack,
+  showSuccess
 }: {
   task: AuroraTask;
   taskType: TaskType;
@@ -77,10 +125,12 @@ function AnnotationView({
   remainingToday: number;
   onSubmit: (input: AnnotationInput) => void;
   onBack: () => void;
+  showSuccess: boolean;
 }) {
   const [imgLoaded, setImgLoaded] = useState(false);
   const [imgError, setImgError] = useState(false);
   const [userLabel, setUserLabel] = useState<UserLabel>('none');
+  const [isLocked, setIsLocked] = useState(false);
 
   const s = classifyTaskType(taskType);
   const meta = TASK_TYPES.find(t => t.value === taskType)!;
@@ -88,6 +138,41 @@ function AnnotationView({
 
   return (
     <motion.div variants={pageVariants} initial="hidden" animate="visible" exit="exit" className="min-h-screen pt-20 pb-16 px-4 cosmic-bg">
+      <AnimatePresence>
+        {showSuccess && <SuccessPopup points={points} />}
+      </AnimatePresence>
+
+      {/* Floating Lock Toggle */}
+      <motion.button
+        onClick={() => setIsLocked(!isLocked)}
+        whileHover={{ scale: 1.1 }}
+        whileTap={{ scale: 0.9 }}
+        className={`fixed bottom-8 right-8 z-50 p-4 rounded-full shadow-2xl flex items-center justify-center transition-colors duration-300 border ${
+          isLocked 
+            ? 'bg-red-500/20 text-red-400 border-red-500/40' 
+            : 'bg-solar-500/20 text-solar-400 border-solar-500/40'
+        }`}
+        title={isLocked ? "Unlock image interaction" : "Lock image interaction (prevent accidental touches)"}
+      >
+        <div className="flex items-center gap-2">
+          {isLocked ? (
+            <>
+              <svg viewBox="0 0 24 24" className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+              </svg>
+              <span className="text-xs font-bold uppercase tracking-widest pr-1">Locked</span>
+            </>
+          ) : (
+            <>
+              <svg viewBox="0 0 24 24" className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M8 11V7a4 4 0 118 0m-4 8v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2z" />
+              </svg>
+              <span className="text-xs font-bold uppercase tracking-widest pr-1">Unlocked</span>
+            </>
+          )}
+        </div>
+      </motion.button>
+
       <div className="max-w-5xl mx-auto flex flex-col gap-5">
         <motion.div variants={itemVariants} className="flex items-center gap-4 pt-4 flex-wrap">
           <BackButton label="All types" onClick={onBack} />
@@ -111,7 +196,7 @@ function AnnotationView({
             
             <div className="pt-4 border-t border-white/5">
               <p className="text-xs text-slate-400 italic">
-                💡 Not 100% sure? That's fine — pick the closest label for each spot you mark!
+                💡 Not 100% sure? That's fine — pick the closest label for each region you mark!
               </p>
             </div>
           </motion.div>
@@ -174,6 +259,7 @@ function AnnotationView({
               showLabels={false}
               userLabel={userLabel}
               onUserLabelChange={setUserLabel}
+              isLocked={isLocked}
             />
           </motion.div>
 
@@ -196,6 +282,7 @@ export default function Classify({ points, onPointsChange }: ClassifyProps) {
   const [progressLoading, setProgressLoading] = useState(true);
   const [doneIds, setDoneIds] = useState<Set<string>>(new Set());
   const [streak, setStreak] = useState(0);
+  const [showSuccess, setShowSuccess] = useState(false);
 
   const [availability, setAvailability] = useState<Record<TaskType, boolean | null>>(
     () => Object.fromEntries(TASK_TYPES.map(t => [t.value, null])) as Record<TaskType, boolean | null>,
@@ -244,14 +331,16 @@ export default function Classify({ points, onPointsChange }: ClassifyProps) {
   }, [navigate]);
 
   const handleAnnotationSubmit = useCallback((input: AnnotationInput) => {
-    // Let AnnotationPanel show success first, then advance to next task.
+    setShowSuccess(true);
+    // Let SuccessPopup show for 2 seconds before advancing
     setTimeout(() => {
       void markTaskCompletedForToday(input.task_id).then(({ progress }) => {
         setDoneIds(new Set(progress.completedTaskIds));
         setStreak(progress.streak);
         onPointsChange(progress.points); // +1 point per successful annotation
+        setShowSuccess(false);
       });
-    }, 4_200);
+    }, 2_000);
   }, [onPointsChange]);
 
   return (
@@ -303,6 +392,7 @@ export default function Classify({ points, onPointsChange }: ClassifyProps) {
               remainingToday={pendingTasks.length}
               onSubmit={handleAnnotationSubmit}
               onBack={handleBackToTypes}
+              showSuccess={showSuccess}
             />
           )}
         </motion.div>

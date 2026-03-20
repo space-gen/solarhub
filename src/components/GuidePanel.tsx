@@ -125,12 +125,12 @@ export default function GuidePanel({
         <details className="mt-3 bg-white/3 p-3 rounded-lg">
           <summary className="cursor-pointer text-slate-200 text-sm font-semibold">More info & examples</summary>
           <div className="mt-2 text-xs text-slate-400">
-            <p className="mb-2"><strong>How to mark spots</strong>: Click the image to add numbered markers. Drag a marker to reposition it. For groups, place markers on the main visible centers.</p>
-            <p className="mb-2"><strong>Sunspots</strong>: Mark dark circular spots on the disk. Try to place markers on spot centres; for groups place 1–3 markers on the most prominent spots.</p>
-            <p className="mb-2"><strong>Magnetograms</strong>: Place a marker on the centre of the region. Use the "Region radius" slider to cover the area. If the region is offset from your first click, place the center marker last and use the "Set center" control below.</p>
+            <p className="mb-2"><strong>How to mark regions</strong>: Click the image to add numbered markers. Drag a marker to reposition it. Use the slider to adjust the region size.</p>
+            <p className="mb-2"><strong>Sunspots</strong>: Mark dark circular regions on the disk. Try to place markers on the center; for groups place 1–3 markers on the most prominent areas.</p>
+            <p className="mb-2"><strong>Magnetograms</strong>: Place a marker on the centre of the region. Use the "Region radius" slider to cover the area.</p>
             <p className="mb-2"><strong>Flares</strong>: Click the brightest point of the flash.</p>
             <p className="mb-2"><strong>Coronal holes & prominences</strong>: Use 1–2 markers to describe extent or place center and increase region radius.</p>
-            <p className="mb-2">If unsure, pick the "I don't know / none" option — scientists will review ambiguous cases.</p>
+            <p className="mb-2">If unsure, pick the "None / I don't know" option — scientists will review ambiguous cases.</p>
           </div>
         </details>
       </motion.div>
