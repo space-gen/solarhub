@@ -285,7 +285,7 @@ export default function AnnotationPanel({
   taskType, taskId, serialNumber, imageUrl, externalImageId, onSubmit,
   showGuide = true, userLabel: externalUserLabel, onUserLabelChange, showLabels = true
 }: AnnotationPanelProps) {
-  const [internalUserLabel, setInternalUserLabel] = useState<UserLabel>(null);
+  const [internalUserLabel, setInternalUserLabel] = useState<UserLabel>('none');
   const userLabel = externalUserLabel !== undefined ? externalUserLabel : internalUserLabel;
   const setUserLabel = onUserLabelChange || setInternalUserLabel;
   const [confidence,  setConfidence]  = useState(75);
@@ -443,6 +443,11 @@ export default function AnnotationPanel({
     });
   }, [pixelCoords, regionRadius]);
 
+  const selectedOption = TASK_OPTIONS.find(o => o.value === taskType);
+
+  // Derive user_label from the first labeled spot if it's not explicitly set
+  const derivedUserLabel = userLabel || pixelLabels.find(l => l !== null) || 'none';
+
   const handleSubmit = useCallback(async () => {
     if (!derivedUserLabel) return;
     setSubmitting(true);
@@ -480,7 +485,7 @@ export default function AnnotationPanel({
 
   const handleSuccessDone = useCallback(() => {
     setShowSuccess(false);
-    setUserLabel(null);
+    setUserLabel('none');
     setConfidence(75);
     setComments('');
     setSubmitError(null);
@@ -493,11 +498,7 @@ export default function AnnotationPanel({
   }, [setUserLabel]);
 
 
-  const selectedOption = TASK_OPTIONS.find(o => o.value === taskType);
   if (!selectedOption) return null;
-
-  // Derive user_label from the first labeled spot if it's not explicitly set
-  const derivedUserLabel = userLabel || pixelLabels.find(l => l !== null) || null;
 
   const hasAtLeastOneLabeledSpot = pixelLabels.some(l => l !== null);
   const canSubmit = Boolean(hasAtLeastOneLabeledSpot && !submitting);
@@ -541,302 +542,307 @@ export default function AnnotationPanel({
             {/* The "Not 100% sure" tip is moved to the panel above the image in Classify.tsx */}
           </motion.div>
         )}
-          {/* Pixel/region selection UI */}
-          <div className="mt-3">
-            <p className="text-xs text-slate-400 mb-1">Select spots on the image:</p>
-            <div
-              style={{ position: 'relative', display: 'inline-block', maxWidth: 320 }}
-                onPointerMove={(e: React.PointerEvent) => {
-                  if (draggingIndex === null) return;
-                  const rect = imageRef.current?.getBoundingClientRect();
-                  if (!rect) return;
-                  const xPct = Math.min(Math.max((e.clientX - rect.left) / rect.width, 0), 1);
-                  const yPct = Math.min(Math.max((e.clientY - rect.top) / rect.height, 0), 1);
-                  const x1024 = Math.round(xPct * 1024);
-                  const y1024 = Math.round(yPct * 1024);
-                  setPixelCoords(prev => prev.map((p, i) => i === draggingIndex ? { x: x1024, y: y1024, xPct, yPct } : p));
+
+        {/* Pixel/region selection UI */}
+        <motion.div variants={itemVariants} className="mt-3">
+          <p className="text-xs text-slate-400 mb-1">Select spots on the image:</p>
+          <div
+            style={{ position: 'relative', display: 'inline-block', maxWidth: 320 }}
+            onPointerMove={(e: React.PointerEvent) => {
+              if (draggingIndex === null) return;
+              const rect = imageRef.current?.getBoundingClientRect();
+              if (!rect) return;
+              const xPct = Math.min(Math.max((e.clientX - rect.left) / rect.width, 0), 1);
+              const yPct = Math.min(Math.max((e.clientY - rect.top) / rect.height, 0), 1);
+              const x1024 = Math.round(xPct * 1024);
+              const y1024 = Math.round(yPct * 1024);
+              setPixelCoords(prev => prev.map((p, i) => i === draggingIndex ? { x: x1024, y: y1024, xPct, yPct } : p));
+            }}
+            onPointerUp={() => setDraggingIndex(null)}
+          >
+            {/* If an external image is provided, we render the image elsewhere and mount
+                the interactive SVG overlay onto its parent via a portal. This avoids
+                showing the image twice while keeping all coordinate math identical. */}
+            {!externalImageId ? (
+              <>
+                <img
+                  ref={imageRef}
+                  src={imageUrl}
+                  alt="Solar observation"
+                  style={{ width: '100%', borderRadius: 8, border: '1px solid #333', cursor: 'crosshair', display: 'block', touchAction: 'none' }}
+                  onClick={handleImageClick}
+                  onLoad={handleImageLoad}
+                />
+                <svg
+                  viewBox="0 0 100 100"
+                  preserveAspectRatio="none"
+                  onPointerDown={(e: React.PointerEvent<SVGSVGElement>) => {
+                    // If pinching, ignore adding markers
+                    if (isPinchingRef.current) return;
+                    // Add a marker when user clicks empty SVG background (not on an existing circle)
+                    const target = e.target as Element;
+                    if (target && target.tagName.toLowerCase() !== 'svg') return;
+                    const rect = imageRef.current?.getBoundingClientRect();
+                    if (!rect) return;
+                    const xPct = Math.min(Math.max((e.clientX - rect.left) / rect.width, 0), 1);
+                    const yPct = Math.min(Math.max((e.clientY - rect.top) / rect.height, 0), 1);
+                    const x1024 = Math.round(xPct * 1024);
+                    const y1024 = Math.round(yPct * 1024);
+                    setPixelCoords(prev => {
+                      const next = [...prev, { x: x1024, y: y1024, xPct, yPct }];
+                      setPixelLabels(pl => [...pl, null]);
+                      setPixelRadii(pr => [...pr, regionRadius ?? DEFAULT_RADIUS]);
+                      setActiveSpotIndex(next.length - 1);
+                      return next;
+                    });
+                  }}
+                  onTouchStart={overlayTouchStart}
+                  onTouchMove={overlayTouchMove}
+                  onTouchEnd={overlayTouchEnd}
+                  style={{ position: 'absolute', left: 0, top: 0, width: '100%', height: '100%', pointerEvents: 'auto', touchAction: 'none' }}
+                >
+                  {pixelCoords.map((p, idx) => (
+                    <g key={idx}>
+                      <circle
+                        onPointerDown={e => { e.stopPropagation(); setDraggingIndex(idx); setActiveSpotIndex(idx); }}
+                        cx={`${(p.xPct ?? 0) * 100}`}
+                        cy={`${(p.yPct ?? 0) * 100}`}
+                        r={2.8}
+                        style={{ cursor: 'grab' }}
+                        fill={activeSpotIndex === idx ? 'rgba(59,130,246,0.95)' : 'rgba(34,197,94,0.95)'}
+                        stroke="#fff"
+                        strokeWidth={0.5}
+                      />
+                      <text
+                        x={`${(p.xPct ?? 0) * 100 + 3}`}
+                        y={`${(p.yPct ?? 0) * 100 + 3}`}
+                        fontSize={3}
+                        fill="#fff"
+                        style={{ textAnchor: 'start' }}
+                      >{idx + 1}</text>
+                      <rect x={`${(p.xPct ?? 0) * 100 + 6}`} y={`${(p.yPct ?? 0) * 100 - 1}`} width={14} height={5} rx={1} fill="rgba(0,0,0,0.45)" />
+                      <text
+                        x={`${(p.xPct ?? 0) * 100 + 7}`}
+                        y={`${(p.yPct ?? 0) * 100 + 2.5}`}
+                        fontSize={2.5}
+                        fill="#fff"
+                        style={{ textAnchor: 'start' }}
+                      >{(pixelLabels[idx] ?? '...').toString().slice(0,6)}</text>
+                    </g>
+                  ))}
+                  {taskType === 'magnetogram' && regionRadius && pixelCoords.length > 0 && (
+                    (() => {
+                      const center = pixelCoords[0];
+                      const radiusPct = ((regionRadius ?? 0) / 1024) * 100;
+                      return (
+                        <circle
+                          onPointerDown={e => { e.stopPropagation(); setDraggingIndex(0); setActiveSpotIndex(0); }}
+                          cx={`${(center.xPct ?? 0) * 100}`}
+                          cy={`${(center.yPct ?? 0) * 100}`}
+                          r={radiusPct}
+                          style={{ cursor: 'grab' }}
+                          fill="rgba(99,102,241,0.08)"
+                          stroke="rgba(99,102,241,0.8)"
+                          strokeWidth={0.6}
+                        />
+                      );
+                    })()
+                  )}
+                </svg>
+              </>
+            ) : (
+              // external image mode: mount svg overlay into the external image's parent
+              portalContainer && createPortal(
+                <svg
+                  viewBox="0 0 100 100"
+                  preserveAspectRatio="none"
+                  onPointerDown={(e: React.PointerEvent<SVGSVGElement>) => {
+                    // If pinching, ignore adding markers
+                    if (isPinchingRef.current) return;
+                    const target = e.target as Element;
+                    if (target && target.tagName.toLowerCase() !== 'svg') return;
+                    const rect = imageRef.current?.getBoundingClientRect();
+                    if (!rect) return;
+                    const xPct = Math.min(Math.max((e.clientX - rect.left) / rect.width, 0), 1);
+                    const yPct = Math.min(Math.max((e.clientY - rect.top) / rect.height, 0), 1);
+                    const x1024 = Math.round(xPct * 1024);
+                    const y1024 = Math.round(yPct * 1024);
+                    setPixelCoords(prev => {
+                      const next = [...prev, { x: x1024, y: y1024, xPct, yPct }];
+                      setPixelLabels(pl => [...pl, null]);
+                      setPixelRadii(pr => [...pr, regionRadius ?? DEFAULT_RADIUS]);
+                      setActiveSpotIndex(next.length - 1);
+                      return next;
+                    });
+                  }}
+                  onTouchStart={overlayTouchStart}
+                  onTouchMove={overlayTouchMove}
+                  onTouchEnd={overlayTouchEnd}
+                  style={{ position: 'absolute', left: 0, top: 0, width: '100%', height: '100%', pointerEvents: 'auto', touchAction: 'none' }}
+                >
+                  {pixelCoords.map((p, idx) => (
+                    <g key={idx}>
+                      <circle
+                        onPointerDown={e => { e.stopPropagation(); setDraggingIndex(idx); setActiveSpotIndex(idx); }}
+                        cx={`${(p.xPct ?? 0) * 100}`}
+                        cy={`${(p.yPct ?? 0) * 100}`}
+                        r={2.8}
+                        style={{ cursor: 'grab' }}
+                        fill={activeSpotIndex === idx ? 'rgba(59,130,246,0.95)' : 'rgba(34,197,94,0.95)'}
+                        stroke="#fff"
+                        strokeWidth={0.5}
+                      />
+                      <text
+                        x={`${(p.xPct ?? 0) * 100 + 3}`}
+                        y={`${(p.yPct ?? 0) * 100 + 3}`}
+                        fontSize={3}
+                        fill="#fff"
+                        style={{ textAnchor: 'start' }}
+                      >{idx + 1}</text>
+                      <rect x={`${(p.xPct ?? 0) * 100 + 6}`} y={`${(p.yPct ?? 0) * 100 - 1}`} width={14} height={5} rx={1} fill="rgba(0,0,0,0.45)" />
+                      <text
+                        x={`${(p.xPct ?? 0) * 100 + 7}`}
+                        y={`${(p.yPct ?? 0) * 100 + 2.5}`}
+                        fontSize={2.5}
+                        fill="#fff"
+                        style={{ textAnchor: 'start' }}
+                      >{(pixelLabels[idx] ?? '...').toString().slice(0,6)}</text>
+                    </g>
+                  ))}
+                  {taskType === 'magnetogram' && regionRadius && pixelCoords.length > 0 && (
+                    (() => {
+                      const center = pixelCoords[0];
+                      const radiusPct = ((regionRadius ?? 0) / 1024) * 100;
+                      return (
+                        <circle
+                          onPointerDown={e => { e.stopPropagation(); setDraggingIndex(0); }}
+                          cx={`${(center.xPct ?? 0) * 100}`}
+                          cy={`${(center.yPct ?? 0) * 100}`}
+                          r={radiusPct}
+                          style={{ cursor: 'grab' }}
+                          fill="rgba(99,102,241,0.08)"
+                          stroke="rgba(99,102,241,0.8)"
+                          strokeWidth={0.6}
+                        />
+                      );
+                    })()
+                  )}
+                </svg>,
+                portalContainer,
+              )
+            )}
+          </div>
+          {/* Per-spot label chooser (appears when a spot is selected) */}
+          {activeSpotIndex !== null && selectedOption && (
+            <div className="mt-2">
+              <p className="text-xs text-slate-400 mb-1">Label for selected spot: #{activeSpotIndex + 1}</p>
+              <div className="flex flex-wrap gap-2">
+                {selectedOption.subLabels.map(sub => (
+                  <button
+                    key={sub.value}
+                    type="button"
+                    onClick={() => setPixelLabels(pl => pl.map((v, i) => i === activeSpotIndex ? sub.value : v))}
+                    className={`text-xs px-2 py-1 rounded ${pixelLabels[activeSpotIndex] === sub.value ? 'bg-solar-500 text-white' : 'bg-white/6 text-slate-200'}`}
+                  >{sub.label}</button>
+                ))}
+                <button
+                  key="none"
+                  type="button"
+                  onClick={() => setPixelLabels(pl => pl.map((v, i) => i === activeSpotIndex ? 'none' : v))}
+                  className={`text-xs px-2 py-1 rounded ${pixelLabels[activeSpotIndex] === 'none' ? 'bg-solar-500 text-white' : 'bg-white/6 text-slate-200'}`}
+                >None / I don't know</button>
+                <button
+                  type="button"
+                  onClick={() => setPixelLabels(pl => pl.map((v, i) => i === activeSpotIndex ? null : v))}
+                  className="text-xs px-2 py-1 rounded bg-red-600/10 text-red-300"
+                >Clear</button>
+              </div>
+            </div>
+          )}
+
+          <div className="mt-2 text-xs text-slate-500">
+            <div className="mb-1">Coordinates (preview):</div>
+            {pixelCoords.length > 0 ? (
+              <div>
+                <div className="text-xs mb-2">Format: x,y[,radius] ; multiple entries separated by ` ; `</div>
+                <ul className="mt-1">
+                  {activeSpotIndex !== null && (
+                    <li className="text-xs text-slate-400 mb-1">Selected spot: #{activeSpotIndex + 1}</li>
+                  )}
+                  {pixelCoords.map((p, idx) => {
+                    const r = pixelRadii[idx] ?? regionRadius ?? 0;
+                    const coordStr = `${p.x},${p.y}${taskType === 'magnetogram' ? `,${r}` : ''}`;
+                    const label = pixelLabels[idx] ?? null;
+                    return (
+                      <li key={idx} className="flex items-center gap-3">
+                        <code className="bg-white/6 px-2 py-1 rounded text-xs">{coordStr}</code>
+                        {label ? (
+                          <span className="text-xs text-slate-300">{label}</span>
+                        ) : (
+                          <span className="text-xs text-slate-500 italic">(unlabeled)</span>
+                        )}
+                        <button
+                          className="text-xs text-red-400 hover:text-red-600 underline"
+                          onClick={e => { e.stopPropagation(); setPixelCoords(pc => {
+                            const next = pc.filter((_, i) => i !== idx);
+                            setPixelLabels(pl => pl.filter((_, i) => i !== idx));
+                            setPixelRadii(pr => pr.filter((_, i) => i !== idx));
+                            setActiveSpotIndex(prev => {
+                              if (prev === null) return null;
+                              if (idx < prev) return prev - 1;
+                              if (idx === prev) return next.length > 0 ? Math.max(0, prev - 1) : null;
+                              return prev;
+                            });
+                            return next;
+                          }); }}
+                        >Remove</button>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
+            ) : (
+              <div className="text-xs italic text-slate-600">No coordinates selected</div>
+            )}
+          </div>
+
+          {/* Per-spot radius control (magnetograms): when a spot is selected allow setting its radius in px */}
+          {taskType === 'magnetogram' && activeSpotIndex !== null && pixelRadii[activeSpotIndex] !== undefined && (
+            <div className="mt-2">
+              <label className="text-xs text-slate-400">Radius for selected spot (px)</label>
+              <input type="range" min={1} max={1024}
+                value={pixelRadii[activeSpotIndex]}
+                onChange={e => {
+                  const v = Number(e.target.value);
+                  setPixelRadii(pr => pr.map((r, i) => i === activeSpotIndex ? v : r));
                 }}
-                onPointerUp={() => setDraggingIndex(null)}
-              >
-                {/* If an external image is provided, we render the image elsewhere and mount
-                    the interactive SVG overlay onto its parent via a portal. This avoids
-                    showing the image twice while keeping all coordinate math identical. */}
-                {!externalImageId ? (
-                  <>
-                    <img
-                      ref={imageRef}
-                      src={imageUrl}
-                      alt="Solar observation"
-                      style={{ width: '100%', borderRadius: 8, border: '1px solid #333', cursor: 'crosshair', display: 'block', touchAction: 'none' }}
-                      onClick={handleImageClick}
-                      onLoad={handleImageLoad}
-                    />
-                    <svg
-                      viewBox="0 0 100 100"
-                      preserveAspectRatio="none"
-                      onPointerDown={(e: React.PointerEvent<SVGSVGElement>) => {
-                        // If pinching, ignore adding markers
-                        if (isPinchingRef.current) return;
-                        // Add a marker when user clicks empty SVG background (not on an existing circle)
-                        const target = e.target as Element;
-                        if (target && target.tagName.toLowerCase() !== 'svg') return;
-                        const rect = imageRef.current?.getBoundingClientRect();
-                        if (!rect) return;
-                        const xPct = Math.min(Math.max((e.clientX - rect.left) / rect.width, 0), 1);
-                        const yPct = Math.min(Math.max((e.clientY - rect.top) / rect.height, 0), 1);
-                        const x1024 = Math.round(xPct * 1024);
-                        const y1024 = Math.round(yPct * 1024);
-                        setPixelCoords(prev => {
-                          const next = [...prev, { x: x1024, y: y1024, xPct, yPct }];
-                          setPixelLabels(pl => [...pl, null]);
-                          setPixelRadii(pr => [...pr, regionRadius ?? DEFAULT_RADIUS]);
-                          setActiveSpotIndex(next.length - 1);
-                          return next;
-                        });
-                      }}
-                      onTouchStart={overlayTouchStart}
-                      onTouchMove={overlayTouchMove}
-                      onTouchEnd={overlayTouchEnd}
-                      style={{ position: 'absolute', left: 0, top: 0, width: '100%', height: '100%', pointerEvents: 'auto', touchAction: 'none' }}
-                    >
-                      {pixelCoords.map((p, idx) => (
-                        <g key={idx}>
-                          <circle
-                            onPointerDown={e => { e.stopPropagation(); setDraggingIndex(idx); setActiveSpotIndex(idx); }}
-                            cx={`${(p.xPct ?? 0) * 100}`}
-                            cy={`${(p.yPct ?? 0) * 100}`}
-                            r={2.8}
-                            style={{ cursor: 'grab' }}
-                            fill={activeSpotIndex === idx ? 'rgba(59,130,246,0.95)' : 'rgba(34,197,94,0.95)'}
-                            stroke="#fff"
-                            strokeWidth={0.5}
-                          />
-                          <text
-                            x={`${(p.xPct ?? 0) * 100 + 3}`}
-                            y={`${(p.yPct ?? 0) * 100 + 3}`}
-                            fontSize={3}
-                            fill="#fff"
-                            style={{ textAnchor: 'start' }}
-                          >{idx + 1}</text>
-                          <rect x={`${(p.xPct ?? 0) * 100 + 6}`} y={`${(p.yPct ?? 0) * 100 - 1}`} width={14} height={5} rx={1} fill="rgba(0,0,0,0.45)" />
-                          <text
-                            x={`${(p.xPct ?? 0) * 100 + 7}`}
-                            y={`${(p.yPct ?? 0) * 100 + 2.5}`}
-                            fontSize={2.5}
-                            fill="#fff"
-                            style={{ textAnchor: 'start' }}
-                          >{(pixelLabels[idx] ?? '...').toString().slice(0,6)}</text>
-                        </g>
-                      ))}
-                      {taskType === 'magnetogram' && regionRadius && pixelCoords.length > 0 && (
-                        (() => {
-                          const center = pixelCoords[0];
-                          const radiusPct = ((regionRadius ?? 0) / 1024) * 100;
-                          return (
-                            <circle
-                              onPointerDown={e => { e.stopPropagation(); setDraggingIndex(0); setActiveSpotIndex(0); }}
-                              cx={`${(center.xPct ?? 0) * 100}`}
-                              cy={`${(center.yPct ?? 0) * 100}`}
-                              r={radiusPct}
-                              style={{ cursor: 'grab' }}
-                              fill="rgba(99,102,241,0.08)"
-                              stroke="rgba(99,102,241,0.8)"
-                              strokeWidth={0.6}
-                            />
-                          );
-                        })()
-                      )}
-                    </svg>
-                  </>
-                ) : (
-                  // external image mode: mount svg overlay into the external image's parent
-                  portalContainer && createPortal(
-                    <svg
-                      viewBox="0 0 100 100"
-                      preserveAspectRatio="none"
-                      onPointerDown={(e: React.PointerEvent<SVGSVGElement>) => {
-                        // If pinching, ignore adding markers
-                        if (isPinchingRef.current) return;
-                        const target = e.target as Element;
-                        if (target && target.tagName.toLowerCase() !== 'svg') return;
-                        const rect = imageRef.current?.getBoundingClientRect();
-                        if (!rect) return;
-                        const xPct = Math.min(Math.max((e.clientX - rect.left) / rect.width, 0), 1);
-                        const yPct = Math.min(Math.max((e.clientY - rect.top) / rect.height, 0), 1);
-                        const x1024 = Math.round(xPct * 1024);
-                        const y1024 = Math.round(yPct * 1024);
-                        setPixelCoords(prev => {
-                          const next = [...prev, { x: x1024, y: y1024, xPct, yPct }];
-                          setPixelLabels(pl => [...pl, null]);
-                          setPixelRadii(pr => [...pr, regionRadius ?? DEFAULT_RADIUS]);
-                          setActiveSpotIndex(next.length - 1);
-                          return next;
-                        });
-                      }}
-                      onTouchStart={overlayTouchStart}
-                      onTouchMove={overlayTouchMove}
-                      onTouchEnd={overlayTouchEnd}
-                      style={{ position: 'absolute', left: 0, top: 0, width: '100%', height: '100%', pointerEvents: 'auto', touchAction: 'none' }}
-                    >
-                      {pixelCoords.map((p, idx) => (
-                        <g key={idx}>
-                          <circle
-                            onPointerDown={e => { e.stopPropagation(); setDraggingIndex(idx); setActiveSpotIndex(idx); }}
-                            cx={`${(p.xPct ?? 0) * 100}`}
-                            cy={`${(p.yPct ?? 0) * 100}`}
-                            r={2.8}
-                            style={{ cursor: 'grab' }}
-                            fill={activeSpotIndex === idx ? 'rgba(59,130,246,0.95)' : 'rgba(34,197,94,0.95)'}
-                            stroke="#fff"
-                            strokeWidth={0.5}
-                          />
-                          <text
-                            x={`${(p.xPct ?? 0) * 100 + 3}`}
-                            y={`${(p.yPct ?? 0) * 100 + 3}`}
-                            fontSize={3}
-                            fill="#fff"
-                            style={{ textAnchor: 'start' }}
-                          >{idx + 1}</text>
-                          <rect x={`${(p.xPct ?? 0) * 100 + 6}`} y={`${(p.yPct ?? 0) * 100 - 1}`} width={14} height={5} rx={1} fill="rgba(0,0,0,0.45)" />
-                          <text
-                            x={`${(p.xPct ?? 0) * 100 + 7}`}
-                            y={`${(p.yPct ?? 0) * 100 + 2.5}`}
-                            fontSize={2.5}
-                            fill="#fff"
-                            style={{ textAnchor: 'start' }}
-                          >{(pixelLabels[idx] ?? '...').toString().slice(0,6)}</text>
-                        </g>
-                      ))}
-                      {taskType === 'magnetogram' && regionRadius && pixelCoords.length > 0 && (
-                        (() => {
-                          const center = pixelCoords[0];
-                          const radiusPct = ((regionRadius ?? 0) / 1024) * 100;
-                          return (
-                            <circle
-                              onPointerDown={e => { e.stopPropagation(); setDraggingIndex(0); }}
-                              cx={`${(center.xPct ?? 0) * 100}`}
-                              cy={`${(center.yPct ?? 0) * 100}`}
-                              r={radiusPct}
-                              style={{ cursor: 'grab' }}
-                              fill="rgba(99,102,241,0.08)"
-                              stroke="rgba(99,102,241,0.8)"
-                              strokeWidth={0.6}
-                            />
-                          );
-                        })()
-                      )}
-                    </svg>,
-                    portalContainer,
-                  )
-                )}
+                className="ml-2" />
+              <span className="ml-2 text-xs text-slate-500">{pixelRadii[activeSpotIndex]} px</span>
+            </div>
+          )}
+
+          {taskType === 'magnetogram' && (
+            <div className="mt-2">
+              <label className="text-xs text-slate-400">Region radius (px, image scale 1024)</label>
+              <input type="range" min={1} max={1024} value={regionRadius || 10} onChange={handleRadiusChange} className="ml-2" />
+              <span className="ml-2 text-xs text-slate-500">{regionRadius || 10} px</span>
+
+              <div className="mt-2">
+                <button
+                  className="text-xs text-solar-300 underline"
+                  onClick={() => {
+                    // Make the last placed marker the center (move to index 0)
+                    setPixelCoords(prev => {
+                      if (prev.length <= 1) return prev;
+                      const next = [...prev];
+                      const last = next.pop()!;
+                      next.unshift(last);
+                      return next;
+                    });
+                  }}
+                >Set center to last placed marker</button>
+                <p className="text-xs text-slate-500 mt-1">Tip: place the center marker last, then click this to use it as the region centre.</p>
               </div>
-              {/* Per-spot label chooser (appears when a spot is selected) */}
-              {activeSpotIndex !== null && selectedOption && (
-                <div className="mt-2">
-                  <p className="text-xs text-slate-400 mb-1">Label for selected spot: #{activeSpotIndex + 1}</p>
-                  <div className="flex flex-wrap gap-2">
-                    {selectedOption.subLabels.map(sub => (
-                      <button
-                        key={sub.value}
-                        type="button"
-                        onClick={() => setPixelLabels(pl => pl.map((v, i) => i === activeSpotIndex ? sub.value : v))}
-                        className={`text-xs px-2 py-1 rounded ${pixelLabels[activeSpotIndex] === sub.value ? 'bg-solar-500 text-white' : 'bg-white/6 text-slate-200'}`}
-                      >{sub.label}</button>
-                    ))}
-                    <button
-                      type="button"
-                      onClick={() => setPixelLabels(pl => pl.map((v, i) => i === activeSpotIndex ? null : v))}
-                      className="text-xs px-2 py-1 rounded bg-red-600/10 text-red-300"
-                    >Clear</button>
-                  </div>
-                </div>
-              )}
-
-              <div className="mt-2 text-xs text-slate-500">
-                <div className="mb-1">Coordinates (preview):</div>
-                {pixelCoords.length > 0 ? (
-                  <div>
-                    <div className="text-xs mb-2">Format: x,y[,radius] ; multiple entries separated by ` ; `</div>
-                    <ul className="mt-1">
-                      {activeSpotIndex !== null && (
-                        <li className="text-xs text-slate-400 mb-1">Selected spot: #{activeSpotIndex + 1}</li>
-                      )}
-                      {pixelCoords.map((p, idx) => {
-                        const r = pixelRadii[idx] ?? regionRadius ?? 0;
-                        const coordStr = `${p.x},${p.y}${taskType === 'magnetogram' ? `,${r}` : ''}`;
-                        const label = pixelLabels[idx] ?? null;
-                        return (
-                          <li key={idx} className="flex items-center gap-3">
-                            <code className="bg-white/6 px-2 py-1 rounded text-xs">{coordStr}</code>
-                            {label ? (
-                              <span className="text-xs text-slate-300">{label}</span>
-                            ) : (
-                              <span className="text-xs text-slate-500 italic">(unlabeled)</span>
-                            )}
-                            <button
-                              className="text-xs text-red-400 hover:text-red-600 underline"
-                              onClick={e => { e.stopPropagation(); setPixelCoords(pc => {
-                                const next = pc.filter((_, i) => i !== idx);
-                                setPixelLabels(pl => pl.filter((_, i) => i !== idx));
-                                setPixelRadii(pr => pr.filter((_, i) => i !== idx));
-                                setActiveSpotIndex(prev => {
-                                  if (prev === null) return null;
-                                  if (idx < prev) return prev - 1;
-                                  if (idx === prev) return next.length > 0 ? Math.max(0, prev - 1) : null;
-                                  return prev;
-                                });
-                                return next;
-                              }); }}
-                            >Remove</button>
-                          </li>
-                        );
-                      })}
-                    </ul>
-                  </div>
-                ) : (
-                  <div className="text-xs italic text-slate-600">No coordinates selected</div>
-                )}
-              </div>
-
-              {/* Per-spot radius control (magnetograms): when a spot is selected allow setting its radius in px */}
-              {taskType === 'magnetogram' && activeSpotIndex !== null && pixelRadii[activeSpotIndex] !== undefined && (
-                <div className="mt-2">
-                  <label className="text-xs text-slate-400">Radius for selected spot (px)</label>
-                  <input type="range" min={1} max={1024}
-                    value={pixelRadii[activeSpotIndex]}
-                    onChange={e => {
-                      const v = Number(e.target.value);
-                      setPixelRadii(pr => pr.map((r, i) => i === activeSpotIndex ? v : r));
-                    }}
-                    className="ml-2" />
-                  <span className="ml-2 text-xs text-slate-500">{pixelRadii[activeSpotIndex]} px</span>
-                </div>
-              )}
-
-              {taskType === 'magnetogram' && (
-                <div className="mt-2">
-                  <label className="text-xs text-slate-400">Region radius (px, image scale 1024)</label>
-                  <input type="range" min={1} max={1024} value={regionRadius || 10} onChange={handleRadiusChange} className="ml-2" />
-                  <span className="ml-2 text-xs text-slate-500">{regionRadius || 10} px</span>
-
-                  <div className="mt-2">
-                    <button
-                      className="text-xs text-solar-300 underline"
-                      onClick={() => {
-                        // Make the last placed marker the center (move to index 0)
-                        setPixelCoords(prev => {
-                          if (prev.length <= 1) return prev;
-                          const next = [...prev];
-                          const last = next.pop()!;
-                          next.unshift(last);
-                          return next;
-                        });
-                      }}
-                    >Set center to last placed marker</button>
-                    <p className="text-xs text-slate-500 mt-1">Tip: place the center marker last, then click this to use it as the region centre.</p>
-                  </div>
-                </div>
-              )}
             </div>
           )}
         </motion.div>

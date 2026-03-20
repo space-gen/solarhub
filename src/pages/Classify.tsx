@@ -11,7 +11,9 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import AnnotationPanel, { TASK_OPTIONS, SCIENTIFIC_HELP, SubLabelCard } from '@/components/AnnotationPanel';
+import AnnotationPanel, { TASK_OPTIONS, SCIENTIFIC_HELP } from '@/components/AnnotationPanel';
+import PointsDisplay from '@/components/PointsDisplay';
+import GuidePanel from '@/components/GuidePanel';
 import type { AnnotationInput, TaskType, UserLabel } from '@/services/annotationService';
 import { fetchAuroraTasksByType } from '@/services/auroraService';
 import type { AuroraTask } from '@/services/auroraService';
@@ -78,7 +80,7 @@ function AnnotationView({
 }) {
   const [imgLoaded, setImgLoaded] = useState(false);
   const [imgError, setImgError] = useState(false);
-  const [userLabel, setUserLabel] = useState<UserLabel>(null);
+  const [userLabel, setUserLabel] = useState<UserLabel>('none');
 
   const s = classifyTaskType(taskType);
   const meta = TASK_TYPES.find(t => t.value === taskType)!;
