@@ -25,8 +25,8 @@ import GuidePanel from '@/components/GuidePanel';
 // Citizen-friendly task option definitions
 // ---------------------------------------------------------------------------
 
-interface SubLabel { value: UserLabel; label: string; hint: string }
-interface TaskOption {
+export interface SubLabel { value: UserLabel; label: string; hint: string }
+export interface TaskOption {
   value:       TaskType;
   label:       string;    // plain-English display name
   icon:        string;
@@ -168,7 +168,7 @@ export const TASK_OPTIONS: TaskOption[] = [
 // Props
 // ---------------------------------------------------------------------------
 
-interface AnnotationPanelProps {
+export interface AnnotationPanelProps {
   taskType:     TaskType;
   taskId:       string;
   serialNumber: number;
@@ -176,6 +176,9 @@ interface AnnotationPanelProps {
   externalImageId?: string; // if provided, use an external image element for overlays (prevents duplicate image)
   onSubmit:     (input: AnnotationInput) => void;
   showGuide?:    boolean; // when false, the parent is expected to render GuidePanel above the image
+  userLabel?:   UserLabel;
+  onUserLabelChange?: (label: UserLabel) => void;
+  showLabels?:  boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -183,9 +186,10 @@ interface AnnotationPanelProps {
 // ---------------------------------------------------------------------------
 
 /** Sub-label card — shows the label and a one-line hint */
-function SubLabelCard({
+export function SubLabelCard({
   sub, isSelected, onSelect, option,
 }: { sub: SubLabel; isSelected: boolean; onSelect: (v: UserLabel) => void; option: TaskOption }) {
+
   return (
     <button
       onClick={() => onSelect(sub.value)}
@@ -277,8 +281,13 @@ function SuccessOverlay({ issueUrl, onDone }: { issueUrl?: string; onDone: () =>
 // Main component
 // ---------------------------------------------------------------------------
 
-export default function AnnotationPanel({ taskType, taskId, serialNumber, imageUrl, externalImageId, onSubmit, showGuide = true }: AnnotationPanelProps) {
-  const [userLabel,   setUserLabel]   = useState<UserLabel  | null>(null);
+export default function AnnotationPanel({
+  taskType, taskId, serialNumber, imageUrl, externalImageId, onSubmit,
+  showGuide = true, userLabel: externalUserLabel, onUserLabelChange, showLabels = true
+}: AnnotationPanelProps) {
+  const [internalUserLabel, setInternalUserLabel] = useState<UserLabel>(null);
+  const userLabel = externalUserLabel !== undefined ? externalUserLabel : internalUserLabel;
+  const setUserLabel = onUserLabelChange || setInternalUserLabel;
   const [confidence,  setConfidence]  = useState(75);
   const [comments,    setComments]    = useState('');
   const [pixelCoords, setPixelCoords] = useState<Array<{ x: number; y: number; xPct?: number; yPct?: number }>>([]);
@@ -435,7 +444,7 @@ export default function AnnotationPanel({ taskType, taskId, serialNumber, imageU
   }, [pixelCoords, regionRadius]);
 
   const handleSubmit = useCallback(async () => {
-    if (!userLabel) return;
+    if (!derivedUserLabel) return;
     setSubmitting(true);
     setSubmitError(null);
 
@@ -444,10 +453,10 @@ export default function AnnotationPanel({ taskType, taskId, serialNumber, imageU
       serial_number: serialNumber,
       image_url:     imageUrl,
       task_type:     taskType,
-      user_label:    userLabel,
+      user_label:    derivedUserLabel,
       confidence,
       comments:      comments.trim(),
-      pixel_coords:  taskType === 'sunspot' || taskType === 'magnetogram' ? pixelCoords.map(p => ({ x: p.x, y: p.y })) : undefined,
+      pixel_coords:  pixelCoords.map(p => ({ x: p.x, y: p.y })),
       pixel_labels:  pixelLabels.length ? pixelLabels : undefined,
       pixel_radii:   pixelRadii.length ? pixelRadii : undefined,
       region_radius: taskType === 'magnetogram' ? regionRadius : undefined,
@@ -467,7 +476,7 @@ export default function AnnotationPanel({ taskType, taskId, serialNumber, imageU
     } finally {
       setSubmitting(false);
     }
-  }, [taskType, userLabel, confidence, comments, taskId, serialNumber, imageUrl, onSubmit, pixelCoords, regionRadius, naturalSize]);
+  }, [taskType, derivedUserLabel, confidence, comments, taskId, serialNumber, imageUrl, onSubmit, pixelCoords, regionRadius, naturalSize]);
 
   const handleSuccessDone = useCallback(() => {
     setShowSuccess(false);
@@ -481,12 +490,17 @@ export default function AnnotationPanel({ taskType, taskId, serialNumber, imageU
     setPixelRadii([]);
     setActiveSpotIndex(null);
     setRegionRadius(10);
-  }, []);
+  }, [setUserLabel]);
 
 
   const selectedOption = TASK_OPTIONS.find(o => o.value === taskType);
   if (!selectedOption) return null;
-  const canSubmit      = Boolean(userLabel && !submitting);
+
+  // Derive user_label from the first labeled spot if it's not explicitly set
+  const derivedUserLabel = userLabel || pixelLabels.find(l => l !== null) || null;
+
+  const hasAtLeastOneLabeledSpot = pixelLabels.some(l => l !== null);
+  const canSubmit = Boolean(hasAtLeastOneLabeledSpot && !submitting);
 
   return (
     <div className="relative">
@@ -502,36 +516,36 @@ export default function AnnotationPanel({ taskType, taskId, serialNumber, imageU
         </motion.div>
 
         {/* ── Task-specific label question ────────────────────────────────── */}
-        <motion.div
-          variants={itemVariants}
-          initial={{ opacity: 0, y: 12 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.25 }}
-          className="flex flex-col gap-2"
-        >
-          <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide">
-            Question — Which best describes this {selectedOption.label.toLowerCase()} image?
-          </p>
-          <div className="flex flex-col gap-2 mt-1">
-            {selectedOption.subLabels.map(sub => (
-              <SubLabelCard
-                key={sub.value}
-                sub={sub}
-                isSelected={userLabel === sub.value}
-                onSelect={setUserLabel}
-                option={selectedOption}
-              />
-            ))}
-          </div>
-          <p className="text-xs text-slate-600 italic mt-1">
-            💡 Not 100% sure? That's fine — pick the closest one!
-          </p>
-          {/* Pixel/region selection UI for sunspot/magnetogram */}
-          {(taskType === 'sunspot' || taskType === 'magnetogram') && (
-            <div className="mt-3">
-              <p className="text-xs text-slate-400 mb-1">Select spots on the image:</p>
-              <div
-                style={{ position: 'relative', display: 'inline-block', maxWidth: 320 }}
+        {showLabels && (
+          <motion.div
+            variants={itemVariants}
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.25 }}
+            className="flex flex-col gap-2"
+          >
+            <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide">
+              Question — Which best describes this {selectedOption.label.toLowerCase()} image?
+            </p>
+            <div className="flex flex-col gap-2 mt-1">
+              {selectedOption.subLabels.map(sub => (
+                <SubLabelCard
+                  key={sub.value}
+                  sub={sub}
+                  isSelected={userLabel === sub.value}
+                  onSelect={setUserLabel}
+                  option={selectedOption}
+                />
+              ))}
+            </div>
+            {/* The "Not 100% sure" tip is moved to the panel above the image in Classify.tsx */}
+          </motion.div>
+        )}
+          {/* Pixel/region selection UI */}
+          <div className="mt-3">
+            <p className="text-xs text-slate-400 mb-1">Select spots on the image:</p>
+            <div
+              style={{ position: 'relative', display: 'inline-block', maxWidth: 320 }}
                 onPointerMove={(e: React.PointerEvent) => {
                   if (draggingIndex === null) return;
                   const rect = imageRef.current?.getBoundingClientRect();
@@ -905,7 +919,7 @@ export default function AnnotationPanel({ taskType, taskId, serialNumber, imageU
             ) : canSubmit ? (
               'Submit My Observation →'
             ) : (
-              '↑ Pick the best matching label above'
+              '↑ Mark & label at least one spot on the image'
             )}
           </motion.button>
         </motion.div>

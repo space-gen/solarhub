@@ -11,11 +11,8 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import AnnotationPanel from '@/components/AnnotationPanel';
-import PointsDisplay from '@/components/PointsDisplay';
-import GuidePanel from '@/components/GuidePanel';
-import { TASK_OPTIONS, SCIENTIFIC_HELP } from '@/components/AnnotationPanel';
-import type { AnnotationInput, TaskType } from '@/services/annotationService';
+import AnnotationPanel, { TASK_OPTIONS, SCIENTIFIC_HELP, SubLabelCard } from '@/components/AnnotationPanel';
+import type { AnnotationInput, TaskType, UserLabel } from '@/services/annotationService';
 import { fetchAuroraTasksByType } from '@/services/auroraService';
 import type { AuroraTask } from '@/services/auroraService';
 import { classifyTaskType } from '@/utils/helpers';
@@ -81,8 +78,11 @@ function AnnotationView({
 }) {
   const [imgLoaded, setImgLoaded] = useState(false);
   const [imgError, setImgError] = useState(false);
+  const [userLabel, setUserLabel] = useState<UserLabel>(null);
+
   const s = classifyTaskType(taskType);
   const meta = TASK_TYPES.find(t => t.value === taskType)!;
+  const selectedOption = TASK_OPTIONS.find(o => o.value === taskType)!;
 
   return (
     <motion.div variants={pageVariants} initial="hidden" animate="visible" exit="exit" className="min-h-screen pt-20 pb-16 px-4 cosmic-bg">
@@ -102,14 +102,16 @@ function AnnotationView({
           <span>Total points: <strong className="text-solar-300">{points}</strong></span>
         </motion.div>
 
-        {/* Guide above image, then image, then annotation controls */}
+        {/* Guide above image */}
         <div className="flex flex-col gap-5">
-          {/* Render the guide here so it sits above the image */}
-          <motion.div variants={itemVariants} className="glass rounded-2xl p-5">
-            {(() => {
-              const selectedOption = TASK_OPTIONS.find(o => o.value === taskType)!;
-              return <GuidePanel selectedOption={selectedOption} help={SCIENTIFIC_HELP[taskType]} />;
-            })()}
+          <motion.div variants={itemVariants} className="glass rounded-2xl p-5 flex flex-col gap-6">
+            <GuidePanel selectedOption={selectedOption} help={SCIENTIFIC_HELP[taskType]} />
+            
+            <div className="pt-4 border-t border-white/5">
+              <p className="text-xs text-slate-400 italic">
+                💡 Not 100% sure? That's fine — pick the closest label for each spot you mark!
+              </p>
+            </div>
           </motion.div>
 
           {/* Image */}
@@ -132,6 +134,7 @@ function AnnotationView({
                 />
               )}
             </div>
+            {/* ... info block ... */}
             <div className="px-4 py-3 flex items-center justify-between text-xs text-slate-500 border-t border-white/5">
               <div className="flex items-center gap-3">
                 <span>{task.source}</span>
@@ -156,7 +159,7 @@ function AnnotationView({
             </div>
           </motion.div>
 
-          {/* Annotation controls (render without the guide to avoid duplication) */}
+          {/* Annotation controls (render without the guide or labels to avoid duplication) */}
           <motion.div variants={itemVariants} className="glass rounded-2xl p-5">
             <AnnotationPanel
               taskType={taskType}
@@ -166,6 +169,9 @@ function AnnotationView({
               externalImageId={`aurora-img-${task.id}`}
               onSubmit={onSubmit}
               showGuide={false}
+              showLabels={false}
+              userLabel={userLabel}
+              onUserLabelChange={setUserLabel}
             />
           </motion.div>
 
@@ -286,6 +292,7 @@ export default function Classify({ points, onPointsChange }: ClassifyProps) {
             </div>
           ) : (
             <AnnotationView
+              key={currentTask.id}
               task={currentTask}
               taskType={selectedType}
               points={points}
