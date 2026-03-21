@@ -186,6 +186,81 @@ export interface AnnotationPanelProps {
 // Sub-components
 // ---------------------------------------------------------------------------
 
+/** Floating controls for a specific region */
+function RegionControlsPopup({ 
+  idx, label, radius, options, onChangeLabel, onChangeRadius, onRemove, isLocked
+}: { 
+  idx: number; 
+  label: UserLabel; 
+  radius: number; 
+  options: TaskOption;
+  onChangeLabel: (l: UserLabel) => void;
+  onChangeRadius: (r: number) => void;
+  onRemove: () => void;
+  isLocked: boolean;
+}) {
+  if (isLocked) return null;
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, scale: 0.9, y: 10 }}
+      animate={{ opacity: 1, scale: 1, y: 0 }}
+      className="absolute z-[70] mt-2 glass-strong rounded-xl border border-white/20 shadow-2xl p-3 flex flex-col gap-3 min-w-[200px]"
+      style={{ left: '50%', transform: 'translateX(-50%)' }}
+    >
+      <div className="flex items-center justify-between border-b border-white/10 pb-2 mb-1">
+        <span className="text-[10px] font-bold uppercase tracking-widest text-solar-400">Region #{idx + 1}</span>
+        <button onClick={onRemove} className="text-rose-400 hover:text-rose-300 transition-colors">
+          <svg viewBox="0 0 24 24" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2.5}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+      </div>
+
+      <div className="flex flex-col gap-1.5">
+        <label className="text-[10px] text-slate-500 uppercase font-bold">Scientific Label</label>
+        <div className="grid grid-cols-2 gap-1">
+          {options.subLabels.map(sub => (
+            <button
+              key={sub.value}
+              onClick={() => onChangeLabel(sub.value)}
+              className={`text-[10px] py-1.5 px-2 rounded-md transition-all border ${
+                label === sub.value 
+                  ? 'bg-solar-500 text-white border-solar-400 shadow-lg shadow-solar-500/20' 
+                  : 'bg-white/5 text-slate-400 border-white/10 hover:bg-white/10'
+              }`}
+            >
+              {sub.label.split('(')[0].trim()}
+            </button>
+          ))}
+          <button
+            onClick={() => onChangeLabel('none')}
+            className={`text-[10px] py-1.5 px-2 rounded-md transition-all border ${
+              label === 'none' 
+                ? 'bg-slate-600 text-white border-slate-500' 
+                : 'bg-white/5 text-slate-400 border-white/10 hover:bg-white/10'
+            }`}
+          >
+            None
+          </button>
+        </div>
+      </div>
+
+      <div className="flex flex-col gap-1.5">
+        <div className="flex justify-between items-center">
+          <label className="text-[10px] text-slate-500 uppercase font-bold">Size (Radius)</label>
+          <span className="text-[10px] font-mono text-solar-300">{radius}px</span>
+        </div>
+        <input 
+          type="range" min={1} max={300} value={radius}
+          onChange={e => onChangeRadius(Number(e.target.value))}
+          className="w-full h-1 rounded-full appearance-none cursor-pointer bg-white/10 accent-solar-500" 
+        />
+      </div>
+    </motion.div>
+  );
+}
+
 /** Sub-label card — shows the label and a one-line hint */
 export function SubLabelCard({
   sub, isSelected, onSelect, option,
@@ -446,50 +521,27 @@ export default function AnnotationPanel({
           {showGuide && <GuidePanel selectedOption={selectedOption} help={SCIENTIFIC_HELP[taskType]} /> }
         </motion.div>
 
-        {/* ── Task-specific label question ────────────────────────────────── */}
-        {showLabels && (
-          <motion.div
-            variants={itemVariants}
-            initial={{ opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.25 }}
-            className="flex flex-col gap-2"
-          >
-            <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide">
-              Question — Which best describes this {selectedOption.label.toLowerCase()} image?
-            </p>
-            <div className="flex flex-col gap-2 mt-1">
-              {selectedOption.subLabels.map(sub => (
-                <SubLabelCard
-                  key={sub.value}
-                  sub={sub}
-                  isSelected={userLabel === sub.value}
-                  onSelect={setUserLabel}
-                  option={selectedOption}
-                />
-              ))}
-            </div>
-            {/* The "Not 100% sure" tip is moved to the panel above the image in Classify.tsx */}
-          </motion.div>
-        )}
-
         {/* Pixel/region selection UI */}
-        <motion.div variants={itemVariants} className="mt-3" style={{ pointerEvents: isLocked ? 'none' : 'auto' }}>
-          <div className="flex items-center justify-between mb-2">
-            <p className="text-xs text-slate-400">Select regions on the image:</p>
+        <motion.div variants={itemVariants} className="mt-3">
+          <div className="flex items-center justify-between mb-3 px-1">
+            <div className="flex flex-col gap-0.5">
+              <p className="text-[11px] font-bold text-slate-400 uppercase tracking-tighter">1. Mark Areas</p>
+              <p className="text-[10px] text-slate-500">Click image to add a region</p>
+            </div>
             <button
               onClick={handleToggleNone}
-              className={`text-[10px] px-2 py-1 rounded transition-colors border ${
+              className={`text-[10px] px-3 py-1.5 rounded-full font-bold transition-all border ${
                 isNone 
-                  ? 'bg-solar-500/20 text-solar-300 border-solar-500/40' 
+                  ? 'bg-solar-500 text-white border-solar-400 shadow-lg shadow-solar-500/20' 
                   : 'bg-white/5 text-slate-500 border-white/10 hover:text-slate-300'
               }`}
             >
-              {isNone ? '✓ No regions found' : `No ${selectedOption.label.toLowerCase()} visible?`}
+              {isNone ? '✓ Everything looks clear' : `No ${selectedOption.label.toLowerCase()} visible?`}
             </button>
           </div>
+
           <div
-            style={{ position: 'relative', display: 'inline-block', maxWidth: 320 }}
+            className="relative inline-block w-full max-w-[512px] group"
             onPointerMove={(e: React.PointerEvent) => {
               if (draggingIndex === null || isLocked) return;
               const rect = imageRef.current?.getBoundingClientRect();
@@ -505,11 +557,12 @@ export default function AnnotationPanel({
             {/* Blocking Overlay - absolutely prevents interaction when locked */}
             {isLocked && (
               <div 
-                className="absolute inset-0 z-[60] cursor-not-allowed" 
+                className="absolute inset-0 z-[60] cursor-not-allowed bg-black/5" 
                 onClick={e => e.stopPropagation()}
                 onPointerDown={e => e.stopPropagation()}
               />
             )}
+
             {/* If an external image is provided, we render the image elsewhere and mount
                 the interactive SVG overlay onto its parent via a portal. This avoids
                 showing the image twice while keeping all coordinate math identical. */}
@@ -519,7 +572,8 @@ export default function AnnotationPanel({
                   ref={imageRef}
                   src={imageUrl}
                   alt="Solar observation"
-                  style={{ width: '100%', borderRadius: 8, border: '1px solid #333', cursor: 'crosshair', display: 'block', touchAction: 'none' }}
+                  className="w-full rounded-2xl border border-white/10 shadow-inner"
+                  style={{ cursor: isLocked ? 'default' : 'crosshair', display: 'block', touchAction: 'none' }}
                   onClick={handleImageClick}
                   onLoad={handleImageLoad}
                 />
@@ -543,13 +597,14 @@ export default function AnnotationPanel({
                       setPixelLabels(pl => [...pl, null]);
                       setPixelRadii(pr => [...pr, DEFAULT_RADIUS]);
                       setActiveSpotIndex(next.length - 1);
+                      setIsNone(false); // Disable 'none' if user marks a region
                       return next;
                     });
                   }}
                   onTouchStart={overlayTouchStart}
                   onTouchMove={overlayTouchMove}
                   onTouchEnd={overlayTouchEnd}
-                  style={{ position: 'absolute', left: 0, top: 0, width: '100%', height: '100%', pointerEvents: isLocked ? 'none' : 'auto', touchAction: 'none' }}
+                  className="absolute inset-0 w-full h-full pointer-events-auto touch-none overflow-visible"
                 >
                   {pixelCoords.map((p, idx) => {
                     const radiusPct = ((pixelRadii[idx] ?? DEFAULT_RADIUS) / 1024) * 100;
@@ -570,31 +625,20 @@ export default function AnnotationPanel({
                           style={{ cursor: isLocked ? 'default' : 'grab', pointerEvents: isLocked ? 'none' : 'auto' }}
                           fill={isActive ? 'rgba(59,130,246,0.2)' : 'rgba(34,197,94,0.2)'}
                           stroke={isActive ? 'rgba(59,130,246,0.8)' : 'rgba(34,197,94,0.8)'}
-                          strokeWidth={0.4}
+                          strokeWidth={isActive ? 0.6 : 0.4}
                         />
                         <text
-                          x={`${(p.xPct ?? 0) * 100 + 1}`}
-                          y={`${(p.yPct ?? 0) * 100 + 1}`}
+                          x={`${(p.xPct ?? 0) * 100}`}
+                          y={`${(p.yPct ?? 0) * 100}`}
                           fontSize={3}
                           fill="#fff"
-                          style={{ textAnchor: 'start', pointerEvents: 'none', fontWeight: 'bold', filter: 'drop-shadow(0px 0px 1px black)' }}
+                          className="select-none pointer-events-none font-bold"
+                          style={{ textAnchor: 'middle', dominantBaseline: 'middle', filter: 'drop-shadow(0px 0px 2px black)' }}
                         >{idx + 1}</text>
-                        {isActive && (
-                          <g style={{ pointerEvents: 'none' }}>
-                            <rect x={`${(p.xPct ?? 0) * 100 + 4}`} y={`${(p.yPct ?? 0) * 100 - 1.5}`} width={12} height={4} rx={0.5} fill="rgba(0,0,0,0.6)" />
-                            <text
-                              x={`${(p.xPct ?? 0) * 100 + 5}`}
-                              y={`${(p.yPct ?? 0) * 100 + 1.5}`}
-                              fontSize={2}
-                              fill="#fff"
-                              style={{ textAnchor: 'start' }}
-                            >{(pixelLabels[idx] ?? '...').toString().slice(0,8)}</text>
-                          </g>
-                        )}
                       </g>
                     );
-                    })}
-                    </svg>
+                  })}
+                </svg>
               </>
             ) : (
               // external image mode: mount svg overlay into the external image's parent
@@ -618,6 +662,7 @@ export default function AnnotationPanel({
                       setPixelLabels(pl => [...pl, null]);
                       setPixelRadii(pr => [...pr, DEFAULT_RADIUS]);
                       setActiveSpotIndex(next.length - 1);
+                      setIsNone(false);
                       return next;
                     });
                   }}
@@ -644,88 +689,51 @@ export default function AnnotationPanel({
                           style={{ cursor: isLocked ? 'default' : 'grab', pointerEvents: isLocked ? 'none' : 'auto' }}
                           fill={isActive ? 'rgba(59,130,246,0.2)' : 'rgba(34,197,94,0.2)'}
                           stroke={isActive ? 'rgba(59,130,246,0.8)' : 'rgba(34,197,94,0.8)'}
-                          strokeWidth={0.4}
+                          strokeWidth={isActive ? 0.6 : 0.4}
                         />
                         <text
-                          x={`${(p.xPct ?? 0) * 100 + 1}`}
-                          y={`${(p.yPct ?? 0) * 100 + 1}`}
+                          x={`${(p.xPct ?? 0) * 100}`}
+                          y={`${(p.yPct ?? 0) * 100}`}
                           fontSize={3}
                           fill="#fff"
-                          style={{ textAnchor: 'start', pointerEvents: 'none', fontWeight: 'bold', filter: 'drop-shadow(0px 0px 1px black)' }}
+                          className="select-none pointer-events-none font-bold"
+                          style={{ textAnchor: 'middle', dominantBaseline: 'middle', filter: 'drop-shadow(0px 0px 2px black)' }}
                         >{idx + 1}</text>
-                        {isActive && (
-                          <g style={{ pointerEvents: 'none' }}>
-                            <rect x={`${(p.xPct ?? 0) * 100 + 4}`} y={`${(p.yPct ?? 0) * 100 - 1.5}`} width={12} height={4} rx={0.5} fill="rgba(0,0,0,0.6)" />
-                            <text
-                              x={`${(p.xPct ?? 0) * 100 + 5}`}
-                              y={`${(p.yPct ?? 0) * 100 + 1.5}`}
-                              fontSize={2}
-                              fill="#fff"
-                              style={{ textAnchor: 'start' }}
-                            >{(pixelLabels[idx] ?? '...').toString().slice(0,8)}</text>
-                          </g>
-                        )}
                       </g>
                     );
-                    })}
-                    </svg>,
-
+                  })}
+                </svg>,
                 portalContainer,
               )
+            )}
 
+            {/* Region Controls Popup */}
+            {activeSpotIndex !== null && (
+              <RegionControlsPopup
+                idx={activeSpotIndex}
+                label={pixelLabels[activeSpotIndex]}
+                radius={pixelRadii[activeSpotIndex] ?? DEFAULT_RADIUS}
+                options={selectedOption}
+                isLocked={isLocked}
+                onChangeLabel={l => setPixelLabels(pl => pl.map((v, i) => i === activeSpotIndex ? l : v))}
+                onChangeRadius={r => setPixelRadii(pr => pr.map((v, i) => i === activeSpotIndex ? r : v))}
+                onRemove={() => {
+                  setPixelCoords(pc => pc.filter((_, i) => i !== activeSpotIndex));
+                  setPixelLabels(pl => pl.filter((_, i) => i !== activeSpotIndex));
+                  setPixelRadii(pr => pr.filter((_, i) => i !== activeSpotIndex));
+                  setActiveSpotIndex(null);
+                }}
+              />
             )}
           </div>
-          {/* Per-spot label chooser (appears when a spot is selected) */}
-          {activeSpotIndex !== null && selectedOption && (
-            <div className="mt-2">
-              <p className="text-xs text-slate-400 mb-1">Label for selected region: #{activeSpotIndex + 1}</p>
-              <div className="flex flex-wrap gap-2">
-                {selectedOption.subLabels.map(sub => (
-                  <button
-                    key={sub.value}
-                    type="button"
-                    onClick={() => setPixelLabels(pl => pl.map((v, i) => i === activeSpotIndex ? sub.value : v))}
-                    className={`text-xs px-2 py-1 rounded ${activeSpotIndex !== null && pixelLabels[activeSpotIndex] === sub.value ? 'bg-solar-500 text-white' : 'bg-white/6 text-slate-200'}`}
-                  >{sub.label}</button>
-                ))}
 
-                <button
-                  key="none"
-                  type="button"
-                  onClick={() => setPixelLabels(pl => pl.map((v, i) => i === activeSpotIndex ? 'none' : v))}
-                  className={`text-xs px-2 py-1 rounded ${activeSpotIndex !== null && pixelLabels[activeSpotIndex] === 'none' ? 'bg-solar-500 text-white' : 'bg-white/6 text-slate-200'}`}
-                >None / I don't know</button>
-                <button
-                  type="button"
-                  onClick={() => setPixelLabels(pl => pl.map((v, i) => i === activeSpotIndex ? null : v))}
-                  className="text-xs px-2 py-1 rounded bg-red-600/10 text-red-300"
-                >Clear</button>
-              </div>
+          <div className="mt-6">
+            <div className="flex flex-col gap-0.5 mb-3 px-1">
+              <p className="text-[11px] font-bold text-slate-400 uppercase tracking-tighter">2. Finalize</p>
+              <p className="text-[10px] text-slate-500">Confirm labels and confidence</p>
             </div>
-          )}
-
-          {/* Per-spot radius control: when a spot is selected allow setting its radius in px */}
-          {activeSpotIndex !== null && pixelRadii[activeSpotIndex] !== undefined && (
-            <div className="mt-2">
-              <div className="flex justify-between items-center mb-1">
-                <label className="text-xs text-slate-400">Region radius for selected region #{activeSpotIndex+1} (px)</label>
-                <span className="text-xs font-mono text-solar-300">{pixelRadii[activeSpotIndex]} px</span>
-              </div>
-              <input type="range" min={1} max={512}
-                value={pixelRadii[activeSpotIndex]}
-                onChange={e => {
-                  const v = Number(e.target.value);
-                  setPixelRadii(pr => pr.map((r, i) => i === activeSpotIndex ? v : r));
-                }}
-                className="w-full h-1.5 rounded-full appearance-none cursor-pointer bg-white/10 accent-solar-500" />
-            </div>
-          )}
-
-          <div className="mt-4 text-xs text-slate-500">
-            <div className="mb-1 font-semibold text-slate-400 uppercase tracking-tight">Active Regions (preview):</div>
             {pixelCoords.length > 0 ? (
               <div className="flex flex-col gap-2">
-                <div className="text-[10px] text-slate-600 italic">Format: x, y, radius</div>
                 <ul className="flex flex-col gap-1.5">
                   {pixelCoords.map((p, idx) => {
                     const r = pixelRadii[idx] ?? DEFAULT_RADIUS;
@@ -735,54 +743,53 @@ export default function AnnotationPanel({
                     return (
                       <li key={idx} 
                         onClick={() => setActiveSpotIndex(idx)}
-                        className={`flex items-center justify-between p-2 rounded-lg border transition-colors cursor-pointer ${
-                          isSelectedSpot ? 'bg-solar-500/10 border-solar-500/30' : 'bg-white/4 border-white/8 hover:bg-white/6'
+                        className={`flex items-center justify-between p-2.5 rounded-xl border transition-all cursor-pointer ${
+                          isSelectedSpot 
+                            ? 'bg-solar-500/10 border-solar-500/40 ring-1 ring-solar-500/20' 
+                            : 'bg-white/4 border-white/8 hover:bg-white/6'
                         }`}>
                         <div className="flex items-center gap-3">
-                          <span className={`w-5 h-5 flex items-center justify-center rounded-full text-[10px] font-bold ${
+                          <span className={`w-6 h-6 flex items-center justify-center rounded-full text-[11px] font-black ${
                             isSelectedSpot ? 'bg-solar-500 text-white' : 'bg-slate-700 text-slate-300'
                           }`}>{idx + 1}</span>
-                          <code className="bg-black/20 px-1.5 py-0.5 rounded text-[10px] text-slate-300 font-mono">{coordStr}</code>
-                          {label ? (
-                            <span className="text-[11px] font-medium text-slate-200">{label}</span>
-                          ) : (
-                            <span className="text-[10px] text-slate-500 italic">(unlabeled)</span>
-                          )}
+                          <div className="flex flex-col">
+                            <div className="flex items-center gap-2">
+                              {label ? (
+                                <span className="text-[12px] font-bold text-slate-100 uppercase tracking-tight">{label}</span>
+                              ) : (
+                                <span className="text-[11px] text-rose-400 font-bold italic animate-pulse">Needs Label</span>
+                              )}
+                            </div>
+                            <code className="text-[10px] text-slate-500 font-mono">pos: {coordStr}</code>
+                          </div>
                         </div>
-                        {!submitting && (
+                        {!submitting && !isLocked && (
                           <button
-                            className="p-1 text-slate-500 hover:text-red-400 transition-colors"
-                            title="Remove region"
+                            className="p-2 text-slate-500 hover:text-rose-400 transition-colors rounded-lg hover:bg-rose-500/10"
                             onClick={e => { 
                               e.stopPropagation(); 
-                              setPixelCoords(pc => {
-                                const next = pc.filter((_, i) => i !== idx);
-                                setPixelLabels(pl => pl.filter((_, i) => i !== idx));
-                                setPixelRadii(pr => pr.filter((_, i) => i !== idx));
-                                setActiveSpotIndex(prev => {
-                                  if (prev === null) return null;
-                                  if (idx < prev) return prev - 1;
-                                  if (idx === prev) return next.length > 0 ? Math.max(0, prev - 1) : null;
-                                  return prev;
-                                });
-                                return next;
-                              }); 
+                              setPixelCoords(pc => pc.filter((_, i) => i !== idx));
+                              setPixelLabels(pl => pl.filter((_, i) => i !== idx));
+                              setPixelRadii(pr => pr.filter((_, i) => i !== idx));
+                              setActiveSpotIndex(null);
                             }}
                           >
-                            <svg viewBox="0 0 24 24" className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2.5}>
+                            <svg viewBox="0 0 24 24" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2.5}>
                               <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
                             </svg>
                           </button>
                         )}
-
                       </li>
                     );
                   })}
                 </ul>
               </div>
-            ) : (
-              <div className="p-4 rounded-xl border border-dashed border-white/10 text-center text-[11px] italic text-slate-600">
-                No regions marked yet. Click the solar image to start.
+            ) : !isNone && (
+              <div className="p-6 rounded-2xl border-2 border-dashed border-white/5 bg-white/2 text-center">
+                <span className="text-2xl mb-2 block">🎯</span>
+                <p className="text-[11px] font-medium text-slate-500 leading-relaxed uppercase tracking-widest">
+                  Tap the solar image above to mark areas of interest
+                </p>
               </div>
             )}
           </div>
