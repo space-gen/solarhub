@@ -260,11 +260,11 @@ function AnnotationView({
                 externalImageId={`aurora-img-${task.id}`}
                 onSubmit={onSubmit}
                 showGuide={false}
-                showLabels={false}
                 userLabel={userLabel}
                 onUserLabelChange={setUserLabel}
                 isLocked={isLocked}
               />
+
             </motion.div>
 
             <motion.div variants={itemVariants} className="flex justify-end">

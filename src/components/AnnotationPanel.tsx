@@ -178,7 +178,6 @@ export interface AnnotationPanelProps {
   showGuide?:    boolean; // when false, the parent is expected to render GuidePanel above the image
   userLabel?:   UserLabel;
   onUserLabelChange?: (label: UserLabel) => void;
-  showLabels?:  boolean;
   isLocked?:    boolean;
 }
 
@@ -191,7 +190,7 @@ function RegionControlsPopup({
   idx, label, radius, options, onChangeLabel, onChangeRadius, onRemove, isLocked
 }: { 
   idx: number; 
-  label: UserLabel; 
+  label: UserLabel | null; 
   radius: number; 
   options: TaskOption;
   onChangeLabel: (l: UserLabel) => void;
@@ -307,7 +306,7 @@ export function SubLabelCard({
 
 export default function AnnotationPanel({
   taskType, taskId, serialNumber, imageUrl, externalImageId, onSubmit,
-  showGuide = true, userLabel: externalUserLabel, onUserLabelChange, showLabels = true, isLocked = false
+  showGuide = true, userLabel: externalUserLabel, onUserLabelChange, isLocked = false
 }: AnnotationPanelProps) {
   const [internalUserLabel, setInternalUserLabel] = useState<UserLabel>('none');
   const userLabel = externalUserLabel !== undefined ? externalUserLabel : internalUserLabel;
