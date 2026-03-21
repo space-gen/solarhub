@@ -185,8 +185,8 @@ export interface AnnotationPanelProps {
 // Sub-components
 // ---------------------------------------------------------------------------
 
-/** Floating controls for a specific region */
-function RegionControlsPopup({ 
+/** Stationary editor panel for the active region */
+function RegionEditorPanel({ 
   idx, label, radius, options, onChangeLabel, onChangeRadius, onRemove, isLocked
 }: { 
   idx: number; 
@@ -202,59 +202,82 @@ function RegionControlsPopup({
 
   return (
     <motion.div
-      initial={{ opacity: 0, scale: 0.9, y: 10 }}
-      animate={{ opacity: 1, scale: 1, y: 0 }}
-      className="absolute z-[70] mt-2 glass-strong rounded-xl border border-white/20 shadow-2xl p-3 flex flex-col gap-3 min-w-[200px]"
-      style={{ left: '50%', transform: 'translateX(-50%)' }}
+      initial={{ opacity: 0, y: -10, height: 0 }}
+      animate={{ opacity: 1, y: 0, height: 'auto' }}
+      exit={{ opacity: 0, y: -10, height: 0 }}
+      className="w-full mt-3 bg-slate-800/95 border border-white/10 rounded-xl shadow-2xl overflow-hidden backdrop-blur-md"
     >
-      <div className="flex items-center justify-between border-b border-white/10 pb-2 mb-1">
-        <span className="text-[10px] font-bold uppercase tracking-widest text-solar-400">Region #{idx + 1}</span>
-        <button onClick={onRemove} className="text-rose-400 hover:text-rose-300 transition-colors">
-          <svg viewBox="0 0 24 24" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2.5}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-          </svg>
-        </button>
-      </div>
-
-      <div className="flex flex-col gap-1.5">
-        <label className="text-[10px] text-slate-500 uppercase font-bold">Scientific Label</label>
-        <div className="grid grid-cols-2 gap-1">
-          {options.subLabels.map(sub => (
-            <button
-              key={sub.value}
-              onClick={() => onChangeLabel(sub.value)}
-              className={`text-[10px] py-1.5 px-2 rounded-md transition-all border ${
-                label === sub.value 
-                  ? 'bg-solar-500 text-white border-solar-400 shadow-lg shadow-solar-500/20' 
-                  : 'bg-white/5 text-slate-400 border-white/10 hover:bg-white/10'
-              }`}
-            >
-              {sub.label.split('(')[0].trim()}
-            </button>
-          ))}
-          <button
-            onClick={() => onChangeLabel('none')}
-            className={`text-[10px] py-1.5 px-2 rounded-md transition-all border ${
-              label === 'none' 
-                ? 'bg-slate-600 text-white border-slate-500' 
-                : 'bg-white/5 text-slate-400 border-white/10 hover:bg-white/10'
-            }`}
+      <div className="p-4 flex flex-col gap-4">
+        {/* Header */}
+        <div className="flex items-center justify-between border-b border-white/10 pb-3">
+          <div className="flex items-center gap-2">
+            <div className="w-6 h-6 rounded-full bg-blue-500 flex items-center justify-center text-xs font-bold text-white shadow-lg shadow-blue-500/30">
+              {idx + 1}
+            </div>
+            <span className="text-sm font-bold text-slate-200 tracking-wide">Edit Region</span>
+          </div>
+          <button 
+            onClick={onRemove} 
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-rose-500/10 text-rose-400 hover:bg-rose-500/20 hover:text-rose-300 transition-colors text-xs font-medium"
           >
-            None
+            <svg viewBox="0 0 24 24" className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+            </svg>
+            Remove
           </button>
         </div>
-      </div>
 
-      <div className="flex flex-col gap-1.5">
-        <div className="flex justify-between items-center">
-          <label className="text-[10px] text-slate-500 uppercase font-bold">Size (Radius)</label>
-          <span className="text-[10px] font-mono text-solar-300">{radius}px</span>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {/* Label Selection */}
+          <div className="flex flex-col gap-2">
+            <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Classification</label>
+            <div className="grid grid-cols-2 gap-2">
+              {options.subLabels.map(sub => (
+                <button
+                  key={sub.value}
+                  onClick={() => onChangeLabel(sub.value)}
+                  className={`text-xs py-2 px-3 rounded-lg text-left transition-all border ${
+                    label === sub.value 
+                      ? 'bg-solar-500 text-white border-solar-400 shadow-lg shadow-solar-500/20 font-semibold' 
+                      : 'bg-slate-900/50 text-slate-400 border-white/5 hover:bg-slate-700 hover:border-white/20'
+                  }`}
+                >
+                  {sub.label.split('(')[0].trim()}
+                </button>
+              ))}
+              <button
+                onClick={() => onChangeLabel('none')}
+                className={`text-xs py-2 px-3 rounded-lg text-left transition-all border ${
+                  label === 'none' 
+                    ? 'bg-slate-600 text-white border-slate-500 shadow-lg' 
+                    : 'bg-slate-900/50 text-slate-400 border-white/5 hover:bg-slate-700 hover:border-white/20'
+                }`}
+              >
+                None / Unsure
+              </button>
+            </div>
+          </div>
+
+          {/* Size Control */}
+          <div className="flex flex-col gap-2">
+            <div className="flex justify-between items-center">
+              <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Region Size</label>
+              <code className="text-xs bg-black/30 px-2 py-0.5 rounded text-solar-300 font-mono">{radius} px</code>
+            </div>
+            <div className="h-full flex items-center bg-slate-900/30 rounded-xl px-4 border border-white/5">
+              <span className="text-[10px] text-slate-500 mr-3">Small</span>
+              <input 
+                type="range" min={5} max={300} step={5} value={radius}
+                onChange={e => onChangeRadius(Number(e.target.value))}
+                className="w-full h-1.5 rounded-full appearance-none cursor-pointer bg-slate-700 accent-solar-500 hover:accent-solar-400" 
+              />
+              <span className="text-[10px] text-slate-500 ml-3">Large</span>
+            </div>
+            <p className="text-[10px] text-slate-500 leading-relaxed mt-1">
+              Adjust the slider until the circle covers the feature completely.
+            </p>
+          </div>
         </div>
-        <input 
-          type="range" min={1} max={300} value={radius}
-          onChange={e => onChangeRadius(Number(e.target.value))}
-          className="w-full h-1 rounded-full appearance-none cursor-pointer bg-white/10 accent-solar-500" 
-        />
       </div>
     </motion.div>
   );
@@ -705,10 +728,12 @@ export default function AnnotationPanel({
                 portalContainer,
               )
             )}
+          </div>
 
-            {/* Region Controls Popup */}
-            {activeSpotIndex !== null && (
-              <RegionControlsPopup
+          {/* Region Editor Panel (Stationary, below image) */}
+          <AnimatePresence>
+            {activeSpotIndex !== null && selectedOption && (
+              <RegionEditorPanel
                 idx={activeSpotIndex}
                 label={pixelLabels[activeSpotIndex]}
                 radius={pixelRadii[activeSpotIndex] ?? DEFAULT_RADIUS}
@@ -724,7 +749,7 @@ export default function AnnotationPanel({
                 }}
               />
             )}
-          </div>
+          </AnimatePresence>
 
           <div className="mt-6">
             <div className="flex flex-col gap-0.5 mb-3 px-1">
