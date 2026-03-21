@@ -245,6 +245,7 @@ export default function AnnotationPanel({
   const [pixelRadii, setPixelRadii] = useState<number[]>([]);
   const DEFAULT_RADIUS = 5;
   const [activeSpotIndex, setActiveSpotIndex] = useState<number | null>(null);
+  const [isNone, setIsNone] = useState(false);
   const [submitting,  setSubmitting]  = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   // Dragging state for markers (pointer events)
@@ -367,14 +368,27 @@ export default function AnnotationPanel({
       setPixelLabels(pl => [...pl, null]);
       setPixelRadii(pr => [...pr, DEFAULT_RADIUS]);
       setActiveSpotIndex(next.length - 1);
+      setIsNone(false); // Disable 'none' if user marks a region
       return next;
     });
+  };
+
+  const handleToggleNone = () => {
+    const nextNone = !isNone;
+    setIsNone(nextNone);
+    if (nextNone) {
+      // Clear all regions if user explicitly says "None visible"
+      setPixelCoords([]);
+      setPixelLabels([]);
+      setPixelRadii([]);
+      setActiveSpotIndex(null);
+    }
   };
 
   const selectedOption = TASK_OPTIONS.find(o => o.value === taskType);
 
   // Derive user_label from the first labeled spot if it's not explicitly set
-  const derivedUserLabel = userLabel || pixelLabels.find(l => l !== null) || 'none';
+  const derivedUserLabel = isNone ? 'none' : (userLabel || pixelLabels.find(l => l !== null) || 'none');
 
   const handleSubmit = useCallback(async () => {
     if (!derivedUserLabel || isLocked) return;
@@ -389,9 +403,9 @@ export default function AnnotationPanel({
       user_label:    derivedUserLabel,
       confidence,
       comments:      comments.trim(),
-      pixel_coords:  pixelCoords.map(p => ({ x: p.x, y: p.y })),
-      pixel_labels:  pixelLabels.length ? pixelLabels : undefined,
-      pixel_radii:   pixelRadii.length ? pixelRadii : undefined,
+      pixel_coords:  isNone ? [] : pixelCoords.map(p => ({ x: p.x, y: p.y })),
+      pixel_labels:  isNone ? [] : (pixelLabels.length ? pixelLabels : undefined),
+      pixel_radii:   isNone ? [] : (pixelRadii.length ? pixelRadii : undefined),
     };
 
     try {
@@ -419,8 +433,8 @@ export default function AnnotationPanel({
 
   if (!selectedOption) return null;
 
-  const hasAtLeastOneLabeledSpot = pixelLabels.some(l => l !== null);
-  const canSubmit = Boolean(hasAtLeastOneLabeledSpot && !submitting);
+  const hasAtLeastOneLabeledSpot = pixelLabels.length > 0 && pixelLabels.every(l => l !== null);
+  const canSubmit = Boolean((hasAtLeastOneLabeledSpot || isNone) && !submitting);
 
   return (
     <div className="relative">
@@ -461,11 +475,23 @@ export default function AnnotationPanel({
 
         {/* Pixel/region selection UI */}
         <motion.div variants={itemVariants} className="mt-3" style={{ pointerEvents: isLocked ? 'none' : 'auto' }}>
-          <p className="text-xs text-slate-400 mb-1">Select regions on the image:</p>
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-xs text-slate-400">Select regions on the image:</p>
+            <button
+              onClick={handleToggleNone}
+              className={`text-[10px] px-2 py-1 rounded transition-colors border ${
+                isNone 
+                  ? 'bg-solar-500/20 text-solar-300 border-solar-500/40' 
+                  : 'bg-white/5 text-slate-500 border-white/10 hover:text-slate-300'
+              }`}
+            >
+              {isNone ? '✓ No regions found' : `No ${selectedOption.label.toLowerCase()} visible?`}
+            </button>
+          </div>
           <div
             style={{ position: 'relative', display: 'inline-block', maxWidth: 320 }}
             onPointerMove={(e: React.PointerEvent) => {
-              if (draggingIndex === null) return;
+              if (draggingIndex === null || isLocked) return;
               const rect = imageRef.current?.getBoundingClientRect();
               if (!rect) return;
               const xPct = Math.min(Math.max((e.clientX - rect.left) / rect.width, 0), 1);
@@ -476,6 +502,14 @@ export default function AnnotationPanel({
             }}
             onPointerUp={() => setDraggingIndex(null)}
           >
+            {/* Blocking Overlay - absolutely prevents interaction when locked */}
+            {isLocked && (
+              <div 
+                className="absolute inset-0 z-[60] cursor-not-allowed" 
+                onClick={e => e.stopPropagation()}
+                onPointerDown={e => e.stopPropagation()}
+              />
+            )}
             {/* If an external image is provided, we render the image elsewhere and mount
                 the interactive SVG overlay onto its parent via a portal. This avoids
                 showing the image twice while keeping all coordinate math identical. */}
@@ -534,47 +568,33 @@ export default function AnnotationPanel({
                           cy={`${(p.yPct ?? 0) * 100}`}
                           r={radiusPct}
                           style={{ cursor: isLocked ? 'default' : 'grab', pointerEvents: isLocked ? 'none' : 'auto' }}
-                          fill={isActive ? 'rgba(59,130,246,0.15)' : 'rgba(34,197,94,0.15)'}
+                          fill={isActive ? 'rgba(59,130,246,0.2)' : 'rgba(34,197,94,0.2)'}
                           stroke={isActive ? 'rgba(59,130,246,0.8)' : 'rgba(34,197,94,0.8)'}
-                          strokeWidth={0.5}
+                          strokeWidth={0.4}
                         />
-                        {/* Center point handle */}
-                        <circle
-                          onPointerDown={e => {
-                            if (isLocked) return;
-                            e.stopPropagation();
-                            setDraggingIndex(idx);
-                            setActiveSpotIndex(idx);
-                          }}
-                          cx={`${(p.xPct ?? 0) * 100}`}
-                          cy={`${(p.yPct ?? 0) * 100}`}
-                          r={isActive ? 1.5 : 1}
-                          style={{ cursor: isLocked ? 'default' : 'grab', pointerEvents: isLocked ? 'none' : 'auto' }}
-                          fill={isActive ? '#3b82f6' : '#22c55e'}
-                          stroke="#fff"
-                          strokeWidth={0.3}
-                        />
-
                         <text
-                          x={`${(p.xPct ?? 0) * 100 + 3}`}
-                          y={`${(p.yPct ?? 0) * 100 + 3}`}
+                          x={`${(p.xPct ?? 0) * 100 + 1}`}
+                          y={`${(p.yPct ?? 0) * 100 + 1}`}
                           fontSize={3}
                           fill="#fff"
-                          style={{ textAnchor: 'start', pointerEvents: 'none' }}
+                          style={{ textAnchor: 'start', pointerEvents: 'none', fontWeight: 'bold', filter: 'drop-shadow(0px 0px 1px black)' }}
                         >{idx + 1}</text>
-                        <rect x={`${(p.xPct ?? 0) * 100 + 6}`} y={`${(p.yPct ?? 0) * 100 - 1}`} width={14} height={5} rx={1} fill="rgba(0,0,0,0.45)" style={{ pointerEvents: 'none' }} />
-                        <text
-                          x={`${(p.xPct ?? 0) * 100 + 7}`}
-                          y={`${(p.yPct ?? 0) * 100 + 2.5}`}
-                          fontSize={2.5}
-                          fill="#fff"
-                          style={{ textAnchor: 'start', pointerEvents: 'none' }}
-                        >{(pixelLabels[idx] ?? '...').toString().slice(0,6)}</text>
+                        {isActive && (
+                          <g style={{ pointerEvents: 'none' }}>
+                            <rect x={`${(p.xPct ?? 0) * 100 + 4}`} y={`${(p.yPct ?? 0) * 100 - 1.5}`} width={12} height={4} rx={0.5} fill="rgba(0,0,0,0.6)" />
+                            <text
+                              x={`${(p.xPct ?? 0) * 100 + 5}`}
+                              y={`${(p.yPct ?? 0) * 100 + 1.5}`}
+                              fontSize={2}
+                              fill="#fff"
+                              style={{ textAnchor: 'start' }}
+                            >{(pixelLabels[idx] ?? '...').toString().slice(0,8)}</text>
+                          </g>
+                        )}
                       </g>
                     );
-                  })}
-                </svg>
-
+                    })}
+                    </svg>
               </>
             ) : (
               // external image mode: mount svg overlay into the external image's parent
@@ -622,45 +642,34 @@ export default function AnnotationPanel({
                           cy={`${(p.yPct ?? 0) * 100}`}
                           r={radiusPct}
                           style={{ cursor: isLocked ? 'default' : 'grab', pointerEvents: isLocked ? 'none' : 'auto' }}
-                          fill={isActive ? 'rgba(59,130,246,0.15)' : 'rgba(34,197,94,0.15)'}
+                          fill={isActive ? 'rgba(59,130,246,0.2)' : 'rgba(34,197,94,0.2)'}
                           stroke={isActive ? 'rgba(59,130,246,0.8)' : 'rgba(34,197,94,0.8)'}
-                          strokeWidth={0.5}
+                          strokeWidth={0.4}
                         />
-                        <circle
-                          onPointerDown={e => {
-                            if (isLocked) return;
-                            e.stopPropagation();
-                            setDraggingIndex(idx);
-                            setActiveSpotIndex(idx);
-                          }}
-                          cx={`${(p.xPct ?? 0) * 100}`}
-                          cy={`${(p.yPct ?? 0) * 100}`}
-                          r={isActive ? 1.5 : 1}
-                          style={{ cursor: isLocked ? 'default' : 'grab', pointerEvents: isLocked ? 'none' : 'auto' }}
-                          fill={isActive ? '#3b82f6' : '#22c55e'}
-                          stroke="#fff"
-                          strokeWidth={0.3}
-                        />
-
                         <text
-                          x={`${(p.xPct ?? 0) * 100 + 3}`}
-                          y={`${(p.yPct ?? 0) * 100 + 3}`}
+                          x={`${(p.xPct ?? 0) * 100 + 1}`}
+                          y={`${(p.yPct ?? 0) * 100 + 1}`}
                           fontSize={3}
                           fill="#fff"
-                          style={{ textAnchor: 'start', pointerEvents: 'none' }}
+                          style={{ textAnchor: 'start', pointerEvents: 'none', fontWeight: 'bold', filter: 'drop-shadow(0px 0px 1px black)' }}
                         >{idx + 1}</text>
-                        <rect x={`${(p.xPct ?? 0) * 100 + 6}`} y={`${(p.yPct ?? 0) * 100 - 1}`} width={14} height={5} rx={1} fill="rgba(0,0,0,0.45)" style={{ pointerEvents: 'none' }} />
-                        <text
-                          x={`${(p.xPct ?? 0) * 100 + 7}`}
-                          y={`${(p.yPct ?? 0) * 100 + 2.5}`}
-                          fontSize={2.5}
-                          fill="#fff"
-                          style={{ textAnchor: 'start', pointerEvents: 'none' }}
-                        >{(pixelLabels[idx] ?? '...').toString().slice(0,6)}</text>
+                        {isActive && (
+                          <g style={{ pointerEvents: 'none' }}>
+                            <rect x={`${(p.xPct ?? 0) * 100 + 4}`} y={`${(p.yPct ?? 0) * 100 - 1.5}`} width={12} height={4} rx={0.5} fill="rgba(0,0,0,0.6)" />
+                            <text
+                              x={`${(p.xPct ?? 0) * 100 + 5}`}
+                              y={`${(p.yPct ?? 0) * 100 + 1.5}`}
+                              fontSize={2}
+                              fill="#fff"
+                              style={{ textAnchor: 'start' }}
+                            >{(pixelLabels[idx] ?? '...').toString().slice(0,8)}</text>
+                          </g>
+                        )}
                       </g>
                     );
-                  })}
-                </svg>,
+                    })}
+                    </svg>,
+
                 portalContainer,
               )
 
@@ -740,29 +749,32 @@ export default function AnnotationPanel({
                             <span className="text-[10px] text-slate-500 italic">(unlabeled)</span>
                           )}
                         </div>
-                        <button
-                          className="p-1 text-slate-500 hover:text-red-400 transition-colors"
-                          title="Remove region"
-                          onClick={e => { 
-                            e.stopPropagation(); 
-                            setPixelCoords(pc => {
-                              const next = pc.filter((_, i) => i !== idx);
-                              setPixelLabels(pl => pl.filter((_, i) => i !== idx));
-                              setPixelRadii(pr => pr.filter((_, i) => i !== idx));
-                              setActiveSpotIndex(prev => {
-                                if (prev === null) return null;
-                                if (idx < prev) return prev - 1;
-                                if (idx === prev) return next.length > 0 ? Math.max(0, prev - 1) : null;
-                                return prev;
-                              });
-                              return next;
-                            }); 
-                          }}
-                        >
-                          <svg viewBox="0 0 24 24" className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2.5}>
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                          </svg>
-                        </button>
+                        {!submitting && (
+                          <button
+                            className="p-1 text-slate-500 hover:text-red-400 transition-colors"
+                            title="Remove region"
+                            onClick={e => { 
+                              e.stopPropagation(); 
+                              setPixelCoords(pc => {
+                                const next = pc.filter((_, i) => i !== idx);
+                                setPixelLabels(pl => pl.filter((_, i) => i !== idx));
+                                setPixelRadii(pr => pr.filter((_, i) => i !== idx));
+                                setActiveSpotIndex(prev => {
+                                  if (prev === null) return null;
+                                  if (idx < prev) return prev - 1;
+                                  if (idx === prev) return next.length > 0 ? Math.max(0, prev - 1) : null;
+                                  return prev;
+                                });
+                                return next;
+                              }); 
+                            }}
+                          >
+                            <svg viewBox="0 0 24 24" className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2.5}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                          </button>
+                        )}
+
                       </li>
                     );
                   })}
@@ -854,7 +866,7 @@ export default function AnnotationPanel({
             ) : canSubmit ? (
               'Submit My Observation →'
             ) : (
-              '↑ Mark & label at least one region on the image'
+              isNone ? 'Submit My Observation →' : '↑ Mark & label at least one region on the image'
             )}
           </motion.button>
         </motion.div>

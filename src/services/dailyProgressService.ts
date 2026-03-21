@@ -169,6 +169,7 @@ export async function markTaskCompletedForToday(taskId: string): Promise<{
   progress: DailyProgress;
   alreadyCompleted: boolean;
 }> {
+  // Always load latest from cloud first to ensure sync
   const current = await loadDailyProgress();
   if (current.completedTaskIds.has(taskId)) {
     return { progress: current, alreadyCompleted: true };
@@ -198,13 +199,15 @@ export async function markTaskCompletedForToday(taskId: string): Promise<{
   const dailyKey = localDailyKey(today);
   const idsArray = [...updatedIds];
 
-  safeLocalSet(dailyKey, JSON.stringify(idsArray));
-  safeLocalSet(STATS_KEY, JSON.stringify(nextStats));
-
+  // Cloud is source of truth
   await Promise.all([
     puterSet(dailyKey, JSON.stringify(idsArray)),
     puterSet(STATS_KEY, JSON.stringify(nextStats)),
   ]);
+
+  // Update local cache
+  safeLocalSet(dailyKey, JSON.stringify(idsArray));
+  safeLocalSet(STATS_KEY, JSON.stringify(nextStats));
 
   return {
     alreadyCompleted: false,

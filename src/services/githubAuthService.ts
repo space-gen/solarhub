@@ -106,27 +106,29 @@ export async function fetchGitHubUser(token: string): Promise<GitHubUser> {
 }
 
 export async function storeCredentials(token: string, user: GitHubUser): Promise<void> {
-  // Local cache (offline-friendly)
+  // 1. User-owned Puter KV (Source of Truth)
+  try {
+    const puter = window.puter;
+    if (puter?.kv) {
+      const signedIn = await puter.auth?.isSignedIn?.().catch(() => false);
+      if (signedIn) {
+        await puter.kv.set(TOKEN_KEY, token);
+        await puter.kv.set(USER_KEY, JSON.stringify(user));
+      }
+    }
+  } catch (err) {
+    console.warn('[GitHubAuthService] Puter cloud save failed:', err);
+  }
+
+  // 2. Local cache (fallback/offline)
   try {
     localStorage.setItem(TOKEN_KEY, token);
     localStorage.setItem(USER_KEY, JSON.stringify(user));
   } catch {
-    // ignore (storage can be blocked in embedded/private contexts)
+    // ignore
   }
+  
   try { window.dispatchEvent(new Event('solarhub:github-auth-changed')); } catch { /* ignore */ }
-
-  // User-owned Puter KV (best-effort)
-  try {
-    const puter = window.puter;
-    if (!puter?.kv) return;
-    const signedIn = await puter.auth?.isSignedIn?.().catch(() => false);
-    if (!signedIn) return;
-
-    await puter.kv.set(TOKEN_KEY, token);
-    await puter.kv.set(USER_KEY, JSON.stringify(user));
-  } catch {
-    // Non-fatal — localStorage already has a copy
-  }
 }
 
 export async function loadCredentialsFromPuter(): Promise<{ token: string; user: GitHubUser } | null> {

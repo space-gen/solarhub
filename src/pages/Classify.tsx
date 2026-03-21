@@ -21,8 +21,6 @@ import { classifyTaskType } from '@/utils/helpers';
 import { loadDailyProgress, markTaskCompletedForToday } from '@/services/dailyProgressService';
 import { pageVariants, itemVariants } from '@/animations/pageTransitions';
 
-// ... existing interfaces ...
-
 interface TaskTypeMeta {
   value: TaskType;
   friendlyName: string;
@@ -67,7 +65,7 @@ function SuccessPopup({ points }: { points: number }) {
       initial={{ opacity: 0, scale: 0.9 }}
       animate={{ opacity: 1, scale: 1 }}
       exit={{ opacity: 0, scale: 0.9 }}
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+      className="fixed inset-0 z-[200] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
     >
       <div className="bg-cosmic-800 border border-white/10 rounded-2xl p-8 max-w-sm w-full shadow-2xl flex flex-col items-center text-center gap-4 relative overflow-hidden">
         {/* Shine effect */}
@@ -137,138 +135,145 @@ function AnnotationView({
   const selectedOption = TASK_OPTIONS.find(o => o.value === taskType)!;
 
   return (
-    <motion.div variants={pageVariants} initial="hidden" animate="visible" exit="exit" className="min-h-screen pt-20 pb-16 px-4 cosmic-bg">
+    <div className="relative">
       <AnimatePresence>
         {showSuccess && <SuccessPopup points={points} />}
       </AnimatePresence>
 
-      {/* Floating Lock Toggle */}
-      <motion.button
-        onClick={() => setIsLocked(!isLocked)}
-        whileHover={{ scale: 1.1 }}
-        whileTap={{ scale: 0.9 }}
-        className={`fixed bottom-8 right-8 z-50 p-4 rounded-full shadow-2xl flex items-center justify-center transition-colors duration-300 border ${
-          isLocked 
-            ? 'bg-red-500/20 text-red-400 border-red-500/40' 
-            : 'bg-solar-500/20 text-solar-400 border-solar-500/40'
-        }`}
-        title={isLocked ? "Unlock image interaction" : "Lock image interaction (prevent accidental touches)"}
-      >
-        <div className="flex items-center gap-2">
-          {isLocked ? (
-            <>
-              <svg viewBox="0 0 24 24" className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-              </svg>
-              <span className="text-xs font-bold uppercase tracking-widest pr-1">Locked</span>
-            </>
-          ) : (
-            <>
-              <svg viewBox="0 0 24 24" className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M8 11V7a4 4 0 118 0m-4 8v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2z" />
-              </svg>
-              <span className="text-xs font-bold uppercase tracking-widest pr-1">Unlocked</span>
-            </>
-          )}
-        </div>
-      </motion.button>
-
-      <div className="max-w-5xl mx-auto flex flex-col gap-5">
-        <motion.div variants={itemVariants} className="flex items-center gap-4 pt-4 flex-wrap">
-          <BackButton label="All types" onClick={onBack} />
-          <div className="flex items-center gap-2 ml-auto">
-            <span>{meta.icon}</span>
-            <span className={`text-sm font-semibold ${s.text}`}>{meta.friendlyName}</span>
+      {/* Floating Lock Toggle - Outside of motion.div to avoid transform container breakages */}
+      <div className="fixed bottom-8 right-8 z-[9999]">
+        <motion.button
+          onClick={() => setIsLocked(!isLocked)}
+          whileHover={{ scale: 1.1 }}
+          whileTap={{ scale: 0.9 }}
+          className={`p-4 rounded-full shadow-2xl flex items-center justify-center transition-colors duration-300 border ${
+            isLocked 
+              ? 'bg-red-500 text-white border-red-400' 
+              : 'bg-solar-500 text-white border-solar-400'
+          }`}
+          title={isLocked ? "Unlock image interaction" : "Lock image interaction (prevent accidental touches)"}
+        >
+          <div className="flex items-center gap-2">
+            {isLocked ? (
+              <>
+                <svg viewBox="0 0 24 24" className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth={2.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                </svg>
+                <span className="text-xs font-black uppercase tracking-widest pr-1">Locked</span>
+              </>
+            ) : (
+              <>
+                <svg viewBox="0 0 24 24" className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth={2.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M8 11V7a4 4 0 118 0m-4 8v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2z" />
+                </svg>
+                <span className="text-xs font-black uppercase tracking-widest pr-1">Unlocked</span>
+              </>
+            )}
           </div>
-        </motion.div>
+        </motion.button>
+      </div>
 
-        <motion.div variants={itemVariants} className="glass rounded-xl p-3 flex flex-wrap gap-3 text-xs text-slate-400">
-          <span>Done today: <strong className="text-emerald-300">{completedToday}</strong></span>
-          <span>Remaining today: <strong className="text-solar-300">{remainingToday}</strong></span>
-          <span>Streak: <strong className="text-violet-300">{streak}</strong> day{streak === 1 ? '' : 's'}</span>
-          <span>Total points: <strong className="text-solar-300">{points}</strong></span>
-        </motion.div>
-
-        {/* Guide above image */}
-        <div className="flex flex-col gap-5">
-          <motion.div variants={itemVariants} className="glass rounded-2xl p-5 flex flex-col gap-6">
-            <GuidePanel selectedOption={selectedOption} help={SCIENTIFIC_HELP[taskType]} />
-            
-            <div className="pt-4 border-t border-white/5">
-              <p className="text-xs text-slate-400 italic">
-                💡 Not 100% sure? That's fine — pick the closest label for each region you mark!
-              </p>
+      <motion.div variants={pageVariants} initial="hidden" animate="visible" exit="exit" className="min-h-screen pt-20 pb-16 px-4 cosmic-bg">
+        <div className="max-w-5xl mx-auto flex flex-col gap-5">
+          <motion.div variants={itemVariants} className="flex items-center gap-4 pt-4 flex-wrap">
+            <BackButton label="All types" onClick={onBack} />
+            <div className="flex items-center gap-2 ml-auto">
+              <span>{meta.icon}</span>
+              <span className={`text-sm font-semibold ${s.text}`}>{meta.friendlyName}</span>
             </div>
           </motion.div>
 
-          {/* Image */}
-          <motion.div variants={itemVariants} className="glass rounded-2xl overflow-hidden">
-            <div className="relative aspect-square bg-cosmic-900">
-              {!imgLoaded && !imgError && <div className="absolute inset-0 shimmer-skeleton" />}
-              {imgError ? (
-                <div className="absolute inset-0 flex flex-col items-center justify-center text-slate-600 gap-2">
-                  <span className="text-3xl">🌑</span>
-                  <p className="text-sm">Image could not be loaded</p>
-                </div>
-              ) : (
-                <img
-                  id={`aurora-img-${task.id}`}
-                  src={task.url}
-                  alt={`Solar observation – ${meta.friendlyName} – ${task.date}`}
-                  className={`w-full h-full object-contain transition-opacity duration-500 ${imgLoaded ? 'opacity-100' : 'opacity-0'}`}
-                  onLoad={() => setImgLoaded(true)}
-                  onError={() => { setImgError(true); setImgLoaded(true); }}
-                />
-              )}
-            </div>
-            {/* ... info block ... */}
-            <div className="px-4 py-3 flex items-center justify-between text-xs text-slate-500 border-t border-white/5">
-              <div className="flex items-center gap-3">
-                <span>{task.source}</span>
-                {task.date && <span>{task.date}</span>}
+          <motion.div variants={itemVariants} className="glass rounded-xl p-3 flex flex-wrap gap-3 text-xs text-slate-400">
+            <span>Done today: <strong className="text-emerald-300">{completedToday}</strong></span>
+            <span>Remaining today: <strong className="text-solar-300">{remainingToday}</strong></span>
+            <span>Streak: <strong className="text-violet-300">{streak}</strong> day{streak === 1 ? '' : 's'}</span>
+            <span>Total points: <strong className="text-solar-300">{points}</strong></span>
+          </motion.div>
+
+          {/* Guide above image */}
+          <div className="flex flex-col gap-5">
+            <motion.div variants={itemVariants} className="glass rounded-2xl p-5 flex flex-col gap-6">
+              <GuidePanel selectedOption={selectedOption} help={SCIENTIFIC_HELP[taskType]} />
+              
+              <div className="pt-4 border-t border-white/5">
+                <p className="text-xs text-slate-400 italic">
+                  💡 Not 100% sure? That's fine — pick the closest label for each region you mark!
+                </p>
               </div>
-              <div className="flex flex-col items-end gap-1">
-                <div className="flex items-center gap-2">
-                  <span className="text-xs text-slate-400">Record ID:</span>
-                  <code className="text-xs bg-white/6 px-2 py-0.5 rounded">{task.id}</code>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-xs text-slate-400">Source:</span>
-                  <span className="text-xs">{task.source}</span>
-                </div>
-                {task.date && (
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs text-slate-400">Timestamp:</span>
-                    <span className="text-xs">{task.date}</span>
+            </motion.div>
+
+            {/* Image */}
+            <motion.div variants={itemVariants} 
+              className={`glass rounded-2xl overflow-hidden transition-all duration-300 ${isLocked ? 'ring-4 ring-red-500/30' : ''}`}
+              style={{ pointerEvents: isLocked ? 'none' : 'auto' }}
+            >
+              <div className="relative aspect-square bg-cosmic-900">
+                {!imgLoaded && !imgError && <div className="absolute inset-0 shimmer-skeleton" />}
+                {imgError ? (
+                  <div className="absolute inset-0 flex flex-col items-center justify-center text-slate-600 gap-2">
+                    <span className="text-3xl">🌑</span>
+                    <p className="text-sm">Image could not be loaded</p>
                   </div>
+                ) : (
+                  <img
+                    id={`aurora-img-${task.id}`}
+                    src={task.url}
+                    alt={`Solar observation – ${meta.friendlyName} – ${task.date}`}
+                    className={`w-full h-full object-contain transition-opacity duration-500 ${imgLoaded ? 'opacity-100' : 'opacity-0'}`}
+                    onLoad={() => setImgLoaded(true)}
+                    onError={() => { setImgError(true); setImgLoaded(true); }}
+                  />
                 )}
               </div>
-            </div>
-          </motion.div>
+              {/* ... info block ... */}
+              <div className="px-4 py-3 flex items-center justify-between text-xs text-slate-500 border-t border-white/5">
+                <div className="flex items-center gap-3">
+                  <span>{task.source}</span>
+                  {task.date && <span>{task.date}</span>}
+                </div>
+                <div className="flex flex-col items-end gap-1">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-slate-400">Record ID:</span>
+                    <code className="text-xs bg-white/6 px-2 py-0.5 rounded">{task.id}</code>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-slate-400">Source:</span>
+                    <span className="text-xs">{task.source}</span>
+                  </div>
+                  {task.date && (
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-slate-400">Timestamp:</span>
+                      <span className="text-xs">{task.date}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </motion.div>
 
-          {/* Annotation controls (render without the guide or labels to avoid duplication) */}
-          <motion.div variants={itemVariants} className="glass rounded-2xl p-5">
-            <AnnotationPanel
-              taskType={taskType}
-              taskId={task.id}
-              serialNumber={task.serialNumber}
-              imageUrl={task.url}
-              externalImageId={`aurora-img-${task.id}`}
-              onSubmit={onSubmit}
-              showGuide={false}
-              showLabels={false}
-              userLabel={userLabel}
-              onUserLabelChange={setUserLabel}
-              isLocked={isLocked}
-            />
-          </motion.div>
+            {/* Annotation controls (render without the guide or labels to avoid duplication) */}
+            <motion.div variants={itemVariants} className="glass rounded-2xl p-5">
+              <AnnotationPanel
+                taskType={taskType}
+                taskId={task.id}
+                serialNumber={task.serialNumber}
+                imageUrl={task.url}
+                externalImageId={`aurora-img-${task.id}`}
+                onSubmit={onSubmit}
+                showGuide={false}
+                showLabels={false}
+                userLabel={userLabel}
+                onUserLabelChange={setUserLabel}
+                isLocked={isLocked}
+              />
+            </motion.div>
 
-          <motion.div variants={itemVariants} className="flex justify-end">
-            <PointsDisplay points={points} />
-          </motion.div>
+            <motion.div variants={itemVariants} className="flex justify-end">
+              <PointsDisplay points={points} />
+            </motion.div>
+          </div>
         </div>
-      </div>
-    </motion.div>
+      </motion.div>
+    </div>
   );
 }
 
