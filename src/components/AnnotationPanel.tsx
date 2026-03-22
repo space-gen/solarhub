@@ -231,30 +231,25 @@ function RegionEditorPanel({
           {/* Label Selection */}
           <div className="flex flex-col gap-2">
             <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Classification</label>
-            <div className="grid grid-cols-2 gap-2">
-              {options.subLabels.map(sub => (
-                <button
-                  key={sub.value}
-                  onClick={() => onChangeLabel(sub.value)}
-                  className={`text-xs py-2 px-3 rounded-lg text-left transition-all border ${
-                    label === sub.value 
-                      ? 'bg-solar-500 text-white border-solar-400 shadow-lg shadow-solar-500/20 font-semibold' 
-                      : 'bg-slate-900/50 text-slate-400 border-white/5 hover:bg-slate-700 hover:border-white/20'
-                  }`}
-                >
-                  {sub.label.split('(')[0].trim()}
-                </button>
-              ))}
-              <button
-                onClick={() => onChangeLabel('none')}
-                className={`text-xs py-2 px-3 rounded-lg text-left transition-all border ${
-                  label === 'none' 
-                    ? 'bg-slate-600 text-white border-slate-500 shadow-lg' 
-                    : 'bg-slate-900/50 text-slate-400 border-white/5 hover:bg-slate-700 hover:border-white/20'
-                }`}
+            <div className="relative">
+              <select
+                value={label || ''}
+                onChange={(e) => onChangeLabel(e.target.value as UserLabel)}
+                className="w-full appearance-none bg-slate-900/50 border border-white/10 text-slate-200 text-xs rounded-lg py-2.5 px-3 pr-8 focus:outline-none focus:border-solar-500 focus:ring-1 focus:ring-solar-500/50 transition-all"
               >
-                None / Unsure
-              </button>
+                <option value="" disabled>Select a label...</option>
+                {options.subLabels.map(sub => (
+                  <option key={sub.value} value={sub.value}>
+                    {sub.label}
+                  </option>
+                ))}
+                <option value="none">None / Unsure</option>
+              </select>
+              <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-slate-500">
+                <svg viewBox="0 0 24 24" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                </svg>
+              </div>
             </div>
           </div>
 

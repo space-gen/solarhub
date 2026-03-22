@@ -13,6 +13,7 @@ import { useNavigate } from 'react-router-dom';
 import { usePuterAuth } from '@/hooks/usePuterAuth';
 import { useGitHubAuth } from '@/hooks/useGitHubAuth';
 import { AUTH_CONFIG } from '@/config/endpoints';
+import StarField from '@/components/StarField';
 
 function Card({ children }: { children: React.ReactNode }) {
   return (
@@ -65,7 +66,8 @@ export default function Connect() {
   }
 
   return (
-    <div className="min-h-screen pt-24 pb-16 px-4 cosmic-bg">
+    <div className="min-h-screen pt-24 pb-16 px-4 cosmic-bg relative">
+      <StarField />
       <div className="max-w-3xl mx-auto flex flex-col gap-6 relative z-10">
 
         <div className="text-center flex flex-col gap-2">

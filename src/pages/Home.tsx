@@ -29,7 +29,7 @@ import {
   cosmicEntranceUp,
 } from '@/animations/pageTransitions';
 import { glowButtonVariants }       from '@/animations/hoverAnimations';
-import { STAR_DATA }                from '@/pages/Home.stardata';
+import StarField                from '@/components/StarField';
 
 // ---------------------------------------------------------------------------
 // Hero section – animated sun
@@ -178,38 +178,6 @@ function HeroSun() {
         />
       </motion.div>
     </motion.div>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Background star field
-// ---------------------------------------------------------------------------
-
-function StarField() {
-  return (
-    <div className="absolute inset-0 overflow-hidden pointer-events-none">
-      {STAR_DATA.map(star => (
-        <motion.div
-          key={star.id}
-          className="absolute rounded-full bg-white"
-          style={{
-            left: `${star.x}%`,
-            top:  `${star.y}%`,
-            width:  `${star.size}px`,
-            height: `${star.size}px`,
-            opacity: star.opacity,
-          }}
-          animate={star.twinkle
-            ? { opacity: [star.opacity, star.opacity * 0.15, star.opacity] }
-            : undefined
-          }
-          transition={star.twinkle
-            ? { duration: star.duration, ease: 'easeInOut', repeat: Infinity, delay: star.delay }
-            : undefined
-          }
-        />
-      ))}
-    </div>
   );
 }
 

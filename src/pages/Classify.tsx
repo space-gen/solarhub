@@ -14,6 +14,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import AnnotationPanel, { TASK_OPTIONS, SCIENTIFIC_HELP } from '@/components/AnnotationPanel';
 import PointsDisplay from '@/components/PointsDisplay';
 import GuidePanel from '@/components/GuidePanel';
+import StarField from '@/components/StarField';
 import type { AnnotationInput, TaskType, UserLabel } from '@/services/annotationService';
 import { fetchAuroraTasksByType } from '@/services/auroraService';
 import type { AuroraTask } from '@/services/auroraService';
@@ -136,6 +137,7 @@ function AnnotationView({
 
   return (
     <div className="relative">
+      <StarField />
       <AnimatePresence>
         {showSuccess && <SuccessPopup points={points} />}
       </AnimatePresence>
@@ -351,8 +353,9 @@ export default function Classify({ points, onPointsChange }: ClassifyProps) {
   return (
     <AnimatePresence mode="wait">
       {!selectedType ? (
-        <motion.div key="picker" variants={pageVariants} initial="hidden" animate="visible" exit="exit" className="min-h-screen pt-24 pb-16 px-4 cosmic-bg">
-          <div className="max-w-3xl mx-auto">
+        <motion.div key="picker" variants={pageVariants} initial="hidden" animate="visible" exit="exit" className="min-h-screen pt-24 pb-16 px-4 cosmic-bg relative">
+          <StarField />
+          <div className="max-w-3xl mx-auto relative z-10">
             <GuidePanel 
               onSelect={handleTypeSelect} 
               availability={availability} 
@@ -363,23 +366,26 @@ export default function Classify({ points, onPointsChange }: ClassifyProps) {
       ) : (
         <motion.div key="selected" variants={pageVariants} initial="hidden" animate="visible" exit="exit">
           {progressLoading || gridLoading ? (
-            <div className="min-h-screen pt-24 flex items-center justify-center cosmic-bg">
-              <div className="flex flex-col items-center gap-4 text-slate-500">
+            <div className="min-h-screen pt-24 flex items-center justify-center cosmic-bg relative">
+              <StarField />
+              <div className="flex flex-col items-center gap-4 text-slate-500 relative z-10">
                 <motion.div className="w-10 h-10 border-2 border-solar-500/40 border-t-solar-400 rounded-full" animate={{ rotate: 360 }} transition={{ duration: 1, ease: 'linear', repeat: Infinity }} />
                 <p className="text-sm">Loading today's queue…</p>
               </div>
             </div>
           ) : tasks.length === 0 ? (
-            <div className="min-h-screen pt-24 flex items-center justify-center cosmic-bg px-4">
-              <div className="glass rounded-2xl p-8 max-w-md text-center flex flex-col gap-4">
+            <div className="min-h-screen pt-24 flex items-center justify-center cosmic-bg px-4 relative">
+              <StarField />
+              <div className="glass rounded-2xl p-8 max-w-md text-center flex flex-col gap-4 relative z-10">
                 <span className="text-4xl">🔭</span>
                 <h2 className="font-bold text-slate-200">No images available yet</h2>
                 <button onClick={handleBackToTypes} className="btn-solar mt-2">Choose another type</button>
               </div>
             </div>
           ) : !currentTask ? (
-            <div className="min-h-screen pt-24 flex items-center justify-center cosmic-bg px-4">
-              <div className="glass rounded-2xl p-8 max-w-md text-center flex flex-col gap-4">
+            <div className="min-h-screen pt-24 flex items-center justify-center cosmic-bg px-4 relative">
+              <StarField />
+              <div className="glass rounded-2xl p-8 max-w-md text-center flex flex-col gap-4 relative z-10">
                 <span className="text-4xl">🎉</span>
                 <h2 className="font-bold text-slate-200">All done for today in this category</h2>
                 <p className="text-sm text-slate-500">Daily rotation resets tomorrow. Nothing will be shown twice today.</p>
