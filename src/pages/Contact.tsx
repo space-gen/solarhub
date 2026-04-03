@@ -99,7 +99,7 @@ export default function Contact() {
             <a href="https://instagram.com/soumyadip_karforma" target="_blank" rel="noopener noreferrer" aria-label="Soumyadip Karforma on Instagram" className="btn-secondary px-3 py-2 rounded-lg text-sm">
               Instagram
             </a>
-            <a href="https://twitter.com/soumyadip_k" target="_blank" rel="noopener noreferrer" aria-label="Soumyadip Karforma on Twitter" className="text-slate-300 hover:text-solar-400 transition-colors">
+            <a href="https://twitter.com/soumyadip_k" target="_blank" rel="noopener noreferrer" aria-label="Soumyadip Karforma on Twitter" className="btn-secondary px-3 py-2 rounded-lg text-sm">
               Twitter
             </a>
           </div>
