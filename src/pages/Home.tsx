@@ -71,7 +71,7 @@ function HeroSun() {
         className="absolute rounded-full pointer-events-none"
         style={{
           width: 460, height: 460,
-          background: 'radial-gradient(circle, rgba(217,70,239,0.08) 0%, transparent 60%)',
+          background: 'radial-gradient(circle, rgba(0,0,0,0.08) 0%, transparent 60%)',
           top: '50%', left: '50%',
           transform: 'translate(-50%, -50%)',
         }}
@@ -369,13 +369,15 @@ export default function Home() {
 
           {/* Title */}
           <motion.div variants={cosmicEntranceUp} className="flex flex-col items-center gap-4">
-            <h1 className="text-6xl md:text-8xl font-black tracking-tight">
-              <span className="gradient-text">Solar</span>
-              <span className="text-slate-100">Hub</span>
+            <h1 className="text-6xl md:text-8xl font-black tracking-tight flex flex-col items-center">
+              <span className="gradient-text">SolarHub</span>
+              <span className="text-sm md:text-base uppercase tracking-[0.3em] text-slate-500 font-bold -mt-2">
+                by <a href="https://space-gen.github.io" target="_blank" rel="noopener noreferrer" className="hover:text-solar-400 transition-colors">SpaceGen</a>
+              </span>
             </h1>
-            <p className="text-xl md:text-2xl text-slate-300 max-w-2xl leading-relaxed">
-              Help classify real solar observations from NASA's Solar Dynamics Observatory.
-              Your expertise shapes the future of space science.
+            <p className="text-xl md:text-2xl text-slate-300 max-w-2xl leading-relaxed mt-4">
+              A citizen-science initiative by <b>SpaceGen</b>, founded by <b>Soumyadip Karforma</b>.
+              Help classify real solar observations from NASA's SDO to build open-source ML datasets.
             </p>
           </motion.div>
 
@@ -435,7 +437,7 @@ export default function Home() {
             whileInView="visible"
             viewport={{ once: true }}
           >
-            Why <span className="gradient-text">SolarHub</span>?
+            Why <span className="gradient-text">SolarHub by SpaceGen</span>?
           </motion.h2>
           <FeatureCards />
         </div>
@@ -447,6 +449,73 @@ export default function Home() {
       <section className="py-24 px-4 bg-cosmic-950/80">
         <div className="max-w-7xl mx-auto flex flex-col items-center gap-8">
           <HowItWorks />
+        </div>
+      </section>
+
+      {/* ──────────────────────────────────────────────────────────────────── */}
+      {/* SpaceGen & Founder Section                                          */}
+      {/* ──────────────────────────────────────────────────────────────────── */}
+      <section className="py-24 px-4 bg-cosmic-950/90 relative overflow-hidden">
+        {/* Background glow for this section */}
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px]
+                        bg-solar-500/5 rounded-full blur-[120px] pointer-events-none" />
+
+        <div className="max-w-5xl mx-auto flex flex-col md:flex-row items-center gap-12 relative z-10">
+          {/* Founder image/placeholder */}
+          <motion.div
+            className="w-48 h-48 md:w-64 md:h-64 rounded-2xl glass p-1 relative"
+            variants={cosmicEntrance}
+            initial="hidden"
+            whileInView="visible"
+            viewport={{ once: true }}
+          >
+            <div className="w-full h-full rounded-xl bg-cosmic-800 flex items-center justify-center overflow-hidden border border-white/5">
+              <span className="text-6xl">🚀</span>
+              {/* Optional: Add actual image path later */}
+              {/* <img src="/images/founder.jpg" className="w-full h-full object-cover" alt="Soumyadip Karforma" /> */}
+            </div>
+            <div className="absolute -bottom-4 -right-4 glass px-4 py-2 rounded-lg border border-solar-500/30">
+              <p className="text-xs font-bold text-solar-400 uppercase tracking-widest">Founder</p>
+            </div>
+          </motion.div>
+
+          <motion.div
+            className="flex-1 flex flex-col gap-6"
+            variants={containerVariants}
+            initial="hidden"
+            whileInView="visible"
+            viewport={{ once: true }}
+          >
+            <motion.h2 variants={itemVariants} className="text-4xl font-bold text-slate-100">
+              Meet <span className="gradient-text">Soumyadip Karforma</span>
+            </motion.h2>
+            <motion.p variants={itemVariants} className="text-lg text-slate-300 leading-relaxed">
+              Founder of <a href="https://space-gen.github.io" className="text-solar-400 hover:underline">SpaceGen</a>,
+              Soumyadip is passionate about democratizing space science and building open datasets for the next generation of AI.
+            </motion.p>
+            <motion.div variants={itemVariants} className="flex flex-col gap-4">
+              <div className="flex items-start gap-3">
+                <div className="mt-1.5 w-2 h-2 rounded-full bg-solar-500 shrink-0" />
+                <p className="text-slate-400">Leading the <b>Aurora Platform</b> – the backend powering SolarHub's ML pipeline.</p>
+              </div>
+              <div className="flex items-start gap-3">
+                <div className="mt-1.5 w-2 h-2 rounded-full bg-solar-500 shrink-0" />
+                <p className="text-slate-400">Pioneering <b>Open Science</b> by releasing ML-ready solar data on Hugging Face.</p>
+              </div>
+              <div className="flex items-start gap-3">
+                <div className="mt-1.5 w-2 h-2 rounded-full bg-solar-500 shrink-0" />
+                <p className="text-slate-400">Building a community of space enthusiasts and researchers globally.</p>
+              </div>
+            </motion.div>
+            <motion.div variants={itemVariants} className="pt-4 flex gap-4">
+              <a href="https://space-gen.github.io" target="_blank" rel="noopener noreferrer" className="btn-secondary px-6 py-2 rounded-xl text-sm">
+                SpaceGen Website
+              </a>
+              <a href="https://huggingface.co/SpaceGen" target="_blank" rel="noopener noreferrer" className="btn-secondary px-6 py-2 rounded-xl text-sm">
+                Hugging Face Org
+              </a>
+            </motion.div>
+          </motion.div>
         </div>
       </section>
 

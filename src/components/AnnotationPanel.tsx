@@ -95,7 +95,7 @@ export const TASK_OPTIONS: TaskOption[] = [
     label:   'Magnetic Map',
     icon:    '🧲',
     lookFor: "A black & white map that looks like stripes or patches",
-    color:   'text-violet-300', bg: 'bg-violet-500/15', border: 'border-violet-500/40',
+    color:   'text-nebula-300', bg: 'bg-nebula-500/15', border: 'border-nebula-500/40',
     subLabels: [
       { value: 'alpha', label: 'Alpha (simple)', hint: 'Just one simple patch' },
       { value: 'beta', label: 'Beta (two spots)', hint: 'Two nearby patches' },

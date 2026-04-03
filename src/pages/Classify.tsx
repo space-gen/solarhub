@@ -188,7 +188,7 @@ function AnnotationView({
           <motion.div variants={itemVariants} className="glass rounded-xl p-3 flex flex-wrap gap-3 text-xs text-slate-400">
             <span>Done today: <strong className="text-emerald-300">{completedToday}</strong></span>
             <span>Remaining today: <strong className="text-solar-300">{remainingToday}</strong></span>
-            <span>Streak: <strong className="text-violet-300">{streak}</strong> day{streak === 1 ? '' : 's'}</span>
+            <span>Streak: <strong className="text-nebula-300">{streak}</strong> day{streak === 1 ? '' : 's'}</span>
             <span>Total points: <strong className="text-solar-300">{points}</strong></span>
           </motion.div>
 

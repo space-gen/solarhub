@@ -27,6 +27,8 @@ interface NavItem {
 const NAV_ITEMS: NavItem[] = [
   { label: 'Home',     to: '/'         },
   { label: 'Classify', to: '/classify' },
+  { label: 'About',    to: '/about'    },
+  { label: 'Contact',  to: '/contact'  },
 ];
 
 function SunLogo() {
@@ -219,10 +221,15 @@ export default function NavigationBar({ points }: NavBarProps) {
               aria-label="SolarHub home"
             >
               <SunLogo />
-              <span className="text-xl font-bold tracking-tight">
-                <span className="gradient-text">Solar</span>
-                <span className="text-slate-200">Hub</span>
-              </span>
+              <div className="flex flex-col">
+                <span className="text-xl font-bold tracking-tight leading-tight">
+                  <span className="gradient-text">Solar</span>
+                  <span className="text-slate-200">Hub</span>
+                </span>
+                <span className="text-[10px] uppercase tracking-widest text-slate-500 font-semibold -mt-0.5 group-hover:text-solar-400 transition-colors">
+                  by SpaceGen
+                </span>
+              </div>
             </NavLink>
 
             <div className="hidden md:flex items-center gap-1">

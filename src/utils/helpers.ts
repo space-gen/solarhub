@@ -262,12 +262,12 @@ export function classifyTaskType(type: string): TaskTypeStyle {
 
     default:
       return {
-        bg:     'bg-purple-500/20',
-        text:   'text-purple-300',
-        border: 'border-purple-500/40',
+        bg:     'bg-nebula-500/20',
+        text:   'text-nebula-300',
+        border: 'border-nebula-500/40',
         icon:   '🔭',
         label:  type ? type.replace(/_/g, ' ') : 'Unknown',
-        hex:    '#c084fc',
+        hex:    '#cbd5e1',
       };
   }
 }

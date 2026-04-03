@@ -80,8 +80,8 @@ function AnimatedSun() {
           cx="100" cy="100"
           rx="60" ry="20"
           fill="none"
-          stroke="rgba(217,70,239,0.3)"
-          strokeWidth="1.5"
+          stroke="rgba(0,0,0,0.3)"
+          strokeWidth="2"
           strokeDasharray="5 4"
         />
       </motion.svg>

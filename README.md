@@ -1,6 +1,6 @@
-# SolarHub – Citizen Science Solar Observatory
+# SolarHub by SpaceGen – Citizen Science Solar Observatory
 
-SolarHub is the citizen-science frontend for the [**aurora**](https://github.com/space-gen/aurora) backend platform. Users classify real solar observations from NASA's Solar Dynamics Observatory (SDO). Each annotation is submitted as a **GitHub Issue on `space-gen/aurora`**, where the nightly aurora pipeline picks it up, parses it, and feeds it into the ML training cycle.
+SolarHub is the citizen-science frontend for the [**aurora**](https://github.com/space-gen/aurora) backend platform, developed by [SpaceGen](https://space-gen.github.io). Users classify real solar observations from NASA's Solar Dynamics Observatory (SDO). Each annotation is submitted as a **GitHub Issue on `space-gen/aurora`**, where the nightly aurora pipeline picks it up, parses it, and feeds it into the ML training cycle.
 
 Authentication is handled via **GitHub OAuth** — no passwords, no registration. Cloud annotation backup is provided by **[Puter.js](https://puter.com/)** — no separate backend required.
 

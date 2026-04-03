@@ -66,19 +66,19 @@ export default {
           950: '#0a0a1a', // main background
         },
 
-        // Nebula pinks & violets – accent highlights
+        // Nebula (now Space Black) accents
         nebula: {
-          50:  '#fdf4ff',
-          100: '#fae8ff',
-          200: '#f5d0fe',
-          300: '#f0abfc',
-          400: '#e879f9',
-          500: '#d946ef',
-          600: '#c026d3',
-          700: '#a21caf',
-          800: '#86198f',
-          900: '#701a75',
-          950: '#4a044e',
+          50:  '#f8fafc',
+          100: '#f1f5f9',
+          200: '#e2e8f0',
+          300: '#cbd5e1',
+          400: '#94a3b8',
+          500: '#1a1a1a', // Space Black
+          600: '#121212',
+          700: '#0a0a0a',
+          800: '#050505',
+          900: '#020202',
+          950: '#000000',
         },
       },
 
@@ -91,7 +91,7 @@ export default {
         'cosmic-gradient':
           'linear-gradient(135deg, #0a0a1a 0%, #0d0d2b 50%, #1e1b4b 100%)',
         'nebula-glow':
-          'radial-gradient(ellipse at 60% 40%, rgba(217,70,239,0.15) 0%, transparent 60%)',
+          'radial-gradient(ellipse at 60% 40%, rgba(0,0,0,0.15) 0%, transparent 60%)',
       },
 
       // -----------------------------------------------------------------------
@@ -168,7 +168,7 @@ export default {
         'solar':      '0 0 30px rgba(249,115,22,0.5)',
         'solar-lg':   '0 0 60px rgba(249,115,22,0.6)',
         'cosmic':     '0 0 30px rgba(99,102,241,0.4)',
-        'nebula':     '0 0 30px rgba(217,70,239,0.4)',
+        'nebula':     '0 0 30px rgba(0,0,0,0.4)',
         'glass':      '0 8px 32px rgba(0,0,0,0.4)',
         'glass-lg':   '0 16px 64px rgba(0,0,0,0.6)',
       },
