@@ -48,7 +48,7 @@ export default function Funding() {
           </motion.div>
 
           <motion.p variants={itemVariants} className="text-slate-400 text-sm mt-6">
-            If you prefer, email us directly at <a href="mailto:soumyadipkarforma02@gmail.com" className="text-solar-400 hover:underline">soumyadipkarforma02@gmail.com</a> to discuss
+            If you prefer, email us directly at <a href="mailto:soumyadipkarforma02@gmail.com" className="inline-block px-2 py-1 rounded text-solar-400 hover:bg-solar-500/10 transition-colors focus:outline-none focus:ring">soumyadipkarforma02@gmail.com</a> to discuss
             sponsorships, research partnerships, or other funding opportunities.
           </motion.p>
         </motion.section>
