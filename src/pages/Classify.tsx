@@ -18,7 +18,7 @@ import StarField from '@/components/StarField';
 import type { AnnotationInput, TaskType, UserLabel } from '@/services/annotationService';
 import { fetchAuroraTasksByType } from '@/services/auroraService';
 import type { AuroraTask } from '@/services/auroraService';
-import { classifyTaskType } from '@/utils/helpers';
+
 import { loadDailyProgress, markTaskCompletedForToday } from '@/services/dailyProgressService';
 import { pageVariants, itemVariants } from '@/animations/pageTransitions';
 

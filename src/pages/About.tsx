@@ -97,6 +97,9 @@ export default function About() {
             <a href="https://github.com/space-gen/aurora" target="_blank" rel="noopener noreferrer" className="btn-secondary px-8 py-3 rounded-2xl">
               View Aurora on GitHub
             </a>
+            <a href="/#/funding" className="btn-solar px-8 py-3 rounded-2xl">
+              Fund this project
+            </a>
           </div>
         </motion.section>
       </div>
