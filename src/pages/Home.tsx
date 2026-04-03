@@ -503,7 +503,7 @@ export default function Home() {
               Meet <span className="gradient-text">Soumyadip Karforma</span>
             </motion.h2>
             <motion.p variants={itemVariants} className="text-lg text-slate-300 leading-relaxed">
-              Founder of <a href="https://space-gen.github.io" className="text-solar-400 hover:underline">SpaceGen</a>,
+              Founder of <a href="https://space-gen.github.io" className="inline-block px-2 py-1 rounded text-solar-400 hover:bg-solar-500/10 transition-colors focus:outline-none focus:ring">SpaceGen</a>,
               Soumyadip is passionate about democratizing space science and building open datasets for the next generation of AI.
             </motion.p>
             <motion.div variants={itemVariants} className="flex flex-col gap-4">

@@ -19,7 +19,7 @@ export default function Funding() {
             Support <span className="gradient-text">SolarHub</span>
           </h1>
           <p className="text-xl text-slate-300 max-w-2xl">
-            SolarHub is an open-source citizen science project by SpaceGen. Your contribution helps
+            SolarHub is an open-source citizen science project. Your contribution helps
             cover hosting, compute for model training, data storage, outreach, and community growth.
           </p>
         </motion.div>
