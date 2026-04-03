@@ -437,7 +437,7 @@ export default function Home() {
             whileInView="visible"
             viewport={{ once: true }}
           >
-            Why <span className="gradient-text">SolarHub by SpaceGen</span>?
+            Why <span className="gradient-text">SolarHub</span>?
           </motion.h2>
           <FeatureCards />
         </div>
@@ -453,7 +453,7 @@ export default function Home() {
       </section>
 
       {/* ──────────────────────────────────────────────────────────────────── */}
-      {/* SpaceGen & Founder Section                                          */}
+      {/* Founder Section                                                      */}
       {/* ──────────────────────────────────────────────────────────────────── */}
       <section className="py-24 px-4 bg-cosmic-950/90 relative overflow-hidden">
         {/* Background glow for this section */}
@@ -509,7 +509,7 @@ export default function Home() {
             </motion.div>
             <motion.div variants={itemVariants} className="pt-4 flex gap-4">
               <a href="https://space-gen.github.io" target="_blank" rel="noopener noreferrer" className="btn-secondary px-6 py-2 rounded-xl text-sm">
-                SpaceGen Website
+                Organization Website
               </a>
               <a href="https://huggingface.co/SpaceGen" target="_blank" rel="noopener noreferrer" className="btn-secondary px-6 py-2 rounded-xl text-sm">
                 Hugging Face Org

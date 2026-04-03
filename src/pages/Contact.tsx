@@ -34,8 +34,8 @@ export default function Contact() {
             <p className="text-slate-400">
               For general inquiries and collaboration:
             </p>
-            <a href="mailto:karformasoumyadip@gmail.com" className="text-solar-400 font-bold hover:underline">
-              karformasoumyadip@gmail.com
+            <a href="mailto:soumyadipkarforma02@gmail.com" aria-label="Email Soumyadip Karforma" className="text-solar-400 font-bold hover:underline">
+              soumyadipkarforma02@gmail.com
             </a>
           </motion.div>
 
@@ -89,13 +89,13 @@ export default function Contact() {
             Connect with the founder and stay updated with his latest work in space tech.
           </p>
           <div className="flex justify-center gap-6">
-            <a href="https://github.com/soumyadipkarforma" target="_blank" rel="noopener noreferrer" className="text-slate-300 hover:text-solar-400 transition-colors">
+            <a href="https://github.com/soumyadipkarforma" target="_blank" rel="noopener noreferrer" aria-label="Soumyadip Karforma on GitHub" className="text-slate-300 hover:text-solar-400 transition-colors">
               GitHub
             </a>
-            <a href="https://linkedin.com/in/soumyadip-karforma" target="_blank" rel="noopener noreferrer" className="text-slate-300 hover:text-solar-400 transition-colors">
-              LinkedIn
+            <a href="https://instagram.com/soumyadip_karforma" target="_blank" rel="noopener noreferrer" aria-label="Soumyadip Karforma on Instagram" className="text-slate-300 hover:text-solar-400 transition-colors">
+              Instagram
             </a>
-            <a href="https://twitter.com/SoumyadipK" target="_blank" rel="noopener noreferrer" className="text-slate-300 hover:text-solar-400 transition-colors">
+            <a href="https://twitter.com/soumyadip_k" target="_blank" rel="noopener noreferrer" aria-label="Soumyadip Karforma on Twitter" className="text-slate-300 hover:text-solar-400 transition-colors">
               Twitter
             </a>
           </div>

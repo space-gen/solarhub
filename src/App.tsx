@@ -19,6 +19,7 @@ import { loadDailyProgress } from '@/services/dailyProgressService';
 import { HashRouter, Routes, Route, useLocation } from 'react-router-dom';
 import { AnimatePresence } from 'framer-motion';
 import NavigationBar from '@/components/NavigationBar';
+import Footer from '@/components/Footer';
 import Home from '@/pages/Home';
 import About from '@/pages/About';
 import Contact from '@/pages/Contact';
@@ -100,11 +101,12 @@ export default function App() {
 
   return (
     <HashRouter>
-      <div className="dark min-h-screen bg-cosmic-950 text-slate-100 font-sans">
+      <div className="dark flex flex-col min-h-screen bg-cosmic-950 text-slate-100 font-sans">
         <NavigationBar points={points} />
-        <main>
+        <main className="flex-1">
           <AppRoutes points={points} onPointsChange={handlePointsChange} />
         </main>
+        <Footer />
       </div>
     </HashRouter>
   );

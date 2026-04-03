@@ -16,7 +16,7 @@ export default function About() {
       <div className="max-w-4xl mx-auto relative z-10 flex flex-col gap-12">
         <motion.div variants={cosmicEntranceUp} className="text-center flex flex-col items-center gap-4">
           <h1 className="text-5xl md:text-7xl font-black tracking-tight">
-            About <span className="gradient-text">SolarHub by SpaceGen</span>
+            About <span className="gradient-text">SolarHub</span>
           </h1>
           <p className="text-xl text-slate-300 max-w-2xl">
             Empowering global citizen scientists to accelerate solar research and ML dataset creation.
@@ -53,6 +53,7 @@ export default function About() {
             <h2 className="text-2xl font-bold text-slate-100 flex items-center gap-3">
               <span className="text-3xl">🤝</span> SpaceGen Org
             </h2>
+            {/* TODO: Confirm if the explicit mention of the organization should be retained */}
             <p className="text-slate-400 leading-relaxed">
               SpaceGen is the parent organization behind SolarHub and Aurora. Founded by 
               <b> Soumyadip Karforma</b>, we are dedicated to building open-source tools 
@@ -83,7 +84,7 @@ export default function About() {
           </p>
           <div className="flex gap-4">
             <a href="https://space-gen.github.io" target="_blank" rel="noopener noreferrer" className="btn-secondary px-8 py-3 rounded-2xl">
-              Visit SpaceGen
+              Visit Organization
             </a>
             <a href="https://github.com/space-gen/aurora" target="_blank" rel="noopener noreferrer" className="btn-secondary px-8 py-3 rounded-2xl">
               View Aurora on GitHub
