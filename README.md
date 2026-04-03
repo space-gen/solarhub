@@ -1,199 +1,62 @@
-# SolarHub by SpaceGen – Citizen Science Solar Observatory
+Hi, I'm Soumyadip Karforma, founder of SolarHub.
 
-SolarHub is the citizen-science frontend for the [**aurora**](https://github.com/space-gen/aurora) backend platform, developed by [SpaceGen](https://space-gen.github.io). Users classify real solar observations from NASA's Solar Dynamics Observatory (SDO). Each annotation is submitted as a **GitHub Issue on `space-gen/aurora`**, where the nightly aurora pipeline picks it up, parses it, and feeds it into the ML training cycle.
+SolarHub is a small, open-source citizen-science observatory I built to make solar research accessible. It lets volunteers inspect real images from NASA's Solar Dynamics Observatory (SDO) and submit annotations that feed into the aurora project’s training pipeline. Annotations are created as GitHub issues so the data is transparent and reusable by researchers.
 
-Authentication is handled via **GitHub OAuth** — no passwords, no registration. Cloud annotation backup is provided by **[Puter.js](https://puter.com/)** — no separate backend required.
+Why I built this
 
-## 🌟 Features
+I believe accessible tools and community effort accelerate science. SolarHub lowers the barrier to contributing useful labels to solar researchers while teaching contributors about real space data.
 
-- **Real NASA Data** — images sourced directly from SDO's public feed
-- **Two-step classification** — task type then aurora-compatible sub-label
-- **GitHub OAuth** — users sign in once; annotations are submitted under their GitHub identity
-- **Issues on aurora** — every submission becomes a parseable GitHub Issue (`space-gen/aurora`)
-- **Puter.js cloud** — annotations backed up to Puter KV; GitHub token is stored in the user’s Puter KV (best-effort)
-- **Offline-first** — localStorage copy always written before any network call
+Quick start
 
----
+1. Clone the repo
 
-## 🔐 GitHub OAuth App Setup
+   git clone https://github.com/space-gen/solarhub.git
+   cd solarhub
 
-This site is deployed as a **static GitHub Pages** app. To avoid shipping a client secret (and to avoid any backend/worker), SolarHub uses GitHub OAuth **Device Flow**.
+2. Install and run locally
 
-### Register at GitHub
+   npm install
+   npm run dev
 
-Go to **[github.com/settings/applications/new](https://github.com/settings/applications/new)** and fill in:
+3. Configure GitHub OAuth
 
-| Field | Value |
-|-------|-------|
-| **Application name** | `SolarHub Citizen Science` |
-| **Homepage URL** | Your deployed site URL (e.g. `https://space-gen.github.io/solarhub/`) |
-| **Application description** | `Classify real solar observations from NASA's SDO and contribute to open space science.` |
-| **Authorization callback URL** | Same as Homepage URL (required by the form; not used by device flow) |
+Edit src/config/endpoints.ts and set AUTH_CONFIG.clientId to your GitHub OAuth Client ID. See the original project docs for Device Flow details.
 
-After registering, copy the **Client ID**.
+Support / Funding
 
-### Enable Device Flow
+[![Support my work](/funding)](/funding)
 
-In your OAuth app settings, enable **Device Flow** (required by GitHub).
+If you'd rather reach me directly: <mailto:soumyadip@users.noreply.github.com?subject=Support%20SolarHub>
 
-### Configure client ID + scopes
+Support my work — your contributions pay for hosting, data access, and my time building and maintaining this project.
 
-Edit `src/config/endpoints.ts`:
+Founder
 
-- `AUTH_CONFIG.clientId` → your GitHub OAuth **Client ID**
-- `AUTH_CONFIG.scopes` → requested scopes (default: `public_repo`)
+I'm Soumyadip Karforma. If you'd like to include my photo on the site, add a PNG named "soumyadipkarforma.png" to public/images/ so the file path is:
 
-### How sign-in works (Device Flow)
+  public/images/soumyadipkarforma.png
 
-```
-User clicks "Sign in to Puter"
-  → Puter auth (so we can use puter.net.fetch for CORS-bypassing calls)
-User clicks "Connect GitHub"
-  → POST https://github.com/login/device/code (client_id + scope)
-  → UI shows user_code + opens https://github.com/login/device
-  → app polls POST https://github.com/login/oauth/access_token (client_id + device_code)
-  → token stored in user's Puter KV (best-effort) + localStorage cache
-  → GET https://api.github.com/user (to display GitHub account)
-  → Submit → POST https://api.github.com/repos/space-gen/aurora/issues
-```
+Recommended: a square PNG (e.g. 400×400). You can upload it via the GitHub web UI (Add file → Upload files) or place it locally and commit:
 
----
+  mkdir -p public/images && cp /path/to/soumyadipkarforma.png public/images/ && git add public/images/soumyadipkarforma.png && git commit -m "chore: add founder image"
 
-## ☁️ Puter.js Cloud
+How to contribute
 
-[Puter.js](https://docs.puter.com/) is loaded via CDN (`<script src="https://js.puter.com/v2/">`).  
-It provides two things in this app:
+I welcome issues and pull requests. Good first contributions:
 
-| Feature | Use |
-|---------|-----|
-| `puter.net.fetch()` | Call GitHub OAuth Device Flow endpoints (which don't send CORS headers) |
-| `puter.kv` | Cloud key-value store — backs up annotations and stores the user's GitHub access token |
+- Report issues or ideas
+- Fix typos and docs
+- Improve tests or add examples
 
-Users are prompted to sign into Puter (free, one click) the first time an annotation is saved to cloud storage.  The prompt is non-blocking — the annotation is always saved locally first.
+Please follow the repo's TypeScript and formatting conventions. Open a PR and describe the change — I’ll review and merge.
 
----
+Social
 
-## 🚀 Quick Start
+- GitHub: https://github.com/soumyadipkarforma
+- LinkedIn: https://www.linkedin.com/in/soumyadipkarforma
+- Twitter: https://twitter.com/soumyadipkarforma
 
-```bash
-npm install
-npm run dev
-```
+License
 
-Set your GitHub OAuth **Client ID** in `src/config/endpoints.ts` before running locally.
-
-```bash
-npm run build    # production build → dist/
-npm run preview  # preview the build locally
-```
-
----
-
-## 🏗️ Architecture
-
-```
-src/
-├── config/
-│   └── endpoints.ts          – aurora repo URLs (space-gen/aurora)
-├── types/
-│   └── puter.d.ts            – TypeScript ambient declarations for window.puter
-├── services/
-│   ├── githubAuthService.ts  – GitHub OAuth Device Flow (client-id only) via puter.net.fetch
-│   ├── annotationService.ts  – Issue creation (aurora format) + Puter KV backup
-│   └── taskService.ts        – Task fetching with localStorage cache + mock fallback
-├── hooks/
-│   ├── useGitHubAuth.ts      – OAuth callback detection, token exchange, user state
-│   └── useTasks.ts           – Task fetch, navigation, progress tracking
-├── components/
-│   ├── NavigationBar.tsx     – Nav with Sign-in / avatar / logout
-│   ├── AnnotationPanel.tsx   – Two-step form: task type → sub-label → submit
-│   ├── TaskViewer.tsx        – Solar image viewer with ML prediction panel
-│   ├── PointsDisplay.tsx     – Animated points badge
-│   └── LoadingScreen.tsx     – Full-screen loading overlay
-└── pages/
-    ├── Home.tsx              – Hero landing page
-    └── Classify.tsx          – Classification workflow
-```
-
-### Annotation Issue Format
-
-Issues are created on `space-gen/aurora` with the `annotation` label.  
-The body uses `### Heading` sections parsed by aurora's `parse_issue_annotation.py`:
-
-```markdown
-### Image URL
-https://sdo.gsfc.nasa.gov/…
-
-### Task Type
-sunspot
-
-### Record ID
-sdo-2024-0001
-
-### Serial Number
-1
-
-### Your Label
-active_region
-
-### Regions
-class_a,450,320,15 ; class_f,890,110,10
-
-### Notes (optional)
-Large sunspot group near the equator.
-```
-
----
-
-## 🌐 Deployment
-
-### GitHub Pages
-
-This is a fully static deployment — no runtime secrets are required for GitHub auth (Device Flow uses **client_id only**).
-
-```yaml
-# .github/workflows/deploy.yml
-name: Deploy
-on:
-  push:
-    branches: [main]
-jobs:
-  deploy:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with: { node-version: 20 }
-      - run: npm ci
-      - run: npm run build
-      - uses: peaceiris/actions-gh-pages@v3
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: ./dist
-```
-
-### Render Static Site
-
-1. Connect your repo in the Render dashboard.
-2. Build command: `npm install && npm run build`
-3. Publish directory: `dist`
-
----
-
-## 📦 Tech Stack
-
-| Concern | Library |
-|---------|---------|
-| Framework | React 18 |
-| Language | TypeScript 5 (strict) |
-| Build | Vite 5 |
-| Routing | React Router v6 (HashRouter) |
-| Animations | Framer Motion 11 |
-| Styling | TailwindCSS 3 |
-| Cloud | Puter.js (CDN) |
-| Auth | GitHub OAuth 2.0 |
-
-## 📄 License
-
-SolarHub is open-source. Solar images are courtesy of NASA's SDO and are in the public domain.
+SolarHub is open-source. Solar images are provided by NASA's SDO and are public domain.
 
