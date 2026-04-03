@@ -24,7 +24,7 @@ export default function Footer() {
               </svg>
             </a>
 
-            <a href="mailto:hello@spacegen.example" className="text-slate-300 hover:text-slate-100" aria-label="Email">
+            <a href="mailto:hello@solarhub.example" className="text-slate-300 hover:text-slate-100" aria-label="Email">
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" className="w-5 h-5" fill="currentColor" aria-hidden>
                 <path d="M20 4H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z" />
               </svg>
@@ -33,7 +33,7 @@ export default function Footer() {
         </div>
 
         <div className="text-sm text-slate-400">
-          <span>© {year} SolarHub — by SpaceGen.</span>
+          <span>© {year} SolarHub — by the team.</span>
         </div>
       </div>
     </footer>

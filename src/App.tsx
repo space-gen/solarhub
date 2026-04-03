@@ -23,6 +23,7 @@ import Footer from '@/components/Footer';
 import Home from '@/pages/Home';
 import About from '@/pages/About';
 import Contact from '@/pages/Contact';
+import Funding from '@/pages/Funding';
 import Classify from '@/pages/Classify';
 import Connect from '@/pages/Connect';
 
@@ -62,6 +63,7 @@ function AppRoutes({
         <Route path="/" element={<Home />} />
         <Route path="/about" element={<About />} />
         <Route path="/contact" element={<Contact />} />
+        <Route path="/funding" element={<Funding />} />
 
         <Route path="/connect" element={<Connect />} />
 

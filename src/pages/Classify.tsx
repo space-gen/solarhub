@@ -131,7 +131,7 @@ function AnnotationView({
   const [userLabel, setUserLabel] = useState<UserLabel>('none');
   const [isLocked, setIsLocked] = useState(false);
 
-  const s = classifyTaskType(taskType);
+
   const meta = TASK_TYPES.find(t => t.value === taskType)!;
   const selectedOption = TASK_OPTIONS.find(o => o.value === taskType)!;
 
@@ -181,7 +181,7 @@ function AnnotationView({
             <BackButton label="All types" onClick={onBack} />
             <div className="flex items-center gap-2 ml-auto">
               <span>{meta.icon}</span>
-              <span className={`text-sm font-semibold ${s.text}`}>{meta.friendlyName}</span>
+              <span className={`text-sm font-semibold text-solar-400`}>{meta.friendlyName}</span>
             </div>
           </motion.div>
 

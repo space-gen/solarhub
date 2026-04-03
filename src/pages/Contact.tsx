@@ -1,4 +1,5 @@
 import { motion } from 'framer-motion';
+import { Link } from 'react-router-dom';
 import { pageVariants, containerVariants, itemVariants, cosmicEntranceUp } from '@/animations/pageTransitions';
 import StarField from '@/components/StarField';
 
@@ -21,6 +22,9 @@ export default function Contact() {
           <p className="text-xl text-slate-300 max-w-2xl">
             Have questions or want to collaborate? We'd love to hear from you.
           </p>
+          <div className="flex gap-4 mt-2">
+            <Link to="/funding" className="btn-solar px-6 py-3 rounded-2xl">Fund this project</Link>
+          </div>
         </motion.div>
 
         <motion.div
@@ -34,7 +38,7 @@ export default function Contact() {
             <p className="text-slate-400">
               For general inquiries and collaboration:
             </p>
-            <a href="mailto:soumyadipkarforma02@gmail.com" aria-label="Email Soumyadip Karforma" className="text-solar-400 font-bold hover:underline">
+            <a href="mailto:soumyadipkarforma02@gmail.com" aria-label="Email Soumyadip Karforma" className="btn-secondary px-4 py-2 rounded-lg">
               soumyadipkarforma02@gmail.com
             </a>
           </motion.div>
@@ -47,10 +51,10 @@ export default function Contact() {
               Contribute to the project or report bugs on our repositories:
             </p>
             <div className="flex flex-col gap-2">
-              <a href="https://github.com/space-gen/aurora" className="text-solar-400 font-bold hover:underline">
+              <a href="https://github.com/space-gen/aurora" className="btn-secondary px-4 py-2 rounded-lg">
                 space-gen/aurora (Backend)
               </a>
-              <a href="https://github.com/space-gen/solarhub" className="text-solar-400 font-bold hover:underline">
+              <a href="https://github.com/space-gen/solarhub" className="btn-secondary px-4 py-2 rounded-lg">
                 space-gen/solarhub (Frontend)
               </a>
             </div>
@@ -61,10 +65,10 @@ export default function Contact() {
               <span className="text-3xl">🌍</span> Website
             </h2>
             <p className="text-slate-400">
-              Follow our mother organization for updates:
+              Follow the organization for updates:
             </p>
-            <a href="https://space-gen.github.io" className="text-solar-400 font-bold hover:underline">
-              space-gen.github.io
+            <a href="https://space-gen.github.io" className="btn-secondary px-4 py-2 rounded-lg">
+              Organization website
             </a>
           </motion.div>
 
@@ -75,7 +79,7 @@ export default function Contact() {
             <p className="text-slate-400">
               Access our open-source datasets:
             </p>
-            <a href="https://huggingface.co/SpaceGen" className="text-solar-400 font-bold hover:underline">
+            <a href="https://huggingface.co/SpaceGen" className="btn-secondary px-4 py-2 rounded-lg">
               huggingface.co/SpaceGen
             </a>
           </motion.div>
@@ -89,10 +93,10 @@ export default function Contact() {
             Connect with the founder and stay updated with his latest work in space tech.
           </p>
           <div className="flex justify-center gap-6">
-            <a href="https://github.com/soumyadipkarforma" target="_blank" rel="noopener noreferrer" aria-label="Soumyadip Karforma on GitHub" className="text-slate-300 hover:text-solar-400 transition-colors">
+            <a href="https://github.com/soumyadipkarforma" target="_blank" rel="noopener noreferrer" aria-label="Soumyadip Karforma on GitHub" className="btn-secondary px-3 py-2 rounded-lg text-sm">
               GitHub
             </a>
-            <a href="https://instagram.com/soumyadip_karforma" target="_blank" rel="noopener noreferrer" aria-label="Soumyadip Karforma on Instagram" className="text-slate-300 hover:text-solar-400 transition-colors">
+            <a href="https://instagram.com/soumyadip_karforma" target="_blank" rel="noopener noreferrer" aria-label="Soumyadip Karforma on Instagram" className="btn-secondary px-3 py-2 rounded-lg text-sm">
               Instagram
             </a>
             <a href="https://twitter.com/soumyadip_k" target="_blank" rel="noopener noreferrer" aria-label="Soumyadip Karforma on Twitter" className="text-slate-300 hover:text-solar-400 transition-colors">

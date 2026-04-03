@@ -372,17 +372,17 @@ export default function Home() {
             <h1 className="text-6xl md:text-8xl font-black tracking-tight flex flex-col items-center">
               <span className="gradient-text">SolarHub</span>
               <span className="text-sm md:text-base uppercase tracking-[0.3em] text-slate-500 font-bold -mt-2">
-                by <a href="https://space-gen.github.io" target="_blank" rel="noopener noreferrer" className="hover:text-solar-400 transition-colors">SpaceGen</a>
+                A community project
               </span>
             </h1>
             <p className="text-xl md:text-2xl text-slate-300 max-w-2xl leading-relaxed mt-4">
-              A citizen-science initiative by <b>SpaceGen</b>, founded by <b>Soumyadip Karforma</b>.
+              A citizen-science initiative founded by <b>Soumyadip Karforma</b>.
               Help classify real solar observations from NASA's SDO to build open-source ML datasets.
             </p>
           </motion.div>
 
           {/* CTA button */}
-          <motion.div variants={itemVariants}>
+          <motion.div variants={itemVariants} className="flex gap-4">
             <motion.button
               variants={glowButtonVariants}
               initial="rest"
@@ -392,6 +392,17 @@ export default function Home() {
               className="btn-solar text-lg px-10 py-4 rounded-2xl"
             >
               🚀&nbsp; Start Classifying
+            </motion.button>
+
+            <motion.button
+              variants={glowButtonVariants}
+              initial="rest"
+              whileHover="hover"
+              whileTap="tap"
+              onClick={() => navigate('/funding')}
+              className="btn-solar text-sm px-6 py-3 rounded-2xl"
+            >
+              💙&nbsp; Fund / Donate
             </motion.button>
           </motion.div>
 
@@ -472,7 +483,9 @@ export default function Home() {
             <div className="w-full h-full rounded-xl bg-cosmic-800 flex items-center justify-center overflow-hidden border border-white/5">
               <span className="text-6xl">🚀</span>
               {/* Optional: Add actual image path later */}
-              {/* <img src="/images/founder.jpg" className="w-full h-full object-cover" alt="Soumyadip Karforma" /> */}
+              {/* Example import (optional): import founderImg from '@/assets/soumyadipkarforma.png'; */}
+              {/* Use public path so the user can upload the image to public/images */}
+              {/* <img src="/images/soumyadipkarforma.png" className="w-full h-full object-cover" alt="Soumyadip Karforma, Founder" /> */}
             </div>
             <div className="absolute -bottom-4 -right-4 glass px-4 py-2 rounded-lg border border-solar-500/30">
               <p className="text-xs font-bold text-solar-400 uppercase tracking-widest">Founder</p>
@@ -537,7 +550,7 @@ export default function Home() {
             Join hundreds of citizen scientists helping decode solar phenomena.
             No experience required – just curiosity.
           </motion.p>
-          <motion.div variants={itemVariants}>
+          <motion.div variants={itemVariants} className="flex gap-4">
             <motion.button
               variants={glowButtonVariants}
               initial="rest"
@@ -547,6 +560,17 @@ export default function Home() {
               className="btn-solar text-lg px-10 py-4 rounded-2xl"
             >
               ☀️&nbsp; Begin Classification
+            </motion.button>
+
+            <motion.button
+              variants={glowButtonVariants}
+              initial="rest"
+              whileHover="hover"
+              whileTap="tap"
+              onClick={() => navigate('/funding')}
+              className="btn-solar text-sm px-6 py-3 rounded-2xl"
+            >
+              💙&nbsp; Fund / Donate
             </motion.button>
           </motion.div>
         </motion.div>
