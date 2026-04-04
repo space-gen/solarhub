@@ -175,37 +175,26 @@ function AnnotationView({
         </motion.button>
       </div>
 
-      <motion.div variants={pageVariants} initial="hidden" animate="visible" exit="exit" className="min-h-screen pt-20 pb-16 px-4 cosmic-bg">
-        <div className="max-w-5xl mx-auto flex flex-col gap-5">
-          <motion.div variants={itemVariants} className="flex items-center gap-4 pt-4 flex-wrap">
-            <BackButton label="All types" onClick={onBack} />
-            <div className="flex items-center gap-2 ml-auto">
-              <span>{meta.icon}</span>
-              <span className={`text-sm font-semibold text-solar-400`}>{meta.friendlyName}</span>
-            </div>
-          </motion.div>
-
-          <motion.div variants={itemVariants} className="glass rounded-xl p-3 flex flex-wrap gap-3 text-xs text-slate-400">
-            <span>Done today: <strong className="text-emerald-300">{completedToday}</strong></span>
-            <span>Remaining today: <strong className="text-solar-300">{remainingToday}</strong></span>
-            <span>Streak: <strong className="text-nebula-300">{streak}</strong> day{streak === 1 ? '' : 's'}</span>
-            <span>Total points: <strong className="text-solar-300">{points}</strong></span>
-          </motion.div>
-
-          {/* Guide above image */}
-          <div className="flex flex-col gap-5">
-            <motion.div variants={itemVariants} className="glass rounded-2xl p-5 flex flex-col gap-6">
-              <GuidePanel selectedOption={selectedOption} help={SCIENTIFIC_HELP[taskType]} />
-              
-              <div className="pt-4 border-t border-white/5">
-                <p className="text-xs text-slate-400 italic">
-                  💡 Not 100% sure? That's fine — pick the closest label for each region you mark!
-                </p>
+      <motion.div variants={pageVariants} initial="hidden" animate="visible" exit="exit" className="min-h-screen pt-20 pb-16 px-4 lg:px-8 cosmic-bg">
+        <div className="max-w-7xl mx-auto flex flex-col gap-5 lg:grid lg:grid-cols-[minmax(0,1.15fr)_minmax(380px,0.85fr)] lg:items-start lg:gap-8">
+          <div className="flex flex-col gap-5 lg:sticky lg:top-24">
+            <motion.div variants={itemVariants} className="flex items-center gap-4 pt-4 flex-wrap">
+              <BackButton label="All types" onClick={onBack} />
+              <div className="flex items-center gap-2 ml-auto">
+                <span>{meta.icon}</span>
+                <span className={`text-sm font-semibold text-solar-400`}>{meta.friendlyName}</span>
               </div>
             </motion.div>
 
-            {/* Image */}
-            <motion.div variants={itemVariants} 
+            <motion.div variants={itemVariants} className="glass rounded-xl p-3 flex flex-wrap gap-3 text-xs text-slate-400">
+              <span>Done today: <strong className="text-emerald-300">{completedToday}</strong></span>
+              <span>Remaining today: <strong className="text-solar-300">{remainingToday}</strong></span>
+              <span>Streak: <strong className="text-nebula-300">{streak}</strong> day{streak === 1 ? '' : 's'}</span>
+              <span>Total points: <strong className="text-solar-300">{points}</strong></span>
+            </motion.div>
+
+            <motion.div
+              variants={itemVariants}
               className={`glass rounded-2xl overflow-hidden transition-all duration-300 ${isLocked ? 'ring-4 ring-red-500/30' : ''}`}
               style={{ pointerEvents: isLocked ? 'none' : 'auto' }}
             >
@@ -227,13 +216,12 @@ function AnnotationView({
                   />
                 )}
               </div>
-              {/* ... info block ... */}
-              <div className="px-4 py-3 flex items-center justify-between text-xs text-slate-500 border-t border-white/5">
+              <div className="px-4 py-3 flex flex-col gap-2 text-xs text-slate-500 border-t border-white/5 lg:flex-row lg:items-center lg:justify-between">
                 <div className="flex items-center gap-3">
                   <span>{task.source}</span>
                   {task.date && <span>{task.date}</span>}
                 </div>
-                <div className="flex flex-col items-end gap-1">
+                <div className="flex flex-col items-start lg:items-end gap-1">
                   <div className="flex items-center gap-2">
                     <span className="text-xs text-slate-400">Record ID:</span>
                     <code className="text-xs bg-white/6 px-2 py-0.5 rounded">{task.id}</code>
@@ -251,9 +239,19 @@ function AnnotationView({
                 </div>
               </div>
             </motion.div>
+          </div>
 
-            {/* Annotation controls (render without the guide or labels to avoid duplication) */}
-            <motion.div variants={itemVariants} className="glass rounded-2xl p-5">
+          <div className="flex flex-col gap-5 lg:sticky lg:top-24">
+            <motion.div variants={itemVariants} className="glass rounded-2xl p-5 flex flex-col gap-6">
+              <GuidePanel selectedOption={selectedOption} help={SCIENTIFIC_HELP[taskType]} />
+              <div className="pt-4 border-t border-white/5">
+                <p className="text-xs text-slate-400 italic">
+                  Not 100% sure? That's fine - pick the closest label for each region you mark.
+                </p>
+              </div>
+            </motion.div>
+
+            <motion.div variants={itemVariants} className="glass rounded-2xl p-5 lg:p-6">
               <AnnotationPanel
                 taskType={taskType}
                 taskId={task.id}
@@ -266,7 +264,6 @@ function AnnotationView({
                 onUserLabelChange={setUserLabel}
                 isLocked={isLocked}
               />
-
             </motion.div>
 
             <motion.div variants={itemVariants} className="flex justify-end">
@@ -353,9 +350,9 @@ export default function Classify({ points, onPointsChange }: ClassifyProps) {
   return (
     <AnimatePresence mode="wait">
       {!selectedType ? (
-        <motion.div key="picker" variants={pageVariants} initial="hidden" animate="visible" exit="exit" className="min-h-screen pt-24 pb-16 px-4 cosmic-bg relative">
+        <motion.div key="picker" variants={pageVariants} initial="hidden" animate="visible" exit="exit" className="min-h-screen pt-24 pb-16 px-4 lg:px-8 cosmic-bg relative">
           <StarField />
-          <div className="max-w-3xl mx-auto relative z-10">
+          <div className="max-w-6xl mx-auto relative z-10">
             <GuidePanel 
               onSelect={handleTypeSelect} 
               availability={availability} 
