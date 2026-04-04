@@ -227,7 +227,7 @@ export default function NavigationBar({ points }: NavBarProps) {
                   <span className="text-slate-200">Hub</span>
                 </span>
                 <span className="text-[10px] uppercase tracking-widest text-slate-500 font-semibold -mt-0.5 group-hover:text-solar-400 transition-colors">
-                  by the team
+                  by SpaceGen
                 </span>
               </div>
             </NavLink>

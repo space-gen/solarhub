@@ -11,6 +11,14 @@ export default function Footer() {
             Fund this project
           </Link>
 
+          <a href="https://www.patreon.com/SoumyadipKarforma" target="_blank" rel="noopener noreferrer" className="btn-secondary px-3 py-2 rounded text-sm">
+            Patreon
+          </a>
+
+          <a href="https://www.buymeacoffee.com/soumyadipkarforma" target="_blank" rel="noopener noreferrer" className="btn-secondary px-3 py-2 rounded text-sm">
+            Buy me a coffee
+          </a>
+
           <nav className="flex items-center gap-3" aria-label="Social links">
             <a href="https://twitter.com/" target="_blank" rel="noopener noreferrer" className="btn-secondary p-2 rounded" aria-label="Twitter">
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" className="w-5 h-5" fill="currentColor" aria-hidden>
@@ -24,7 +32,7 @@ export default function Footer() {
               </svg>
             </a>
 
-            <a href="mailto:hello@solarhub.example" className="btn-secondary p-2 rounded" aria-label="Email">
+            <a href="mailto:soumyadipkarforma02@gmail.com" className="btn-secondary p-2 rounded" aria-label="Email">
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" className="w-5 h-5" fill="currentColor" aria-hidden>
                 <path d="M20 4H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z" />
               </svg>

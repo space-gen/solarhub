@@ -90,14 +90,14 @@ export default function About() {
             the sun, there is a place for you at SolarHub. Start classifying today and help 
             us decode the secrets of our nearest star.
           </p>
-          <div className="flex gap-4">
-            <a href="https://space-gen.github.io" target="_blank" rel="noopener noreferrer" className="btn-secondary px-8 py-3 rounded-2xl">
+          <div className="flex flex-col sm:flex-row gap-4 w-full items-center justify-center">
+            <a href="https://space-gen.github.io" target="_blank" rel="noopener noreferrer" className="btn-secondary w-full sm:w-auto text-center px-8 py-3 rounded-2xl">
               Visit Organization
             </a>
-            <a href="https://github.com/space-gen/aurora" target="_blank" rel="noopener noreferrer" className="btn-secondary px-8 py-3 rounded-2xl">
+            <a href="https://github.com/space-gen/aurora" target="_blank" rel="noopener noreferrer" className="btn-secondary w-full sm:w-auto text-center px-8 py-3 rounded-2xl">
               View Aurora on GitHub
             </a>
-            <a href="/#/funding" className="btn-solar px-8 py-3 rounded-2xl">
+            <a href="/#/funding" className="btn-solar w-full sm:w-auto text-center px-8 py-3 rounded-2xl">
               Fund this project
             </a>
           </div>
