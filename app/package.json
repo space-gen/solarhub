@@ -1,0 +1,21 @@
+{
+  "name": "solarhub-app",
+  "private": true,
+  "version": "1.0.0",
+  "main": "expo-router/entry",
+  "scripts": {
+    "start": "expo start",
+    "android": "expo run:android",
+    "ios": "expo run:ios"
+  },
+  "dependencies": {
+    "@react-native-async-storage/async-storage": "^2.2.0",
+    "@react-native-picker/picker": "^2.11.1",
+    "expo": "^53.0.0",
+    "expo-auth-session": "^7.0.8",
+    "expo-file-system": "^19.0.17",
+    "react": "^19.0.0",
+    "react-native": "^0.79.0",
+    "react-native-canvas": "^0.1.40"
+  }
+}

@@ -15,7 +15,7 @@ async function githubGetFile(config: SyncConfig): Promise<{ sha: string; content
   const url = `${GITHUB_API}/${config.owner}/${config.repo}/contents/${config.path}${ref}`;
   const res = await fetch(url, {
     headers: {
-      Authorization: `Bearer ${config.token}`,
+      Authorization: `token ${config.token}`,
       Accept: 'application/vnd.github+json',
     },
   });
@@ -30,7 +30,7 @@ async function githubPutFile(config: SyncConfig, base64Content: string, message:
   const res = await fetch(url, {
     method: 'PUT',
     headers: {
-      Authorization: `Bearer ${config.token}`,
+      Authorization: `token ${config.token}`,
       Accept: 'application/vnd.github+json',
       'Content-Type': 'application/json',
     },
