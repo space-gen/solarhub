@@ -130,7 +130,12 @@ function AnnotationView({
   const [imgError, setImgError] = useState(false);
   const [userLabel, setUserLabel] = useState<UserLabel>('none');
   const imageShellRef = useRef<HTMLDivElement | null>(null);
+  const imageViewportRef = useRef<HTMLDivElement | null>(null);
   const [isImageFullscreen, setIsImageFullscreen] = useState(false);
+  const [imageZoom, setImageZoom] = useState(1);
+
+  const clampZoom = useCallback((value: number) => Math.min(Math.max(Number(value.toFixed(2)), 1), 4), []);
+  const zoomStep = 0.2;
 
   const toggleImageFullscreen = useCallback(() => {
     const shell = imageShellRef.current;
@@ -148,13 +153,32 @@ function AnnotationView({
 
   useEffect(() => {
     const onFullscreenChange = () => {
-      setIsImageFullscreen(document.fullscreenElement === imageShellRef.current);
+      const nextIsFullscreen = document.fullscreenElement === imageShellRef.current;
+      setIsImageFullscreen(nextIsFullscreen);
+      if (!nextIsFullscreen) {
+        setImageZoom(1);
+      }
     };
 
     document.addEventListener('fullscreenchange', onFullscreenChange);
     onFullscreenChange();
     return () => document.removeEventListener('fullscreenchange', onFullscreenChange);
   }, []);
+
+  const changeImageZoom = useCallback((delta: number) => {
+    setImageZoom(current => clampZoom(current + delta));
+  }, [clampZoom]);
+
+  const zoomIn = useCallback(() => changeImageZoom(zoomStep), [changeImageZoom]);
+  const zoomOut = useCallback(() => changeImageZoom(-zoomStep), [changeImageZoom]);
+  const resetZoom = useCallback(() => setImageZoom(1), []);
+
+  const handleImageWheel = useCallback((event: React.WheelEvent) => {
+    if (!isImageFullscreen) return;
+    event.preventDefault();
+    const direction = event.deltaY > 0 ? -1 : 1;
+    changeImageZoom(direction * 0.12);
+  }, [changeImageZoom, isImageFullscreen]);
 
   const meta = TASK_TYPES.find(t => t.value === taskType)!;
   const selectedOption = TASK_OPTIONS.find(o => o.value === taskType)!;
@@ -188,8 +212,37 @@ function AnnotationView({
               variants={itemVariants}
               ref={imageShellRef}
               className="glass rounded-2xl overflow-hidden transition-all duration-300"
+              onWheel={handleImageWheel}
             >
-              <div className="relative aspect-square bg-cosmic-900">
+              <div className="relative aspect-square bg-cosmic-900 overflow-hidden">
+                {isImageFullscreen && (
+                  <div className="absolute left-3 top-3 z-40 flex items-center gap-2 rounded-xl border border-white/15 bg-black/50 px-2 py-2 backdrop-blur-md shadow-2xl">
+                    <button
+                      type="button"
+                      onClick={zoomOut}
+                      className="h-8 w-8 rounded-lg bg-white/10 text-white text-lg leading-none hover:bg-white/20 transition-colors"
+                      title="Zoom out"
+                    >
+                      -
+                    </button>
+                    <button
+                      type="button"
+                      onClick={resetZoom}
+                      className="min-w-16 rounded-lg bg-white/10 px-2.5 py-1.5 text-[11px] font-semibold text-slate-100 hover:bg-white/20 transition-colors"
+                      title="Reset zoom"
+                    >
+                      {Math.round(imageZoom * 100)}%
+                    </button>
+                    <button
+                      type="button"
+                      onClick={zoomIn}
+                      className="h-8 w-8 rounded-lg bg-white/10 text-white text-lg leading-none hover:bg-white/20 transition-colors"
+                      title="Zoom in"
+                    >
+                      +
+                    </button>
+                  </div>
+                )}
                 <button
                   type="button"
                   onClick={toggleImageFullscreen}
@@ -198,22 +251,28 @@ function AnnotationView({
                 >
                   {isImageFullscreen ? 'Exit Fullscreen' : 'Fullscreen'}
                 </button>
-                {!imgLoaded && !imgError && <div className="absolute inset-0 shimmer-skeleton" />}
-                {imgError ? (
-                  <div className="absolute inset-0 flex flex-col items-center justify-center text-slate-600 gap-2">
-                    <span className="text-3xl">🌑</span>
-                    <p className="text-sm">Image could not be loaded</p>
-                  </div>
-                ) : (
-                  <img
-                    id={`aurora-img-${task.id}`}
-                    src={task.url}
-                    alt={`Solar observation – ${meta.friendlyName} – ${task.date}`}
-                    className={`w-full h-full object-contain transition-opacity duration-500 ${imgLoaded ? 'opacity-100' : 'opacity-0'}`}
-                    onLoad={() => setImgLoaded(true)}
-                    onError={() => { setImgError(true); setImgLoaded(true); }}
-                  />
-                )}
+                <div
+                  ref={imageViewportRef}
+                  className="absolute inset-0 origin-center transition-transform duration-150 ease-out"
+                  style={{ transform: `scale(${isImageFullscreen ? imageZoom : 1})` }}
+                >
+                  {!imgLoaded && !imgError && <div className="absolute inset-0 shimmer-skeleton" />}
+                  {imgError ? (
+                    <div className="absolute inset-0 flex flex-col items-center justify-center text-slate-600 gap-2">
+                      <span className="text-3xl">🌑</span>
+                      <p className="text-sm">Image could not be loaded</p>
+                    </div>
+                  ) : (
+                    <img
+                      id={`aurora-img-${task.id}`}
+                      src={task.url}
+                      alt={`Solar observation – ${meta.friendlyName} – ${task.date}`}
+                      className={`w-full h-full object-contain transition-opacity duration-500 ${imgLoaded ? 'opacity-100' : 'opacity-0'}`}
+                      onLoad={() => setImgLoaded(true)}
+                      onError={() => { setImgError(true); setImgLoaded(true); }}
+                    />
+                  )}
+                </div>
               </div>
               <div className="px-4 py-3 flex flex-col gap-2 text-xs text-slate-500 border-t border-white/5 lg:flex-row lg:items-center lg:justify-between">
                 <div className="flex items-center gap-3">

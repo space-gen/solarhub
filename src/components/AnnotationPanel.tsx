@@ -436,14 +436,14 @@ export default function AnnotationPanel({
 
   const beginLongPressCreation = (event: React.PointerEvent<Element>) => {
     if (isLocked || isPinchingRef.current) return;
-    if (event.button !== 0) return;
+    if (event.pointerType === 'mouse' && event.button !== 0) return;
 
     const target = event.target as Element;
     if (target && target.tagName.toLowerCase() !== 'svg') return;
 
     clearPendingCreation();
 
-    const pending = {
+    const pending: NonNullable<typeof pendingCreationRef.current> = {
       pointerId: event.pointerId,
       startX: event.clientX,
       startY: event.clientY,
@@ -607,6 +607,17 @@ export default function AnnotationPanel({
 
   const selectedOption = TASK_OPTIONS.find(o => o.value === taskType);
 
+  const removeSpotAtIndex = useCallback((idx: number) => {
+    setPixelCoords(pc => pc.filter((_, i) => i !== idx));
+    setPixelLabels(pl => pl.filter((_, i) => i !== idx));
+    setPixelRadii(pr => pr.filter((_, i) => i !== idx));
+    setActiveSpotIndex(current => {
+      if (current === null) return null;
+      if (current === idx) return null;
+      return current > idx ? current - 1 : current;
+    });
+  }, []);
+
   useEffect(() => {
     if (!selectedOption || activeSpotIndex === null || isLocked) return;
 
@@ -619,6 +630,12 @@ export default function AnnotationPanel({
         if (tag === 'input' || tag === 'textarea' || tag === 'select' || target.isContentEditable) {
           return;
         }
+      }
+
+      if (event.key === 'Delete' || event.key === 'Backspace') {
+        event.preventDefault();
+        removeSpotAtIndex(activeSpotIndex);
+        return;
       }
 
       let shortcutIndex: number | null = null;
@@ -639,7 +656,7 @@ export default function AnnotationPanel({
 
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [selectedOption, activeSpotIndex, isLocked]);
+  }, [selectedOption, activeSpotIndex, isLocked, removeSpotAtIndex]);
 
   // Derive user_label from the first labeled spot if it's not explicitly set
   const derivedUserLabel = isNone ? 'none' : (userLabel || pixelLabels.find(l => l !== null) || 'none');
@@ -817,6 +834,7 @@ export default function AnnotationPanel({
                   {pixelCoords.map((p, idx) => {
                     const radiusPct = ((pixelRadii[idx] ?? DEFAULT_RADIUS) / 1024) * 100;
                     const isActive = activeSpotIndex === idx;
+                    const labelText = pixelLabels[idx] || 'unlabeled';
                     return (
                       <g key={idx}>
                         {/* Translucent draggable region */}
@@ -831,13 +849,13 @@ export default function AnnotationPanel({
                           strokeWidth={isActive ? 0.6 : 0.4}
                         />
                         <text
-                          x={`${(p.xPct ?? 0) * 100}`}
-                          y={`${(p.yPct ?? 0) * 100}`}
-                          fontSize={3}
-                          fill="#fff"
-                          className="select-none pointer-events-none font-bold"
-                          style={{ textAnchor: 'middle', dominantBaseline: 'middle', filter: 'drop-shadow(0px 0px 2px black)' }}
-                        >{idx + 1}</text>
+                          x={`${(p.xPct ?? 0) * 100 + radiusPct + 1.4}`}
+                          y={`${(p.yPct ?? 0) * 100 - radiusPct - 0.8}`}
+                          fontSize={2.4}
+                          fill={isActive ? '#93c5fd' : '#f8fafc'}
+                          className="select-none pointer-events-none font-semibold"
+                          style={{ textAnchor: 'start', dominantBaseline: 'middle', filter: 'drop-shadow(0px 0px 2px black)' }}
+                        >{`${idx + 1}: ${labelText}`}</text>
                       </g>
                     );
                   })}
@@ -862,6 +880,7 @@ export default function AnnotationPanel({
                   {pixelCoords.map((p, idx) => {
                     const radiusPct = ((pixelRadii[idx] ?? DEFAULT_RADIUS) / 1024) * 100;
                     const isActive = activeSpotIndex === idx;
+                    const labelText = pixelLabels[idx] || 'unlabeled';
                     return (
                       <g key={idx}>
                         <circle
@@ -875,13 +894,13 @@ export default function AnnotationPanel({
                           strokeWidth={isActive ? 0.6 : 0.4}
                         />
                         <text
-                          x={`${(p.xPct ?? 0) * 100}`}
-                          y={`${(p.yPct ?? 0) * 100}`}
-                          fontSize={3}
-                          fill="#fff"
-                          className="select-none pointer-events-none font-bold"
-                          style={{ textAnchor: 'middle', dominantBaseline: 'middle', filter: 'drop-shadow(0px 0px 2px black)' }}
-                        >{idx + 1}</text>
+                          x={`${(p.xPct ?? 0) * 100 + radiusPct + 1.4}`}
+                          y={`${(p.yPct ?? 0) * 100 - radiusPct - 0.8}`}
+                          fontSize={2.4}
+                          fill={isActive ? '#93c5fd' : '#f8fafc'}
+                          className="select-none pointer-events-none font-semibold"
+                          style={{ textAnchor: 'start', dominantBaseline: 'middle', filter: 'drop-shadow(0px 0px 2px black)' }}
+                        >{`${idx + 1}: ${labelText}`}</text>
                       </g>
                     );
                   })}
@@ -902,12 +921,7 @@ export default function AnnotationPanel({
                 isLocked={isLocked}
                 onChangeLabel={l => setPixelLabels(pl => pl.map((v, i) => i === activeSpotIndex ? l : v))}
                 onChangeRadius={r => setPixelRadii(pr => pr.map((v, i) => i === activeSpotIndex ? r : v))}
-                onRemove={() => {
-                  setPixelCoords(pc => pc.filter((_, i) => i !== activeSpotIndex));
-                  setPixelLabels(pl => pl.filter((_, i) => i !== activeSpotIndex));
-                  setPixelRadii(pr => pr.filter((_, i) => i !== activeSpotIndex));
-                  setActiveSpotIndex(null);
-                }}
+                onRemove={() => removeSpotAtIndex(activeSpotIndex)}
               />
             )}
           </AnimatePresence>
@@ -953,10 +967,7 @@ export default function AnnotationPanel({
                             className="p-2 text-slate-500 hover:text-rose-400 transition-colors rounded-lg hover:bg-rose-500/10"
                             onClick={e => { 
                               e.stopPropagation(); 
-                              setPixelCoords(pc => pc.filter((_, i) => i !== idx));
-                              setPixelLabels(pl => pl.filter((_, i) => i !== idx));
-                              setPixelRadii(pr => pr.filter((_, i) => i !== idx));
-                              setActiveSpotIndex(null);
+                              removeSpotAtIndex(idx);
                             }}
                           >
                             <svg viewBox="0 0 24 24" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2.5}>
