@@ -188,9 +188,9 @@ function HeroSun() {
 interface StatItem { label: string; value: string; icon: string }
 
 const STATS: StatItem[] = [
-  { label: 'Tasks Available',   value: '6+',    icon: '🔭' },
-  { label: 'Classifications',   value: '10K+',  icon: '📊' },
-  { label: 'Active Scientists', value: '500+',  icon: '👩‍🔬' },
+  { label: 'Tasks Available',   value: '2+',    icon: '🔭' },
+  { label: 'Classifications',   value: '300+',  icon: '📊' },
+  { label: 'Active Contributors', value: '500+',  icon: '👩‍🔬' },
 ];
 
 function StatsBar() {
@@ -231,13 +231,13 @@ const FEATURES: Feature[] = [
     icon:  '🤖',
     title: 'AI + Human Intelligence',
     description:
-      'Our machine-learning model makes an initial guess; your expertise validates it and improves the model over time.',
+      'Our system generates human annotated data for ML models.',
   },
   {
     icon:  '🌍',
     title: 'Open Science',
     description:
-      'All annotations are stored as public GitHub Issues — transparent, auditable, and freely accessible to researchers.',
+      'All annotations are stored as public Hugging Face Datasets — transparent and freely accessible to researchers.',
   },
 ];
 
@@ -481,11 +481,10 @@ export default function Home() {
             viewport={{ once: true }}
           >
             <div className="w-full h-full rounded-xl bg-cosmic-800 flex items-center justify-center overflow-hidden border border-white/5">
-              <span className="text-6xl">🚀</span>
               {/* Optional: Add actual image path later */}
               {/* Example import (optional): import founderImg from '@/assets/soumyadipkarforma.png'; */}
               {/* Use public path so the user can upload the image to public/images */}
-              {/* <img src="/images/soumyadipkarforma.png" className="w-full h-full object-cover" alt="Soumyadip Karforma, Founder" /> */}
+              <img src="public/images/soumyadipkarforma.png" className="w-full h-full object-cover" alt="Soumyadip Karforma, Founder" />
             </div>
             <div className="absolute -bottom-4 -right-4 glass px-4 py-2 rounded-lg border border-solar-500/30">
               <p className="text-xs font-bold text-solar-400 uppercase tracking-widest">Founder</p>
