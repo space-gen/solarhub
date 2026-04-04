@@ -50,8 +50,10 @@ export interface AnnotationPanelNativeProps {
   onSubmit: (payload: SubmitPayload) => Promise<void> | void;
 }
 
+// Radius bounds in canonical 1024-space, matching web scaling logic.
 const DEFAULT_RADIUS = 5;
 const MAX_RADIUS = 300;
+const RESIZE_HANDLE_THRESHOLD = 18;
 
 const TASK_LABELS: Record<TaskType, UserLabel[]> = {
   sunspot: ['class_a', 'class_b', 'class_c', 'class_d', 'class_e', 'class_f', 'class_h', 'none'],
@@ -78,6 +80,11 @@ function mapPointToCanonical(x: number, y: number, width: number, height: number
 
 function distance(aX: number, aY: number, bX: number, bY: number): number {
   return Math.hypot(aX - bX, aY - bY);
+}
+
+function deriveOverallUserLabel(spotLabels: Array<UserLabel | null>, isNone: boolean): UserLabel {
+  if (isNone) return 'none';
+  return (spotLabels.find(l => l !== null) as UserLabel | undefined) ?? 'none';
 }
 
 export default function AnnotationPanelNative({
@@ -164,7 +171,7 @@ export default function AnnotationPanelNative({
       const cy = spot.yPct * layout.height;
       const radiusPx = ((spotRadii[i] ?? DEFAULT_RADIUS) / 1024) * layout.width;
       const d = distance(x, y, cx, cy);
-      if (Math.abs(d - radiusPx) <= 18) {
+      if (Math.abs(d - radiusPx) <= RESIZE_HANDLE_THRESHOLD) {
         return { index: i, centerX: cx, centerY: cy };
       }
     }
@@ -210,7 +217,8 @@ export default function AnnotationPanelNative({
     try {
       const payload: SubmitPayload = {
         task_type: taskType,
-        user_label: isNone ? 'none' : ((spotLabels.find(Boolean) as UserLabel | undefined) ?? 'none'),
+        // Mirrors existing web behavior: derive a global label from the first labeled spot.
+        user_label: deriveOverallUserLabel(spotLabels, isNone),
         confidence,
         comments: comments.trim(),
         pixel_coords: isNone ? [] : spots.map(({ x, y }) => ({ x, y })),

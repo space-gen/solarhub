@@ -10,15 +10,29 @@ type SyncConfig = {
   token: string;
 };
 
+async function githubFetch(url: string, init: RequestInit, token: string): Promise<Response> {
+  const bearerHeaders = {
+    ...(init.headers ?? {}),
+    Authorization: `Bearer ${token}`,
+  };
+  const bearerRes = await fetch(url, { ...init, headers: bearerHeaders });
+  if (bearerRes.status !== 401 && bearerRes.status !== 403) return bearerRes;
+
+  const tokenHeaders = {
+    ...(init.headers ?? {}),
+    Authorization: `token ${token}`,
+  };
+  return fetch(url, { ...init, headers: tokenHeaders });
+}
+
 async function githubGetFile(config: SyncConfig): Promise<{ sha: string; content: string } | null> {
   const ref = config.branch ? `?ref=${encodeURIComponent(config.branch)}` : '';
   const url = `${GITHUB_API}/${config.owner}/${config.repo}/contents/${config.path}${ref}`;
-  const res = await fetch(url, {
+  const res = await githubFetch(url, {
     headers: {
-      Authorization: `token ${config.token}`,
       Accept: 'application/vnd.github+json',
     },
-  });
+  }, config.token);
   if (res.status === 404) return null;
   if (!res.ok) throw new Error(`GitHub download failed: ${res.status}`);
   const json = await res.json() as { sha: string; content: string };
@@ -27,10 +41,9 @@ async function githubGetFile(config: SyncConfig): Promise<{ sha: string; content
 
 async function githubPutFile(config: SyncConfig, base64Content: string, message: string, sha?: string): Promise<void> {
   const url = `${GITHUB_API}/${config.owner}/${config.repo}/contents/${config.path}`;
-  const res = await fetch(url, {
+  const res = await githubFetch(url, {
     method: 'PUT',
     headers: {
-      Authorization: `token ${config.token}`,
       Accept: 'application/vnd.github+json',
       'Content-Type': 'application/json',
     },
@@ -40,7 +53,7 @@ async function githubPutFile(config: SyncConfig, base64Content: string, message:
       sha,
       branch: config.branch,
     }),
-  });
+  }, config.token);
   if (!res.ok) {
     const text = await res.text();
     throw new Error(`GitHub upload failed: ${res.status} ${text}`);
