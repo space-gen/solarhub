@@ -8,7 +8,7 @@
  * - Completed IDs rotate daily (date-scoped) and are persisted in Puter KV.
  */
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import AnnotationPanel, { TASK_OPTIONS, SCIENTIFIC_HELP } from '@/components/AnnotationPanel';
@@ -129,8 +129,165 @@ function AnnotationView({
   const [imgLoaded, setImgLoaded] = useState(false);
   const [imgError, setImgError] = useState(false);
   const [userLabel, setUserLabel] = useState<UserLabel>('none');
-  const [isLocked, setIsLocked] = useState(false);
+  const imageShellRef = useRef<HTMLDivElement | null>(null);
+  const imageViewportRef = useRef<HTMLDivElement | null>(null);
+  const [isImageFullscreen, setIsImageFullscreen] = useState(false);
+  const [imageZoom, setImageZoom] = useState(1);
+  const [panOffset, setPanOffset] = useState({ x: 0, y: 0 });
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
 
+  const clampZoom = useCallback((value: number) => Math.min(Math.max(Number(value.toFixed(2)), 1), 4), []);
+  const zoomStep = 0.2;
+
+  const toggleImageFullscreen = useCallback(() => {
+    const shell = imageShellRef.current;
+    if (!shell) return;
+
+    if (document.fullscreenElement === shell) {
+      void document.exitFullscreen().catch(() => {});
+      return;
+    }
+
+    if (!document.fullscreenElement) {
+      void shell.requestFullscreen().catch(() => {});
+    }
+  }, []);
+
+  useEffect(() => {
+    const onFullscreenChange = () => {
+      const nextIsFullscreen = document.fullscreenElement === imageShellRef.current;
+      setIsImageFullscreen(nextIsFullscreen);
+      if (!nextIsFullscreen) {
+        setImageZoom(1);
+        setPanOffset({ x: 0, y: 0 });
+      }
+    };
+
+    document.addEventListener('fullscreenchange', onFullscreenChange);
+    onFullscreenChange();
+    return () => document.removeEventListener('fullscreenchange', onFullscreenChange);
+  }, []);
+
+  const changeImageZoom = useCallback((delta: number) => {
+    setImageZoom(current => clampZoom(current + delta));
+  }, [clampZoom]);
+
+  const zoomIn = useCallback(() => changeImageZoom(zoomStep), [changeImageZoom]);
+  const zoomOut = useCallback(() => changeImageZoom(-zoomStep), [changeImageZoom]);
+  const resetZoom = useCallback(() => {
+    setImageZoom(1);
+    setPanOffset({ x: 0, y: 0 });
+  }, []);
+
+  const handleImageWheel = useCallback((event: React.WheelEvent) => {
+    if (!isImageFullscreen) return;
+    event.preventDefault();
+    const direction = event.deltaY > 0 ? -1 : 1;
+    changeImageZoom(direction * 0.12);
+  }, [changeImageZoom, isImageFullscreen]);
+
+  // Pan offset limits to prevent panning too far
+  const getClampedPanOffset = useCallback((offset: { x: number; y: number }, zoom: number) => {
+    if (zoom <= 1) return { x: 0, y: 0 };
+    
+    const viewport = imageViewportRef.current;
+    if (!viewport) return offset;
+    
+    const maxPan = ((zoom - 1) / zoom) * 50; // percentage-based limit
+    return {
+      x: Math.max(-maxPan, Math.min(maxPan, offset.x)),
+      y: Math.max(-maxPan, Math.min(maxPan, offset.y))
+    };
+  }, []);
+
+  const handleMouseDown = useCallback((event: React.MouseEvent) => {
+    if (!isImageFullscreen || imageZoom <= 1) return;
+    setIsDragging(true);
+    setDragStart({ x: event.clientX - panOffset.x, y: event.clientY - panOffset.y });
+  }, [isImageFullscreen, imageZoom, panOffset]);
+
+  const handleMouseMove = useCallback((event: React.MouseEvent) => {
+    if (!isDragging || !isImageFullscreen) return;
+    const newOffset = {
+      x: event.clientX - dragStart.x,
+      y: event.clientY - dragStart.y
+    };
+    setPanOffset(getClampedPanOffset(newOffset, imageZoom));
+  }, [isDragging, isImageFullscreen, dragStart, imageZoom, getClampedPanOffset]);
+
+  const handleMouseUp = useCallback(() => {
+    setIsDragging(false);
+  }, []);
+
+  const handleTouchStart = useCallback((event: React.TouchEvent) => {
+    if (!isImageFullscreen || imageZoom <= 1 || event.touches.length !== 1) return;
+    const touch = event.touches[0];
+    setIsDragging(true);
+    setDragStart({ x: touch.clientX - panOffset.x, y: touch.clientY - panOffset.y });
+  }, [isImageFullscreen, imageZoom, panOffset]);
+
+  const handleTouchMove = useCallback((event: React.TouchEvent) => {
+    if (!isDragging || !isImageFullscreen || event.touches.length !== 1) return;
+    const touch = event.touches[0];
+    const newOffset = {
+      x: touch.clientX - dragStart.x,
+      y: touch.clientY - dragStart.y
+    };
+    setPanOffset(getClampedPanOffset(newOffset, imageZoom));
+  }, [isDragging, isImageFullscreen, dragStart, imageZoom, getClampedPanOffset]);
+
+  const handleTouchEnd = useCallback(() => {
+    setIsDragging(false);
+  }, []);
+
+  // Arrow key navigation
+  const panStep = 50; // pixels to move per arrow press
+  
+  const panImage = useCallback((deltaX: number, deltaY: number) => {
+    if (imageZoom <= 1) return;
+    
+    // If both deltas are 0, reset to center
+    if (deltaX === 0 && deltaY === 0) {
+      setPanOffset({ x: 0, y: 0 });
+      return;
+    }
+    
+    setPanOffset(prev => getClampedPanOffset({
+      x: prev.x + deltaX,
+      y: prev.y + deltaY
+    }, imageZoom));
+  }, [imageZoom, getClampedPanOffset]);
+
+  useEffect(() => {
+    if (!isImageFullscreen) return;
+    
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (!isImageFullscreen || imageZoom <= 1) return;
+      
+      switch (event.key) {
+        case 'ArrowUp':
+          event.preventDefault();
+          panImage(0, panStep);
+          break;
+        case 'ArrowDown':
+          event.preventDefault();
+          panImage(0, -panStep);
+          break;
+        case 'ArrowLeft':
+          event.preventDefault();
+          panImage(panStep, 0);
+          break;
+        case 'ArrowRight':
+          event.preventDefault();
+          panImage(-panStep, 0);
+          break;
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isImageFullscreen, imageZoom, panImage]);
 
   const meta = TASK_TYPES.find(t => t.value === taskType)!;
   const selectedOption = TASK_OPTIONS.find(o => o.value === taskType)!;
@@ -142,98 +299,166 @@ function AnnotationView({
         {showSuccess && <SuccessPopup points={points} />}
       </AnimatePresence>
 
-      {/* Floating Lock Toggle - Outside of motion.div to avoid transform container breakages */}
-      <div className="fixed bottom-8 right-8 z-[9999]">
-        <motion.button
-          onClick={() => setIsLocked(!isLocked)}
-          whileHover={{ scale: 1.1 }}
-          whileTap={{ scale: 0.9 }}
-          className={`p-4 rounded-full shadow-2xl flex items-center justify-center transition-colors duration-300 border ${
-            isLocked 
-              ? 'bg-red-500 text-white border-red-400' 
-              : 'bg-solar-500 text-white border-solar-400'
-          }`}
-          title={isLocked ? "Unlock image interaction" : "Lock image interaction (prevent accidental touches)"}
-        >
-          <div className="flex items-center gap-2">
-            {isLocked ? (
-              <>
-                <svg viewBox="0 0 24 24" className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth={2.5}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                </svg>
-                <span className="text-xs font-black uppercase tracking-widest pr-1">Locked</span>
-              </>
-            ) : (
-              <>
-                <svg viewBox="0 0 24 24" className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth={2.5}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M8 11V7a4 4 0 118 0m-4 8v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2z" />
-                </svg>
-                <span className="text-xs font-black uppercase tracking-widest pr-1">Unlocked</span>
-              </>
-            )}
-          </div>
-        </motion.button>
-      </div>
-
-      <motion.div variants={pageVariants} initial="hidden" animate="visible" exit="exit" className="min-h-screen pt-20 pb-16 px-4 cosmic-bg">
-        <div className="max-w-5xl mx-auto flex flex-col gap-5">
-          <motion.div variants={itemVariants} className="flex items-center gap-4 pt-4 flex-wrap">
-            <BackButton label="All types" onClick={onBack} />
-            <div className="flex items-center gap-2 ml-auto">
-              <span>{meta.icon}</span>
-              <span className={`text-sm font-semibold text-solar-400`}>{meta.friendlyName}</span>
-            </div>
-          </motion.div>
-
-          <motion.div variants={itemVariants} className="glass rounded-xl p-3 flex flex-wrap gap-3 text-xs text-slate-400">
-            <span>Done today: <strong className="text-emerald-300">{completedToday}</strong></span>
-            <span>Remaining today: <strong className="text-solar-300">{remainingToday}</strong></span>
-            <span>Streak: <strong className="text-nebula-300">{streak}</strong> day{streak === 1 ? '' : 's'}</span>
-            <span>Total points: <strong className="text-solar-300">{points}</strong></span>
-          </motion.div>
-
-          {/* Guide above image */}
-          <div className="flex flex-col gap-5">
-            <motion.div variants={itemVariants} className="glass rounded-2xl p-5 flex flex-col gap-6">
-              <GuidePanel selectedOption={selectedOption} help={SCIENTIFIC_HELP[taskType]} />
-              
-              <div className="pt-4 border-t border-white/5">
-                <p className="text-xs text-slate-400 italic">
-                  💡 Not 100% sure? That's fine — pick the closest label for each region you mark!
-                </p>
+      <motion.div variants={pageVariants} initial="hidden" animate="visible" exit="exit" className="min-h-screen pt-20 pb-16 px-4 lg:px-8 cosmic-bg">
+        <div className="max-w-7xl mx-auto flex flex-col gap-5 lg:grid lg:grid-cols-[minmax(0,1.15fr)_minmax(380px,0.85fr)] lg:items-start lg:gap-8">
+          <div className="flex flex-col gap-5 lg:sticky lg:top-24">
+            <motion.div variants={itemVariants} className="flex items-center gap-4 pt-4 flex-wrap">
+              <BackButton label="All types" onClick={onBack} />
+              <div className="flex items-center gap-2 ml-auto">
+                <span>{meta.icon}</span>
+                <span className={`text-sm font-semibold text-solar-400`}>{meta.friendlyName}</span>
               </div>
             </motion.div>
 
-            {/* Image */}
-            <motion.div variants={itemVariants} 
-              className={`glass rounded-2xl overflow-hidden transition-all duration-300 ${isLocked ? 'ring-4 ring-red-500/30' : ''}`}
-              style={{ pointerEvents: isLocked ? 'none' : 'auto' }}
+            <motion.div variants={itemVariants} className="glass rounded-xl p-3 flex flex-wrap gap-3 text-xs text-slate-400">
+              <span>Done today: <strong className="text-emerald-300">{completedToday}</strong></span>
+              <span>Remaining today: <strong className="text-solar-300">{remainingToday}</strong></span>
+              <span>Streak: <strong className="text-nebula-300">{streak}</strong> day{streak === 1 ? '' : 's'}</span>
+              <span>Total points: <strong className="text-solar-300">{points}</strong></span>
+            </motion.div>
+
+            <motion.div
+              variants={itemVariants}
+              ref={imageShellRef}
+              className="glass rounded-2xl overflow-hidden transition-all duration-300"
+              onWheel={handleImageWheel}
             >
-              <div className="relative aspect-square bg-cosmic-900">
-                {!imgLoaded && !imgError && <div className="absolute inset-0 shimmer-skeleton" />}
-                {imgError ? (
-                  <div className="absolute inset-0 flex flex-col items-center justify-center text-slate-600 gap-2">
-                    <span className="text-3xl">🌑</span>
-                    <p className="text-sm">Image could not be loaded</p>
-                  </div>
-                ) : (
-                  <img
-                    id={`aurora-img-${task.id}`}
-                    src={task.url}
-                    alt={`Solar observation – ${meta.friendlyName} – ${task.date}`}
-                    className={`w-full h-full object-contain transition-opacity duration-500 ${imgLoaded ? 'opacity-100' : 'opacity-0'}`}
-                    onLoad={() => setImgLoaded(true)}
-                    onError={() => { setImgError(true); setImgLoaded(true); }}
-                  />
+              <div className="relative aspect-square bg-cosmic-900 overflow-hidden select-none">
+                {isImageFullscreen && (
+                  <>
+                    {/* Zoom Controls - Top Left */}
+                    <div className="absolute left-2 top-2 sm:left-3 sm:top-3 z-40 flex flex-col sm:flex-row items-stretch sm:items-center gap-1.5 sm:gap-2">
+                      <div className="flex items-center gap-1.5 rounded-xl border border-white/20 bg-black/70 px-2 py-2 backdrop-blur-md shadow-2xl">
+                        <button
+                          type="button"
+                          onClick={zoomOut}
+                          className="h-9 w-9 sm:h-8 sm:w-8 rounded-lg bg-white/10 text-white text-xl sm:text-lg font-bold leading-none hover:bg-white/20 active:bg-white/30 transition-colors touch-manipulation"
+                          title="Zoom out"
+                        >
+                          −
+                        </button>
+                        <button
+                          type="button"
+                          onClick={resetZoom}
+                          className="min-w-14 sm:min-w-16 rounded-lg bg-white/10 px-2.5 py-1.5 text-xs sm:text-[11px] font-semibold text-slate-100 hover:bg-white/20 active:bg-white/30 transition-colors touch-manipulation"
+                          title="Reset zoom"
+                        >
+                          {Math.round(imageZoom * 100)}%
+                        </button>
+                        <button
+                          type="button"
+                          onClick={zoomIn}
+                          className="h-9 w-9 sm:h-8 sm:w-8 rounded-lg bg-white/10 text-white text-xl sm:text-lg font-bold leading-none hover:bg-white/20 active:bg-white/30 transition-colors touch-manipulation"
+                          title="Zoom in"
+                        >
+                          +
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Arrow Navigation Controls - Bottom Center (only when zoomed) */}
+                    {imageZoom > 1 && (
+                      <div className="absolute left-1/2 bottom-4 -translate-x-1/2 z-40 flex flex-col items-center gap-1.5">
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => panImage(0, panStep)}
+                            className="h-10 w-10 rounded-lg border border-white/20 bg-black/70 text-white text-lg backdrop-blur-md hover:bg-black/80 active:bg-black/90 transition-colors touch-manipulation shadow-xl"
+                            title="Pan up"
+                          >
+                            ↑
+                          </button>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => panImage(panStep, 0)}
+                            className="h-10 w-10 rounded-lg border border-white/20 bg-black/70 text-white text-lg backdrop-blur-md hover:bg-black/80 active:bg-black/90 transition-colors touch-manipulation shadow-xl"
+                            title="Pan left"
+                          >
+                            ←
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => panImage(0, 0)}
+                            className="h-10 w-10 rounded-lg border border-white/20 bg-black/70 text-white text-xs backdrop-blur-md hover:bg-black/80 active:bg-black/90 transition-colors touch-manipulation shadow-xl"
+                            title="Reset position"
+                          >
+                            ⌖
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => panImage(-panStep, 0)}
+                            className="h-10 w-10 rounded-lg border border-white/20 bg-black/70 text-white text-lg backdrop-blur-md hover:bg-black/80 active:bg-black/90 transition-colors touch-manipulation shadow-xl"
+                            title="Pan right"
+                          >
+                            →
+                          </button>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => panImage(0, -panStep)}
+                            className="h-10 w-10 rounded-lg border border-white/20 bg-black/70 text-white text-lg backdrop-blur-md hover:bg-black/80 active:bg-black/90 transition-colors touch-manipulation shadow-xl"
+                            title="Pan down"
+                          >
+                            ↓
+                          </button>
+                        </div>
+                        <div className="mt-1 px-2 py-1 rounded-md bg-black/60 backdrop-blur-sm text-[10px] text-slate-300">
+                          Drag or use arrows to pan
+                        </div>
+                      </div>
+                    )}
+                  </>
                 )}
+                <button
+                  type="button"
+                  onClick={toggleImageFullscreen}
+                  className="absolute top-2 right-2 sm:top-3 sm:right-3 z-30 rounded-lg border border-white/20 bg-black/60 px-3 py-2 text-xs sm:text-[11px] font-semibold text-slate-100 hover:bg-black/75 active:bg-black/85 transition-colors touch-manipulation shadow-lg"
+                  title={isImageFullscreen ? 'Exit fullscreen' : 'Open image fullscreen'}
+                >
+                  {isImageFullscreen ? '✕' : '⛶'}
+                </button>
+                <div
+                  ref={imageViewportRef}
+                  className={`absolute inset-0 transition-transform duration-150 ease-out ${isDragging ? 'cursor-grabbing' : imageZoom > 1 && isImageFullscreen ? 'cursor-grab' : ''}`}
+                  style={{ 
+                    transform: `scale(${isImageFullscreen ? imageZoom : 1}) translate(${panOffset.x}px, ${panOffset.y}px)`,
+                    transformOrigin: 'center center'
+                  }}
+                  onMouseDown={handleMouseDown}
+                  onMouseMove={handleMouseMove}
+                  onMouseUp={handleMouseUp}
+                  onMouseLeave={handleMouseUp}
+                  onTouchStart={handleTouchStart}
+                  onTouchMove={handleTouchMove}
+                  onTouchEnd={handleTouchEnd}
+                >
+                  {!imgLoaded && !imgError && <div className="absolute inset-0 shimmer-skeleton" />}
+                  {imgError ? (
+                    <div className="absolute inset-0 flex flex-col items-center justify-center text-slate-600 gap-2">
+                      <span className="text-3xl">🌑</span>
+                      <p className="text-sm">Image could not be loaded</p>
+                    </div>
+                  ) : (
+                    <img
+                      id={`aurora-img-${task.id}`}
+                      src={task.url}
+                      alt={`Solar observation – ${meta.friendlyName} – ${task.date}`}
+                      className={`w-full h-full object-contain transition-opacity duration-500 ${imgLoaded ? 'opacity-100' : 'opacity-0'}`}
+                      onLoad={() => setImgLoaded(true)}
+                      onError={() => { setImgError(true); setImgLoaded(true); }}
+                    />
+                  )}
+                </div>
               </div>
-              {/* ... info block ... */}
-              <div className="px-4 py-3 flex items-center justify-between text-xs text-slate-500 border-t border-white/5">
+              <div className="px-4 py-3 flex flex-col gap-2 text-xs text-slate-500 border-t border-white/5 lg:flex-row lg:items-center lg:justify-between">
                 <div className="flex items-center gap-3">
                   <span>{task.source}</span>
                   {task.date && <span>{task.date}</span>}
                 </div>
-                <div className="flex flex-col items-end gap-1">
+                <div className="flex flex-col items-start lg:items-end gap-1">
                   <div className="flex items-center gap-2">
                     <span className="text-xs text-slate-400">Record ID:</span>
                     <code className="text-xs bg-white/6 px-2 py-0.5 rounded">{task.id}</code>
@@ -251,9 +476,19 @@ function AnnotationView({
                 </div>
               </div>
             </motion.div>
+          </div>
 
-            {/* Annotation controls (render without the guide or labels to avoid duplication) */}
-            <motion.div variants={itemVariants} className="glass rounded-2xl p-5">
+          <div className="flex flex-col gap-5 lg:sticky lg:top-24">
+            <motion.div variants={itemVariants} className="glass rounded-2xl p-5 flex flex-col gap-6">
+              <GuidePanel selectedOption={selectedOption} help={SCIENTIFIC_HELP[taskType]} />
+              <div className="pt-4 border-t border-white/5">
+                <p className="text-xs text-slate-400 italic">
+                  Not 100% sure? That's fine - pick the closest label for each region you mark.
+                </p>
+              </div>
+            </motion.div>
+
+            <motion.div variants={itemVariants} className="glass rounded-2xl p-5 lg:p-6">
               <AnnotationPanel
                 taskType={taskType}
                 taskId={task.id}
@@ -264,9 +499,7 @@ function AnnotationView({
                 showGuide={false}
                 userLabel={userLabel}
                 onUserLabelChange={setUserLabel}
-                isLocked={isLocked}
               />
-
             </motion.div>
 
             <motion.div variants={itemVariants} className="flex justify-end">
@@ -353,9 +586,9 @@ export default function Classify({ points, onPointsChange }: ClassifyProps) {
   return (
     <AnimatePresence mode="wait">
       {!selectedType ? (
-        <motion.div key="picker" variants={pageVariants} initial="hidden" animate="visible" exit="exit" className="min-h-screen pt-24 pb-16 px-4 cosmic-bg relative">
+        <motion.div key="picker" variants={pageVariants} initial="hidden" animate="visible" exit="exit" className="min-h-screen pt-24 pb-16 px-4 lg:px-8 cosmic-bg relative">
           <StarField />
-          <div className="max-w-3xl mx-auto relative z-10">
+          <div className="max-w-6xl mx-auto relative z-10">
             <GuidePanel 
               onSelect={handleTypeSelect} 
               availability={availability} 
