@@ -8,7 +8,7 @@
  * - Completed IDs rotate daily (date-scoped) and are persisted in Puter KV.
  */
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import AnnotationPanel, { TASK_OPTIONS, SCIENTIFIC_HELP } from '@/components/AnnotationPanel';
@@ -129,7 +129,32 @@ function AnnotationView({
   const [imgLoaded, setImgLoaded] = useState(false);
   const [imgError, setImgError] = useState(false);
   const [userLabel, setUserLabel] = useState<UserLabel>('none');
+  const imageShellRef = useRef<HTMLDivElement | null>(null);
+  const [isImageFullscreen, setIsImageFullscreen] = useState(false);
 
+  const toggleImageFullscreen = useCallback(() => {
+    const shell = imageShellRef.current;
+    if (!shell) return;
+
+    if (document.fullscreenElement === shell) {
+      void document.exitFullscreen().catch(() => {});
+      return;
+    }
+
+    if (!document.fullscreenElement) {
+      void shell.requestFullscreen().catch(() => {});
+    }
+  }, []);
+
+  useEffect(() => {
+    const onFullscreenChange = () => {
+      setIsImageFullscreen(document.fullscreenElement === imageShellRef.current);
+    };
+
+    document.addEventListener('fullscreenchange', onFullscreenChange);
+    onFullscreenChange();
+    return () => document.removeEventListener('fullscreenchange', onFullscreenChange);
+  }, []);
 
   const meta = TASK_TYPES.find(t => t.value === taskType)!;
   const selectedOption = TASK_OPTIONS.find(o => o.value === taskType)!;
@@ -161,9 +186,18 @@ function AnnotationView({
 
             <motion.div
               variants={itemVariants}
+              ref={imageShellRef}
               className="glass rounded-2xl overflow-hidden transition-all duration-300"
             >
               <div className="relative aspect-square bg-cosmic-900">
+                <button
+                  type="button"
+                  onClick={toggleImageFullscreen}
+                  className="absolute top-3 right-3 z-30 rounded-lg border border-white/20 bg-black/45 px-2.5 py-1.5 text-[11px] font-semibold text-slate-100 hover:bg-black/65 transition-colors"
+                  title={isImageFullscreen ? 'Exit fullscreen' : 'Open image fullscreen'}
+                >
+                  {isImageFullscreen ? 'Exit Fullscreen' : 'Fullscreen'}
+                </button>
                 {!imgLoaded && !imgError && <div className="absolute inset-0 shimmer-skeleton" />}
                 {imgError ? (
                   <div className="absolute inset-0 flex flex-col items-center justify-center text-slate-600 gap-2">

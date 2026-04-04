@@ -57,6 +57,47 @@ export const SCIENTIFIC_HELP: Record<TaskType, { scientific: string; plain: stri
   cme: { scientific: 'A cloud shooting away from the sun.', plain: 'Find the place the cloud came from and mark it.', uncertainLabel: 'none' },
 };
 
+const AURORA_ANNOTATE_YML_LABELS: Record<'sunspot' | 'magnetogram', UserLabel[]> = {
+  sunspot: ['class_a', 'class_b', 'class_c', 'class_d', 'class_e', 'class_f', 'class_h', 'none'],
+  magnetogram: ['alpha', 'beta', 'gamma', 'beta-gamma', 'delta', 'beta-delta', 'beta-gamma-delta', 'gamma-delta', 'none'],
+};
+
+const AURORA_LABEL_HINTS: Partial<Record<UserLabel, string>> = {
+  class_a: 'Very tiny dot, like a tiny freckle',
+  class_b: 'A small dark dot you can see clearly',
+  class_c: 'A medium-sized group of dots',
+  class_d: 'A large group of dark spots',
+  class_e: 'Very big group covering lots of area',
+  class_f: 'Many spots spread across the sun',
+  class_h: 'Huge, very noticeable spot group',
+  alpha: 'Just one simple patch',
+  beta: 'Two nearby patches',
+  gamma: 'Many small mixed patches',
+  'beta-gamma': 'A tangled or messy area',
+  delta: 'Very messy with lots of small bits',
+  'beta-delta': 'A mix of two and messy bits',
+  'beta-gamma-delta': 'Very mixed and messy',
+  'gamma-delta': 'Mixed messy patches',
+  none: 'Not sure or not visible',
+};
+
+function buildAuroraSubLabels(task: 'sunspot' | 'magnetogram', noneLabel: string): SubLabel[] {
+  return AURORA_ANNOTATE_YML_LABELS[task].map(label => {
+    if (label === 'none') {
+      return { value: label, label: noneLabel, hint: AURORA_LABEL_HINTS.none || 'Not sure or not visible' };
+    }
+    const humanLabel = label
+      .split('-')
+      .map(part => part.replace('class_', 'class ').replace(/^./, ch => ch.toUpperCase()))
+      .join('-');
+    return {
+      value: label,
+      label: humanLabel,
+      hint: AURORA_LABEL_HINTS[label] || 'Aurora scientific label',
+    };
+  });
+}
+
 export const TASK_OPTIONS: TaskOption[] = [
   {
     value:   'sunspot',
@@ -64,16 +105,7 @@ export const TASK_OPTIONS: TaskOption[] = [
     icon:    '🟤',
     lookFor: 'Dark dots on the bright sun (like freckles).',
     color:   'text-orange-300', bg: 'bg-orange-500/15', border: 'border-orange-500/40',
-    subLabels: [
-      { value: 'class_a', label: 'Class A (tiny)', hint: 'Very tiny dot, like a tiny freckle' },
-      { value: 'class_b', label: 'Class B (small)', hint: 'A small dark dot you can see clearly' },
-      { value: 'class_c', label: 'Class C (medium)', hint: 'A medium-sized group of dots' },
-      { value: 'class_d', label: 'Class D (large)', hint: 'A large group of dark spots' },
-      { value: 'class_e', label: 'Class E (very large)', hint: 'Very big group covering lots of area' },
-      { value: 'class_f', label: 'Class F (extensive)', hint: 'Many spots spread across the sun' },
-      { value: 'class_h', label: 'Class H (giant)', hint: 'Huge, very noticeable spot group' },
-      { value: 'none', label: "I don't know / none", hint: 'Not sure or I don\'t see any spots' },
-    ],
+    subLabels: buildAuroraSubLabels('sunspot', "I don't know / none"),
   },
   {
     value:   'solar_flare',
@@ -96,17 +128,7 @@ export const TASK_OPTIONS: TaskOption[] = [
     icon:    '🧲',
     lookFor: "A black & white map that looks like stripes or patches",
     color:   'text-nebula-300', bg: 'bg-nebula-500/15', border: 'border-nebula-500/40',
-    subLabels: [
-      { value: 'alpha', label: 'Alpha (simple)', hint: 'Just one simple patch' },
-      { value: 'beta', label: 'Beta (two spots)', hint: 'Two nearby patches' },
-      { value: 'gamma', label: 'Gamma (complex)', hint: 'Many small mixed patches' },
-      { value: 'beta-gamma', label: 'Beta-Gamma (mixed)', hint: 'A tangled or messy area' },
-      { value: 'delta', label: 'Delta (very messy)', hint: 'Very messy with lots of small bits' },
-      { value: 'beta-delta', label: 'Beta-Delta', hint: 'A mix of two and messy bits' },
-      { value: 'beta-gamma-delta', label: 'Beta-Gamma-Delta', hint: 'Very mixed and messy' },
-      { value: 'gamma-delta', label: 'Gamma-Delta', hint: 'Mixed messy patches' },
-      { value: 'none', label: "I don't know / none", hint: 'Not sure or not visible' },
-    ],
+    subLabels: buildAuroraSubLabels('magnetogram', "I don't know / none"),
   },
   {
     value:   'coronal_hole',
@@ -238,12 +260,11 @@ function RegionEditorPanel({
                 className="w-full appearance-none bg-slate-900/50 border border-white/10 text-slate-200 text-xs rounded-lg py-2.5 px-3 pr-8 focus:outline-none focus:border-solar-500 focus:ring-1 focus:ring-solar-500/50 transition-all"
               >
                 <option value="" disabled>Select a label...</option>
-                {options.subLabels.map(sub => (
+                {options.subLabels.map((sub, idx) => (
                   <option key={sub.value} value={sub.value}>
-                    {sub.label}
+                    {idx < 9 ? `[${idx + 1}] ` : ''}{sub.label}
                   </option>
                 ))}
-                <option value="none">None / Unsure</option>
               </select>
               <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-slate-500">
                 <svg viewBox="0 0 24 24" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2}>
@@ -251,6 +272,9 @@ function RegionEditorPanel({
                 </svg>
               </div>
             </div>
+            <p className="text-[10px] text-slate-500 leading-relaxed">
+              Keyboard: press <strong>1-9</strong> to set the active region label quickly. Press <strong>0</strong> for none.
+            </p>
           </div>
 
           {/* Size Control */}
@@ -356,6 +380,9 @@ export default function AnnotationPanel({
     clientY: number;
     timerId: number | null;
     fired: boolean;
+    createdSpotIndex: number | null;
+    resizeStartY: number | null;
+    resizeStartRadius: number | null;
   } | null>(null);
   const resizeGestureRef = useRef<{
     pointerId: number;
@@ -374,24 +401,28 @@ export default function AnnotationPanel({
 
   const clampRadius = (radius: number) => Math.min(Math.max(Math.round(radius), MIN_RADIUS), MAX_RADIUS);
 
-  const addMarkerAt = (clientX: number, clientY: number) => {
-    if (isLocked || isPinchingRef.current) return;
+  const addMarkerAt = (clientX: number, clientY: number): number | null => {
+    if (isLocked || isPinchingRef.current) return null;
     const rect = imageRef.current?.getBoundingClientRect();
-    if (!rect) return;
+    if (!rect) return null;
 
     const xPct = Math.min(Math.max((clientX - rect.left) / rect.width, 0), 1);
     const yPct = Math.min(Math.max((clientY - rect.top) / rect.height, 0), 1);
     const x1024 = Math.round(xPct * 1024);
     const y1024 = Math.round(yPct * 1024);
 
+    let createdIndex: number | null = null;
     setPixelCoords(prev => {
       const next = [...prev, { x: x1024, y: y1024, xPct, yPct }];
+      createdIndex = next.length - 1;
       setPixelLabels(pl => [...pl, null]);
       setPixelRadii(pr => [...pr, DEFAULT_RADIUS]);
       setActiveSpotIndex(next.length - 1);
       setIsNone(false);
       return next;
     });
+
+    return createdIndex;
   };
 
   const clearPendingCreation = () => {
@@ -420,12 +451,20 @@ export default function AnnotationPanel({
       clientY: event.clientY,
       timerId: null as number | null,
       fired: false,
+      createdSpotIndex: null,
+      resizeStartY: null,
+      resizeStartRadius: null,
     };
 
     pending.timerId = window.setTimeout(() => {
       if (pendingCreationRef.current !== pending) return;
       pending.fired = true;
-      addMarkerAt(pending.clientX, pending.clientY);
+      const createdSpotIndex = addMarkerAt(pending.clientX, pending.clientY);
+      if (createdSpotIndex !== null) {
+        pending.createdSpotIndex = createdSpotIndex;
+        pending.resizeStartY = pending.clientY;
+        pending.resizeStartRadius = DEFAULT_RADIUS;
+      }
     }, LONG_PRESS_DELAY_MS);
 
     pendingCreationRef.current = pending;
@@ -448,6 +487,19 @@ export default function AnnotationPanel({
     if (movedDistance > LONG_PRESS_MOVE_TOLERANCE_PX) {
       clearPendingCreation();
     }
+  };
+
+  const updatePendingCreationAfterFire = (event: React.PointerEvent<Element>) => {
+    const pending = pendingCreationRef.current;
+    if (!pending || pending.pointerId !== event.pointerId || !pending.fired) return;
+    if (pending.createdSpotIndex === null || pending.resizeStartY === null || pending.resizeStartRadius === null) return;
+
+    const rect = imageRef.current?.getBoundingClientRect();
+    if (!rect) return;
+
+    const deltaRadius = ((pending.resizeStartY - event.clientY) / rect.height) * 1024;
+    const nextRadius = clampRadius(pending.resizeStartRadius + deltaRadius);
+    setPixelRadii(pr => pr.map((radius, i) => i === pending.createdSpotIndex ? nextRadius : radius));
   };
 
   const endPointerGesture = () => {
@@ -554,6 +606,40 @@ export default function AnnotationPanel({
   };
 
   const selectedOption = TASK_OPTIONS.find(o => o.value === taskType);
+
+  useEffect(() => {
+    if (!selectedOption || activeSpotIndex === null || isLocked) return;
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.defaultPrevented || event.altKey || event.ctrlKey || event.metaKey) return;
+
+      const target = event.target as HTMLElement | null;
+      if (target) {
+        const tag = target.tagName.toLowerCase();
+        if (tag === 'input' || tag === 'textarea' || tag === 'select' || target.isContentEditable) {
+          return;
+        }
+      }
+
+      let shortcutIndex: number | null = null;
+      if (event.key >= '1' && event.key <= '9') {
+        shortcutIndex = Number(event.key) - 1;
+      } else if (event.key === '0') {
+        const noneIndex = selectedOption.subLabels.findIndex(sub => sub.value === 'none');
+        if (noneIndex >= 0) shortcutIndex = noneIndex;
+      }
+
+      if (shortcutIndex === null) return;
+      const selectedSubLabel = selectedOption.subLabels[shortcutIndex];
+      if (!selectedSubLabel) return;
+
+      event.preventDefault();
+      setPixelLabels(prev => prev.map((value, index) => index === activeSpotIndex ? selectedSubLabel.value : value));
+    };
+
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [selectedOption, activeSpotIndex, isLocked]);
 
   // Derive user_label from the first labeled spot if it's not explicitly set
   const derivedUserLabel = isNone ? 'none' : (userLabel || pixelLabels.find(l => l !== null) || 'none');
@@ -677,6 +763,7 @@ export default function AnnotationPanel({
               }
 
               if (draggingIndex === null) {
+                updatePendingCreationAfterFire(e);
                 updatePendingCreation(e);
                 return;
               }
