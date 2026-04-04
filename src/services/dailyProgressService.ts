@@ -2,8 +2,14 @@
  * src/services/dailyProgressService.ts
  *
  * Tracks "already completed today" task IDs, total points, and streak.
- * Data is persisted locally and mirrored to Puter KV (when signed in).
+ * Data is persisted in SQLite (source of truth in GitHub) with localStorage cache.
  */
+
+import {
+  getDailyStats,
+  updateDailyStats,
+  syncToGitHub,
+} from './sqliteService';
 
 const DAILY_IDS_KEY_PREFIX = 'solarhub_daily_completed_';
 const STATS_KEY = 'solarhub_user_stats_v1';
@@ -64,38 +70,6 @@ function parseStats(raw: string | null): StoredStats {
   }
 }
 
-async function isPuterSignedIn(): Promise<boolean> {
-  try {
-    const puter = window.puter;
-    if (!puter?.auth?.isSignedIn) return false;
-    return await puter.auth.isSignedIn();
-  } catch {
-    return false;
-  }
-}
-
-async function puterGet(key: string): Promise<string | null> {
-  try {
-    const puter = window.puter;
-    if (!puter?.kv) return null;
-    if (!(await isPuterSignedIn())) return null;
-    return await puter.kv.get(key);
-  } catch {
-    return null;
-  }
-}
-
-async function puterSet(key: string, value: string): Promise<void> {
-  try {
-    const puter = window.puter;
-    if (!puter?.kv) return;
-    if (!(await isPuterSignedIn())) return;
-    await puter.kv.set(key, value);
-  } catch {
-    // non-fatal
-  }
-}
-
 function localDailyKey(dateKey: string): string {
   return `${DAILY_IDS_KEY_PREFIX}${dateKey}`;
 }
@@ -120,37 +94,28 @@ export async function loadDailyProgress(): Promise<DailyProgress> {
   const dateKey = todayKey();
   const dailyKey = localDailyKey(dateKey);
 
-  // Try cloud first (source of truth)
-  let cloudIds: string[] | null = null;
-  let cloudStats: StoredStats | null = null;
-  
-  if (await isPuterSignedIn()) {
-    cloudIds = parseStringArray(await puterGet(dailyKey));
-    cloudStats = parseStats(await puterGet(STATS_KEY));
-  }
+  // Try SQLite first (source of truth)
+  let sqliteStats = await getDailyStats(dateKey);
 
-  // Fallback to local if cloud unavailable (offline or not signed in)
+  // Fallback to localStorage cache
   const localIds = parseStringArray(safeLocalGet(dailyKey));
   const localStats = parseStats(safeLocalGet(STATS_KEY));
 
-  // If cloud data exists, it overrides local. Otherwise use local.
-  // We do NOT merge sets anymore as per strict "cloud is source of truth" instruction.
-  // However, for best UX, if cloud is null, we use local.
-  const finalIds = cloudIds !== null ? new Set(cloudIds) : new Set(localIds);
-  const finalStats = cloudStats !== null ? cloudStats : localStats;
+  // Use SQLite if available, otherwise use localStorage
+  const finalIds = sqliteStats ? sqliteStats.completedIds : new Set(localIds);
+  const finalStats = sqliteStats
+    ? { points: sqliteStats.points, streak: sqliteStats.streak, lastActiveDate: dateKey }
+    : localStats;
 
-  // Sync back to local to keep it fresh
+  // Sync back to local cache to keep it fresh
   safeLocalSet(dailyKey, JSON.stringify([...finalIds]));
   safeLocalSet(STATS_KEY, JSON.stringify(finalStats));
 
-  // Clean up yesterday's key so IDs do not persist past 00:00 UTC.
+  // Clean up yesterday's key so IDs do not persist past 00:00 UTC
   try {
     const yKey = localDailyKey(yesterdayKey());
-    // Only cleanup if yesterday is strictly not today
     if (yKey !== dailyKey) {
       try { localStorage.removeItem(yKey); } catch {}
-      // We also clean up cloud for yesterday to save space/keep it clean
-      await puterSet(yKey, JSON.stringify([]));
     }
   } catch {
     // non-fatal cleanup failure
@@ -169,8 +134,8 @@ export async function markTaskCompletedForToday(taskId: string): Promise<{
   progress: DailyProgress;
   alreadyCompleted: boolean;
 }> {
-  // Always load latest from cloud first to ensure sync
   const current = await loadDailyProgress();
+
   if (current.completedTaskIds.has(taskId)) {
     return { progress: current, alreadyCompleted: true };
   }
@@ -196,17 +161,19 @@ export async function markTaskCompletedForToday(taskId: string): Promise<{
     lastActiveDate: today,
   };
 
-  const dailyKey = localDailyKey(today);
-  const idsArray = [...updatedIds];
+  // Update SQLite (source of truth)
+  await updateDailyStats(today, updatedIds, nextStats.points, nextStats.streak);
 
-  // Cloud is source of truth
-  await Promise.all([
-    puterSet(dailyKey, JSON.stringify(idsArray)),
-    puterSet(STATS_KEY, JSON.stringify(nextStats)),
-  ]);
+  // Sync to GitHub
+  try {
+    await syncToGitHub();
+  } catch (err) {
+    console.warn('[DailyProgressService] GitHub sync failed:', err);
+    // Continue with local cache if sync fails
+  }
 
   // Update local cache
-  safeLocalSet(dailyKey, JSON.stringify(idsArray));
+  safeLocalSet(localDailyKey(today), JSON.stringify([...updatedIds]));
   safeLocalSet(STATS_KEY, JSON.stringify(nextStats));
 
   return {

@@ -26,6 +26,7 @@
 import { GITHUB_CONFIG }  from '@/config/endpoints';
 import { generateSessionId } from '@/utils/helpers';
 import { getStoredToken }    from '@/services/githubAuthService';
+import { insertAnnotation, checkAnnotationExists, syncToGitHub } from '@/services/sqliteService';
 
 // ---------------------------------------------------------------------------
 // Data model
@@ -122,36 +123,6 @@ export function getLocalAnnotations(): Annotation[] {
 }
 
 // ---------------------------------------------------------------------------
-// Puter KV cloud backup
-// ---------------------------------------------------------------------------
-
-/**
- * saveToPuterCloud
- *
- * Appends the annotation to the user's Puter KV store as a cloud backup.
- * Puter.js auto-handles authentication; if the user isn't signed into Puter
- * they may see a brief sign-in prompt.  Failures are silently swallowed
- * since the localStorage copy is already the durable record.
- */
-async function saveToPuterCloud(annotation: Annotation): Promise<void> {
-  try {
-    const puter = window.puter;
-    if (!puter?.kv) return;
-
-    // Avoid triggering Puter sign-in prompts during normal app usage.
-    // Only write if the user is already signed in (Connect page is where sign-in happens).
-    const signedIn = await puter.auth?.isSignedIn?.().catch(() => false);
-    if (!signedIn) return;
-
-    const raw      = await puter.kv.get('solarhub_annotations') ?? '[]';
-    const existing = JSON.parse(raw) as Annotation[];
-    await puter.kv.set('solarhub_annotations', JSON.stringify([...existing, annotation]));
-  } catch {
-    // Non-fatal — Puter cloud is an optional bonus layer
-  }
-}
-
-// ---------------------------------------------------------------------------
 // GitHub Issue body formatter  (aurora parse_issue_annotation.py compatible)
 // ---------------------------------------------------------------------------
 
@@ -211,12 +182,14 @@ ${annotation.comments.trim() || '_No response_'}
  *
  * Full submission pipeline:
  *  1. Builds the Annotation record.
- *  2. Saves locally (offline-first).
- *  3. Saves to Puter cloud KV (zero-config cloud backup).
- *  4. Creates a GitHub Issue on space-gen/aurora using the user's OAuth token.
+ *  2. Checks if already exists in SQLite (deduplication).
+ *  3. Inserts to SQLite DB.
+ *  4. Syncs SQLite to GitHub.
+ *  5. Saves locally to localStorage.
+ *  6. Creates a GitHub Issue on space-gen/aurora using the user's OAuth token.
  *
  * Returns success=false (with a reason) if the user is not signed in or the
- * API call fails — the local + Puter copies are preserved either way.
+ * API call fails — the SQLite + localStorage copies are preserved either way.
  */
 export async function submitAnnotation(
   input: AnnotationInput,
@@ -234,13 +207,51 @@ export async function submitAnnotation(
     })(),
   };
 
-  // ── Local persistence (always, even before network) ──────────────────────
+  // ── Check if already exists in SQLite (deduplication) ────────────────────
+  try {
+    const exists = await checkAnnotationExists(input.task_id);
+    if (exists) {
+      return {
+        success:    false,
+        annotation,
+        error:      'This task annotation already exists.',
+      };
+    }
+  } catch (err) {
+    console.warn('[AnnotationService] SQLite check failed:', err);
+    // Continue even if SQLite check fails
+  }
+
+  // ── Insert to SQLite ──────────────────────────────────────────────────────
+  try {
+    // Encode pixel_coords + labels as RLE string: label,x,y,r;label,x,y,r
+    const rleString = input.pixel_coords && input.pixel_coords.length > 0
+      ? input.pixel_coords.map((p, i) => {
+          const label = input.pixel_labels?.[i] || input.user_label || 'none';
+          const radius = input.pixel_radii?.[i] || 0;
+          return `${label},${p.x},${p.y},${radius}`;
+        }).join(';')
+      : `${input.user_label || 'none'},0,0,0`;
+
+    await insertAnnotation(
+      input.task_id,
+      input.task_type,
+      input.user_label,
+      rleString
+    );
+
+    // Sync to GitHub
+    await syncToGitHub();
+    console.info('[AnnotationService] Inserted to SQLite and synced to GitHub');
+  } catch (err) {
+    console.warn('[AnnotationService] SQLite insert/sync failed:', err);
+    // Continue with GitHub Issues submission even if SQLite sync fails
+  }
+
+  // ── Local persistence (localStorage cache) ────────────────────────────────
   saveAnnotationLocally(annotation);
 
-  // ── Puter cloud backup (async, non-blocking) ──────────────────────────────
-  void saveToPuterCloud(annotation);
-
-  // ── GitHub Issue creation ────────────────────────────────────────────────
+  // ── GitHub Issue creation (unchanged) ─────────────────────────────────────
   const token = getStoredToken();
 
   if (!token) {

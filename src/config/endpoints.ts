@@ -33,6 +33,6 @@ export const GITHUB_CONFIG = {
 export const AUTH_CONFIG = {
   /** GitHub OAuth App client ID (public). */
   clientId: 'Ov23lisiMUCpxHrplfOe',
-  /** OAuth scopes requested for creating Issues on the aurora repo. */
-  scopes: ['public_repo'],
+  /** OAuth scopes: 'repo' allows access to user's private repos for SQLite storage. */
+  scopes: ['repo'],
 } as const;
