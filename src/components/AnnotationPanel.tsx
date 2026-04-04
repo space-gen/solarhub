@@ -269,7 +269,7 @@ function RegionEditorPanel({
               <span className="text-[10px] text-slate-500 ml-3">Large</span>
             </div>
             <p className="text-[10px] text-slate-500 leading-relaxed mt-1">
-              Adjust the slider or drag the blue handle above the circle to cover the feature completely.
+              Adjust the slider or drag up/down on the marker to cover the feature completely.
             </p>
           </div>
         </div>
@@ -340,6 +340,7 @@ export default function AnnotationPanel({
   const MAX_RADIUS = 300;
   const LONG_PRESS_DELAY_MS = 450;
   const LONG_PRESS_MOVE_TOLERANCE_PX = 8;
+  const MARKER_GESTURE_DECISION_PX = 6;
   const [activeSpotIndex, setActiveSpotIndex] = useState<number | null>(null);
   const [resizingIndex, setResizingIndex] = useState<number | null>(null);
   const [isNone, setIsNone] = useState(false);
@@ -360,6 +361,9 @@ export default function AnnotationPanel({
     pointerId: number;
     startY: number;
     startRadius: number;
+    spotIndex: number;
+    mode: 'pending' | 'move' | 'resize';
+    startX: number;
   } | null>(null);
   // When the user starts dragging a marker, make it the active spot so the
   // classification controls show for that marker.
@@ -453,33 +457,20 @@ export default function AnnotationPanel({
     setResizingIndex(null);
   };
 
-  const beginResizeGesture = (event: React.PointerEvent<SVGCircleElement>, idx: number) => {
-    if (isLocked) return;
-    event.stopPropagation();
-    clearPendingCreation();
-    setDraggingIndex(null);
-    setResizingIndex(idx);
-    setActiveSpotIndex(idx);
-    resizeGestureRef.current = {
-      pointerId: event.pointerId,
-      startY: event.clientY,
-      startRadius: pixelRadii[idx] ?? DEFAULT_RADIUS,
-    };
-
-    try {
-      event.currentTarget.setPointerCapture(event.pointerId);
-    } catch {
-      // ignore capture failures; resizing still works with bubbling pointer events
-    }
-  };
-
   const beginMoveGesture = (event: React.PointerEvent<SVGCircleElement>, idx: number) => {
     if (isLocked) return;
     event.stopPropagation();
     clearPendingCreation();
+    setDraggingIndex(null);
     setResizingIndex(null);
-    resizeGestureRef.current = null;
-    setDraggingIndex(idx);
+    resizeGestureRef.current = {
+      pointerId: event.pointerId,
+      startY: event.clientY,
+      startRadius: pixelRadii[idx] ?? DEFAULT_RADIUS,
+      spotIndex: idx,
+      mode: 'pending',
+      startX: event.clientX,
+    };
     setActiveSpotIndex(idx);
 
     try {
@@ -628,7 +619,7 @@ export default function AnnotationPanel({
           <div className="flex items-center justify-between mb-3 px-1">
             <div className="flex flex-col gap-0.5">
               <p className="text-[11px] font-bold text-slate-400 uppercase tracking-tighter">1. Mark Areas</p>
-              <p className="text-[10px] text-slate-500">Click image to add a region</p>
+              <p className="text-[10px] text-slate-500">Long-press to add. Drag up/down on marker to resize.</p>
             </div>
             <button
               onClick={handleToggleNone}
@@ -646,6 +637,33 @@ export default function AnnotationPanel({
             className="relative inline-block w-full max-w-[512px] group"
             onPointerMove={(e: React.PointerEvent) => {
               if (isLocked) return;
+
+              const markerGesture = resizeGestureRef.current;
+              if (markerGesture && markerGesture.pointerId === e.pointerId) {
+                if (markerGesture.mode === 'pending') {
+                  const dx = Math.abs(e.clientX - markerGesture.startX);
+                  const dy = Math.abs(e.clientY - markerGesture.startY);
+                  if (Math.max(dx, dy) < MARKER_GESTURE_DECISION_PX) return;
+
+                  markerGesture.mode = dy > dx ? 'resize' : 'move';
+                  if (markerGesture.mode === 'resize') {
+                    setDraggingIndex(null);
+                    setResizingIndex(markerGesture.spotIndex);
+                  } else {
+                    setResizingIndex(null);
+                    setDraggingIndex(markerGesture.spotIndex);
+                  }
+                }
+
+                if (markerGesture.mode === 'resize') {
+                  const rect = imageRef.current?.getBoundingClientRect();
+                  if (!rect) return;
+                  const deltaRadius = ((markerGesture.startY - e.clientY) / rect.height) * 1024;
+                  const nextRadius = clampRadius(markerGesture.startRadius + deltaRadius);
+                  setPixelRadii(pr => pr.map((radius, i) => i === markerGesture.spotIndex ? nextRadius : radius));
+                  return;
+                }
+              }
 
               if (resizingIndex !== null) {
                 const resizeGesture = resizeGestureRef.current;
@@ -712,7 +730,6 @@ export default function AnnotationPanel({
                   {pixelCoords.map((p, idx) => {
                     const radiusPct = ((pixelRadii[idx] ?? DEFAULT_RADIUS) / 1024) * 100;
                     const isActive = activeSpotIndex === idx;
-                    const handleY = `${(p.yPct ?? 0) * 100 - radiusPct - 2}`;
                     return (
                       <g key={idx}>
                         {/* Translucent draggable region */}
@@ -726,31 +743,6 @@ export default function AnnotationPanel({
                           stroke={isActive ? 'rgba(59,130,246,0.8)' : 'rgba(34,197,94,0.8)'}
                           strokeWidth={isActive ? 0.6 : 0.4}
                         />
-                        {isActive && !isLocked && (
-                          <g>
-                            <line
-                              x1={`${(p.xPct ?? 0) * 100}`}
-                              y1={`${(p.yPct ?? 0) * 100 - radiusPct}`}
-                              x2={`${(p.xPct ?? 0) * 100}`}
-                              y2={handleY}
-                              stroke="rgba(96,165,250,0.8)"
-                              strokeWidth={0.35}
-                              strokeLinecap="round"
-                              strokeDasharray="0.8 0.8"
-                              className="pointer-events-none"
-                            />
-                            <circle
-                              cx={`${(p.xPct ?? 0) * 100}`}
-                              cy={handleY}
-                              r={1.4}
-                              fill="rgba(96,165,250,0.95)"
-                              stroke="white"
-                              strokeWidth={0.25}
-                              style={{ cursor: 'ns-resize', pointerEvents: 'auto' }}
-                              onPointerDown={e => beginResizeGesture(e, idx)}
-                            />
-                          </g>
-                        )}
                         <text
                           x={`${(p.xPct ?? 0) * 100}`}
                           y={`${(p.yPct ?? 0) * 100}`}
@@ -783,7 +775,6 @@ export default function AnnotationPanel({
                   {pixelCoords.map((p, idx) => {
                     const radiusPct = ((pixelRadii[idx] ?? DEFAULT_RADIUS) / 1024) * 100;
                     const isActive = activeSpotIndex === idx;
-                    const handleY = `${(p.yPct ?? 0) * 100 - radiusPct - 2}`;
                     return (
                       <g key={idx}>
                         <circle
@@ -796,31 +787,6 @@ export default function AnnotationPanel({
                           stroke={isActive ? 'rgba(59,130,246,0.8)' : 'rgba(34,197,94,0.8)'}
                           strokeWidth={isActive ? 0.6 : 0.4}
                         />
-                        {isActive && !isLocked && (
-                          <g>
-                            <line
-                              x1={`${(p.xPct ?? 0) * 100}`}
-                              y1={`${(p.yPct ?? 0) * 100 - radiusPct}`}
-                              x2={`${(p.xPct ?? 0) * 100}`}
-                              y2={handleY}
-                              stroke="rgba(96,165,250,0.8)"
-                              strokeWidth={0.35}
-                              strokeLinecap="round"
-                              strokeDasharray="0.8 0.8"
-                              className="pointer-events-none"
-                            />
-                            <circle
-                              cx={`${(p.xPct ?? 0) * 100}`}
-                              cy={handleY}
-                              r={1.4}
-                              fill="rgba(96,165,250,0.95)"
-                              stroke="white"
-                              strokeWidth={0.25}
-                              style={{ cursor: 'ns-resize', pointerEvents: 'auto' }}
-                              onPointerDown={e => beginResizeGesture(e, idx)}
-                            />
-                          </g>
-                        )}
                         <text
                           x={`${(p.xPct ?? 0) * 100}`}
                           y={`${(p.yPct ?? 0) * 100}`}
