@@ -484,7 +484,7 @@ export default function Home() {
               {/* Optional: Add actual image path later */}
               {/* Example import (optional): import founderImg from '@/assets/soumyadipkarforma.png'; */}
               {/* Use public path so the user can upload the image to public/images */}
-              <img src="public/images/soumyadipkarforma.png" className="w-full h-full object-cover" alt="Soumyadip Karforma, Founder" />
+              <img src="https://raw.githubusercontent.com/space-gen/solarhub/refs/heads/main/public/images/soumyadipkarforma.png" className="w-full h-full object-cover" alt="Soumyadip Karforma, Founder" />
             </div>
             <div className="absolute -bottom-4 -right-4 glass px-4 py-2 rounded-lg border border-solar-500/30">
               <p className="text-xs font-bold text-solar-400 uppercase tracking-widest">Founder</p>
