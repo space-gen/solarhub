@@ -224,7 +224,7 @@ export default function NavigationBar({ points }: NavBarProps) {
               <div className="flex flex-col">
                 <span className="text-xl font-bold tracking-tight leading-tight">
                   <span className="gradient-text">Solar</span>
-                  <span className="text-slate-200">Hub</span>
+                  <span className="text-white">Hub</span>
                 </span>
                 <span className="text-[10px] uppercase tracking-widest text-slate-500 font-semibold -mt-0.5 group-hover:text-solar-400 transition-colors">
                   by SpaceGen
