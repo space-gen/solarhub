@@ -76,7 +76,12 @@ export default function About() {
         <motion.div variants={itemVariants} className="glass p-8 rounded-2xl flex flex-col gap-4 text-center">
           {/* Founder profile - upload image to public/images/soumyadipkarforma.png */}
           {/* Example import (optional): import founderImg from '@/assets/soumyadipkarforma.png'; */}
-          <img src="/images/soumyadipkarforma.png" alt="Soumyadip Karforma, Founder" className="w-32 h-32 rounded-full object-cover mx-auto" />
+          <img
+            src="/images/soumyadipkarforma.png"
+            alt="Soumyadip Karforma, Founder"
+            className="w-32 h-32 rounded-full object-cover mx-auto"
+            onError={(e) => { (e.currentTarget as HTMLImageElement).src = '/images/fallback-avatar.svg'; }}
+          />
           <h3 className="mt-4 text-xl font-bold text-slate-100">Soumyadip Karforma</h3>
           <p className="text-slate-400 mt-2">Founder of SpaceGen and lead on SolarHub — building open-source tools and datasets for space science.</p>
         </motion.div>
