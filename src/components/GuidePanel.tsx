@@ -21,6 +21,7 @@ interface TaskTypeMeta {
   friendlyName: string;
   icon: string;
   description: string;
+  subtitle?: string;
 }
 
 interface GuidePanelProps {
@@ -81,6 +82,9 @@ export default function GuidePanel({
                 <span className="text-3xl">{tt.icon}</span>
                 <div>
                   <p className={`font-semibold text-sm ${ready ? s.text : 'text-slate-400'}`}>{tt.friendlyName}</p>
+                  {tt.subtitle && (
+                    <p className="text-[10px] text-slate-500 mt-0.5">{tt.subtitle}</p>
+                  )}
                   <p className="text-xs text-slate-600 mt-0.5 leading-snug">{tt.description}</p>
                 </div>
               </motion.button>

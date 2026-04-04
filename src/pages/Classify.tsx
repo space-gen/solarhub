@@ -27,16 +27,12 @@ interface TaskTypeMeta {
   friendlyName: string;
   icon: string;
   description: string;
+  subtitle?: string;
 }
 
 const TASK_TYPES: TaskTypeMeta[] = [
-  { value: 'sunspot',       friendlyName: 'Sun Spots',      icon: '🟤', description: 'Dark patches on the bright solar surface' },
-  { value: 'magnetogram',   friendlyName: 'Magnetic Map',   icon: '🧲', description: "Black & white map of the Sun's magnetic field" },
-  { value: 'solar_flare',   friendlyName: 'Bright Flash',   icon: '🔥', description: 'Sudden burst of energy from the Sun' },
-  { value: 'coronal_hole',  friendlyName: 'Dark Region',    icon: '🕳️', description: 'Large dark area where solar wind escapes' },
-  { value: 'prominence',    friendlyName: 'Glowing Arch',   icon: '🌊', description: "Bright arch of plasma at the Sun's edge" },
-  { value: 'active_region', friendlyName: 'Active Region',  icon: '⚡', description: 'Busy cluster of solar activity' },
-  { value: 'cme',           friendlyName: 'Solar Storm',    icon: '💥', description: 'Cloud of gas erupting outward into space' },
+  { value: 'sunspot',       friendlyName: 'Sun Spots',      icon: '🟤', description: 'Dark patches on the bright solar surface', subtitle: 'SDO HMI Intensitygram' },
+  { value: 'magnetogram',   friendlyName: 'Magnetic Map',   icon: '🧲', description: "Black & white map of the Sun's magnetic field", subtitle: 'SDO HMI Magnetogram' },
 ];
 
 interface ClassifyProps {
