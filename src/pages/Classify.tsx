@@ -129,7 +129,6 @@ function AnnotationView({
   const [imgLoaded, setImgLoaded] = useState(false);
   const [imgError, setImgError] = useState(false);
   const [userLabel, setUserLabel] = useState<UserLabel>('none');
-  const [isLocked, setIsLocked] = useState(false);
 
 
   const meta = TASK_TYPES.find(t => t.value === taskType)!;
@@ -141,39 +140,6 @@ function AnnotationView({
       <AnimatePresence>
         {showSuccess && <SuccessPopup points={points} />}
       </AnimatePresence>
-
-      {/* Floating Lock Toggle - Outside of motion.div to avoid transform container breakages */}
-      <div className="fixed bottom-8 right-8 z-[9999]">
-        <motion.button
-          onClick={() => setIsLocked(!isLocked)}
-          whileHover={{ scale: 1.1 }}
-          whileTap={{ scale: 0.9 }}
-          className={`p-4 rounded-full shadow-2xl flex items-center justify-center transition-colors duration-300 border ${
-            isLocked 
-              ? 'bg-red-500 text-white border-red-400' 
-              : 'bg-solar-500 text-white border-solar-400'
-          }`}
-          title={isLocked ? "Unlock image interaction" : "Lock image interaction (prevent accidental touches)"}
-        >
-          <div className="flex items-center gap-2">
-            {isLocked ? (
-              <>
-                <svg viewBox="0 0 24 24" className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth={2.5}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                </svg>
-                <span className="text-xs font-black uppercase tracking-widest pr-1">Locked</span>
-              </>
-            ) : (
-              <>
-                <svg viewBox="0 0 24 24" className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth={2.5}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M8 11V7a4 4 0 118 0m-4 8v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2z" />
-                </svg>
-                <span className="text-xs font-black uppercase tracking-widest pr-1">Unlocked</span>
-              </>
-            )}
-          </div>
-        </motion.button>
-      </div>
 
       <motion.div variants={pageVariants} initial="hidden" animate="visible" exit="exit" className="min-h-screen pt-20 pb-16 px-4 lg:px-8 cosmic-bg">
         <div className="max-w-7xl mx-auto flex flex-col gap-5 lg:grid lg:grid-cols-[minmax(0,1.15fr)_minmax(380px,0.85fr)] lg:items-start lg:gap-8">
@@ -195,8 +161,7 @@ function AnnotationView({
 
             <motion.div
               variants={itemVariants}
-              className={`glass rounded-2xl overflow-hidden transition-all duration-300 ${isLocked ? 'ring-4 ring-red-500/30' : ''}`}
-              style={{ pointerEvents: isLocked ? 'none' : 'auto' }}
+              className="glass rounded-2xl overflow-hidden transition-all duration-300"
             >
               <div className="relative aspect-square bg-cosmic-900">
                 {!imgLoaded && !imgError && <div className="absolute inset-0 shimmer-skeleton" />}
@@ -262,7 +227,6 @@ function AnnotationView({
                 showGuide={false}
                 userLabel={userLabel}
                 onUserLabelChange={setUserLabel}
-                isLocked={isLocked}
               />
             </motion.div>
 

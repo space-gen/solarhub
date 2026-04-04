@@ -269,7 +269,7 @@ function RegionEditorPanel({
               <span className="text-[10px] text-slate-500 ml-3">Large</span>
             </div>
             <p className="text-[10px] text-slate-500 leading-relaxed mt-1">
-              Adjust the slider until the circle covers the feature completely.
+              Adjust the slider or drag the blue handle above the circle to cover the feature completely.
             </p>
           </div>
         </div>
@@ -335,19 +335,159 @@ export default function AnnotationPanel({
   // per-spot labels (parallel array to pixelCoords) — null means unlabeled
   const [pixelLabels, setPixelLabels] = useState<Array<UserLabel | null>>([]);
   const [pixelRadii, setPixelRadii] = useState<number[]>([]);
-  const DEFAULT_RADIUS = 5;
+  const DEFAULT_RADIUS = 15;
+  const MIN_RADIUS = 5;
+  const MAX_RADIUS = 300;
+  const LONG_PRESS_DELAY_MS = 450;
+  const LONG_PRESS_MOVE_TOLERANCE_PX = 8;
   const [activeSpotIndex, setActiveSpotIndex] = useState<number | null>(null);
+  const [resizingIndex, setResizingIndex] = useState<number | null>(null);
   const [isNone, setIsNone] = useState(false);
   const [submitting,  setSubmitting]  = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   // Dragging state for markers (pointer events)
   const [draggingIndex, setDraggingIndex] = useState<number | null>(null);
+  const pendingCreationRef = useRef<{
+    pointerId: number;
+    startX: number;
+    startY: number;
+    clientX: number;
+    clientY: number;
+    timerId: number | null;
+    fired: boolean;
+  } | null>(null);
+  const resizeGestureRef = useRef<{
+    pointerId: number;
+    startY: number;
+    startRadius: number;
+  } | null>(null);
   // When the user starts dragging a marker, make it the active spot so the
   // classification controls show for that marker.
   useEffect(() => {
     if (draggingIndex === null) return;
     setActiveSpotIndex(draggingIndex);
   }, [draggingIndex]);
+
+  const clampRadius = (radius: number) => Math.min(Math.max(Math.round(radius), MIN_RADIUS), MAX_RADIUS);
+
+  const addMarkerAt = (clientX: number, clientY: number) => {
+    if (isLocked || isPinchingRef.current) return;
+    const rect = imageRef.current?.getBoundingClientRect();
+    if (!rect) return;
+
+    const xPct = Math.min(Math.max((clientX - rect.left) / rect.width, 0), 1);
+    const yPct = Math.min(Math.max((clientY - rect.top) / rect.height, 0), 1);
+    const x1024 = Math.round(xPct * 1024);
+    const y1024 = Math.round(yPct * 1024);
+
+    setPixelCoords(prev => {
+      const next = [...prev, { x: x1024, y: y1024, xPct, yPct }];
+      setPixelLabels(pl => [...pl, null]);
+      setPixelRadii(pr => [...pr, DEFAULT_RADIUS]);
+      setActiveSpotIndex(next.length - 1);
+      setIsNone(false);
+      return next;
+    });
+  };
+
+  const clearPendingCreation = () => {
+    const pending = pendingCreationRef.current;
+    if (!pending) return;
+    if (pending.timerId !== null) {
+      window.clearTimeout(pending.timerId);
+    }
+    pendingCreationRef.current = null;
+  };
+
+  const beginLongPressCreation = (event: React.PointerEvent<Element>) => {
+    if (isLocked || isPinchingRef.current) return;
+    if (event.button !== 0) return;
+
+    const target = event.target as Element;
+    if (target && target.tagName.toLowerCase() !== 'svg') return;
+
+    clearPendingCreation();
+
+    const pending = {
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      clientX: event.clientX,
+      clientY: event.clientY,
+      timerId: null as number | null,
+      fired: false,
+    };
+
+    pending.timerId = window.setTimeout(() => {
+      if (pendingCreationRef.current !== pending) return;
+      pending.fired = true;
+      addMarkerAt(pending.clientX, pending.clientY);
+    }, LONG_PRESS_DELAY_MS);
+
+    pendingCreationRef.current = pending;
+
+    try {
+      (event.currentTarget as Element & { setPointerCapture?: (pointerId: number) => void }).setPointerCapture?.(event.pointerId);
+    } catch {
+      // ignore capture failures; the long press still works without it
+    }
+  };
+
+  const updatePendingCreation = (event: React.PointerEvent<Element>) => {
+    const pending = pendingCreationRef.current;
+    if (!pending || pending.pointerId !== event.pointerId || pending.fired) return;
+
+    pending.clientX = event.clientX;
+    pending.clientY = event.clientY;
+
+    const movedDistance = Math.hypot(event.clientX - pending.startX, event.clientY - pending.startY);
+    if (movedDistance > LONG_PRESS_MOVE_TOLERANCE_PX) {
+      clearPendingCreation();
+    }
+  };
+
+  const endPointerGesture = () => {
+    clearPendingCreation();
+    resizeGestureRef.current = null;
+    setDraggingIndex(null);
+    setResizingIndex(null);
+  };
+
+  const beginResizeGesture = (event: React.PointerEvent<SVGCircleElement>, idx: number) => {
+    if (isLocked) return;
+    event.stopPropagation();
+    clearPendingCreation();
+    setDraggingIndex(null);
+    setResizingIndex(idx);
+    setActiveSpotIndex(idx);
+    resizeGestureRef.current = {
+      pointerId: event.pointerId,
+      startY: event.clientY,
+      startRadius: pixelRadii[idx] ?? DEFAULT_RADIUS,
+    };
+
+    try {
+      event.currentTarget.setPointerCapture(event.pointerId);
+    } catch {
+      // ignore capture failures; resizing still works with bubbling pointer events
+    }
+  };
+
+  const beginMoveGesture = (event: React.PointerEvent<SVGCircleElement>, idx: number) => {
+    if (isLocked) return;
+    event.stopPropagation();
+    clearPendingCreation();
+    setResizingIndex(null);
+    resizeGestureRef.current = null;
+    setDraggingIndex(idx);
+    setActiveSpotIndex(idx);
+
+    try {
+      event.currentTarget.setPointerCapture(event.pointerId);
+    } catch {
+      // ignore capture failures; moving still works with bubbling pointer events
+    }
+  };
 
   // Portal container when rendering overlays onto an external image element
   const [portalContainer, setPortalContainer] = useState<HTMLElement | null>(null);
@@ -403,67 +543,12 @@ export default function AnnotationPanel({
     }
     const onLoad = () => setNaturalSize({ w: imgEl.naturalWidth, h: imgEl.naturalHeight });
 
-    // Click / pointer handler so clicks on the external image add markers here
-    const onPointerDown = (e: PointerEvent) => {
-      // If locked or pinch gesture active, ignore pointer-down to avoid adding markers
-      if (isLocked || isPinchingRef.current) return;
-      // Only respond to primary button / touch
-      if ((e as PointerEvent).button && (e as PointerEvent).button !== 0) return;
-      const rect = imgEl.getBoundingClientRect();
-      const xPct = Math.min(Math.max((e.clientX - rect.left) / rect.width, 0), 1);
-      const yPct = Math.min(Math.max((e.clientY - rect.top) / rect.height, 0), 1);
-      const x1024 = Math.round(xPct * 1024);
-      const y1024 = Math.round(yPct * 1024);
-      setPixelCoords(prev => {
-        const next = [...prev, { x: x1024, y: y1024, xPct, yPct }];
-        // keep pixelLabels and radii aligned
-        setPixelLabels(pl => [...pl, null]);
-        setPixelRadii(pr => [...pr, DEFAULT_RADIUS]);
-        setActiveSpotIndex(next.length - 1);
-        return next;
-      });
-    };
-
-    // Use native handlers defined at component scope so JSX can call them too
-
     imgEl.addEventListener('load', onLoad);
-    imgEl.addEventListener('pointerdown', onPointerDown);
-    imgEl.addEventListener('touchstart', onTouchStartNative, { passive: true });
-    imgEl.addEventListener('touchmove', onTouchMoveNative, { passive: false });
-    imgEl.addEventListener('touchend', onTouchEndNative);
-    imgEl.addEventListener('touchcancel', onTouchEndNative);
 
     return () => {
       imgEl.removeEventListener('load', onLoad);
-      imgEl.removeEventListener('pointerdown', onPointerDown);
-      imgEl.removeEventListener('touchstart', onTouchStartNative as EventListener);
-      imgEl.removeEventListener('touchmove', onTouchMoveNative as EventListener);
-      imgEl.removeEventListener('touchend', onTouchEndNative as EventListener);
-      imgEl.removeEventListener('touchcancel', onTouchEndNative as EventListener);
     };
   }, [externalImageId]);
-
-  // Click to add a selection — map to 1024x1024 canonical pixels and store percent for rendering
-  const handleImageClick = (e: React.MouseEvent<HTMLImageElement>) => {
-    // Prevent adding during pinch gesture or if locked
-    if (isLocked || isPinchingRef.current) return;
-    const rect = e.currentTarget.getBoundingClientRect();
-    const dispX = e.clientX - rect.left;
-    const dispY = e.clientY - rect.top;
-    const xPct = dispX / rect.width;
-    const yPct = dispY / rect.height;
-    // Map to canonical 1024x1024 pixel grid regardless of source resolution
-    const x1024 = Math.round(xPct * 1024);
-    const y1024 = Math.round(yPct * 1024);
-    setPixelCoords(prev => {
-      const next = [...prev, { x: x1024, y: y1024, xPct, yPct }];
-      setPixelLabels(pl => [...pl, null]);
-      setPixelRadii(pr => [...pr, DEFAULT_RADIUS]);
-      setActiveSpotIndex(next.length - 1);
-      setIsNone(false); // Disable 'none' if user marks a region
-      return next;
-    });
-  };
 
   const handleToggleNone = () => {
     const nextNone = !isNone;
@@ -560,7 +645,24 @@ export default function AnnotationPanel({
           <div
             className="relative inline-block w-full max-w-[512px] group"
             onPointerMove={(e: React.PointerEvent) => {
-              if (draggingIndex === null || isLocked) return;
+              if (isLocked) return;
+
+              if (resizingIndex !== null) {
+                const resizeGesture = resizeGestureRef.current;
+                const rect = imageRef.current?.getBoundingClientRect();
+                if (!resizeGesture || resizeGesture.pointerId !== e.pointerId || !rect) return;
+
+                const deltaRadius = ((resizeGesture.startY - e.clientY) / rect.height) * 1024;
+                const nextRadius = clampRadius(resizeGesture.startRadius + deltaRadius);
+                setPixelRadii(pr => pr.map((radius, i) => i === resizingIndex ? nextRadius : radius));
+                return;
+              }
+
+              if (draggingIndex === null) {
+                updatePendingCreation(e);
+                return;
+              }
+
               const rect = imageRef.current?.getBoundingClientRect();
               if (!rect) return;
               const xPct = Math.min(Math.max((e.clientX - rect.left) / rect.width, 0), 1);
@@ -569,7 +671,8 @@ export default function AnnotationPanel({
               const y1024 = Math.round(yPct * 1024);
               setPixelCoords(prev => prev.map((p, i) => i === draggingIndex ? { x: x1024, y: y1024, xPct, yPct } : p));
             }}
-            onPointerUp={() => setDraggingIndex(null)}
+            onPointerUp={endPointerGesture}
+            onPointerCancel={endPointerGesture}
           >
             {/* Blocking Overlay - absolutely prevents interaction when locked */}
             {isLocked && (
@@ -591,51 +694,30 @@ export default function AnnotationPanel({
                   alt="Solar observation"
                   className="w-full rounded-2xl border border-white/10 shadow-inner"
                   style={{ cursor: isLocked ? 'default' : 'crosshair', display: 'block', touchAction: 'none' }}
-                  onClick={handleImageClick}
                   onLoad={handleImageLoad}
                 />
                 <svg
                   viewBox="0 0 100 100"
                   preserveAspectRatio="none"
-                  onPointerDown={(e: React.PointerEvent<SVGSVGElement>) => {
-                    // If locked or pinching, ignore adding markers
-                    if (isLocked || isPinchingRef.current) return;
-                    // Add a marker when user clicks empty SVG background (not on an existing circle)
-                    const target = e.target as Element;
-                    if (target && target.tagName.toLowerCase() !== 'svg') return;
-                    const rect = imageRef.current?.getBoundingClientRect();
-                    if (!rect) return;
-                    const xPct = Math.min(Math.max((e.clientX - rect.left) / rect.width, 0), 1);
-                    const yPct = Math.min(Math.max((e.clientY - rect.top) / rect.height, 0), 1);
-                    const x1024 = Math.round(xPct * 1024);
-                    const y1024 = Math.round(yPct * 1024);
-                    setPixelCoords(prev => {
-                      const next = [...prev, { x: x1024, y: y1024, xPct, yPct }];
-                      setPixelLabels(pl => [...pl, null]);
-                      setPixelRadii(pr => [...pr, DEFAULT_RADIUS]);
-                      setActiveSpotIndex(next.length - 1);
-                      setIsNone(false); // Disable 'none' if user marks a region
-                      return next;
-                    });
-                  }}
+                  onPointerDown={beginLongPressCreation}
+                  onPointerMove={updatePendingCreation}
+                  onPointerUp={endPointerGesture}
+                  onPointerCancel={endPointerGesture}
                   onTouchStart={overlayTouchStart}
                   onTouchMove={overlayTouchMove}
                   onTouchEnd={overlayTouchEnd}
+                  onContextMenu={e => e.preventDefault()}
                   className="absolute inset-0 w-full h-full pointer-events-auto touch-none overflow-visible"
                 >
                   {pixelCoords.map((p, idx) => {
                     const radiusPct = ((pixelRadii[idx] ?? DEFAULT_RADIUS) / 1024) * 100;
                     const isActive = activeSpotIndex === idx;
+                    const handleY = `${(p.yPct ?? 0) * 100 - radiusPct - 2}`;
                     return (
                       <g key={idx}>
                         {/* Translucent draggable region */}
                         <circle
-                          onPointerDown={e => {
-                            if (isLocked) return;
-                            e.stopPropagation();
-                            setDraggingIndex(idx);
-                            setActiveSpotIndex(idx);
-                          }}
+                          onPointerDown={e => beginMoveGesture(e, idx)}
                           cx={`${(p.xPct ?? 0) * 100}`}
                           cy={`${(p.yPct ?? 0) * 100}`}
                           r={radiusPct}
@@ -644,6 +726,31 @@ export default function AnnotationPanel({
                           stroke={isActive ? 'rgba(59,130,246,0.8)' : 'rgba(34,197,94,0.8)'}
                           strokeWidth={isActive ? 0.6 : 0.4}
                         />
+                        {isActive && !isLocked && (
+                          <g>
+                            <line
+                              x1={`${(p.xPct ?? 0) * 100}`}
+                              y1={`${(p.yPct ?? 0) * 100 - radiusPct}`}
+                              x2={`${(p.xPct ?? 0) * 100}`}
+                              y2={handleY}
+                              stroke="rgba(96,165,250,0.8)"
+                              strokeWidth={0.35}
+                              strokeLinecap="round"
+                              strokeDasharray="0.8 0.8"
+                              className="pointer-events-none"
+                            />
+                            <circle
+                              cx={`${(p.xPct ?? 0) * 100}`}
+                              cy={handleY}
+                              r={1.4}
+                              fill="rgba(96,165,250,0.95)"
+                              stroke="white"
+                              strokeWidth={0.25}
+                              style={{ cursor: 'ns-resize', pointerEvents: 'auto' }}
+                              onPointerDown={e => beginResizeGesture(e, idx)}
+                            />
+                          </g>
+                        )}
                         <text
                           x={`${(p.xPct ?? 0) * 100}`}
                           y={`${(p.yPct ?? 0) * 100}`}
@@ -663,43 +770,24 @@ export default function AnnotationPanel({
                 <svg
                   viewBox="0 0 100 100"
                   preserveAspectRatio="none"
-                  onPointerDown={(e: React.PointerEvent<SVGSVGElement>) => {
-                    // If locked or pinching, ignore adding markers
-                    if (isLocked || isPinchingRef.current) return;
-                    const target = e.target as Element;
-                    if (target && target.tagName.toLowerCase() !== 'svg') return;
-                    const rect = imageRef.current?.getBoundingClientRect();
-                    if (!rect) return;
-                    const xPct = Math.min(Math.max((e.clientX - rect.left) / rect.width, 0), 1);
-                    const yPct = Math.min(Math.max((e.clientY - rect.top) / rect.height, 0), 1);
-                    const x1024 = Math.round(xPct * 1024);
-                    const y1024 = Math.round(yPct * 1024);
-                    setPixelCoords(prev => {
-                      const next = [...prev, { x: x1024, y: y1024, xPct, yPct }];
-                      setPixelLabels(pl => [...pl, null]);
-                      setPixelRadii(pr => [...pr, DEFAULT_RADIUS]);
-                      setActiveSpotIndex(next.length - 1);
-                      setIsNone(false);
-                      return next;
-                    });
-                  }}
+                  onPointerDown={beginLongPressCreation}
+                  onPointerMove={updatePendingCreation}
+                  onPointerUp={endPointerGesture}
+                  onPointerCancel={endPointerGesture}
                   onTouchStart={overlayTouchStart}
                   onTouchMove={overlayTouchMove}
                   onTouchEnd={overlayTouchEnd}
+                  onContextMenu={e => e.preventDefault()}
                   style={{ position: 'absolute', left: 0, top: 0, width: '100%', height: '100%', pointerEvents: isLocked ? 'none' : 'auto', touchAction: 'none' }}
                 >
                   {pixelCoords.map((p, idx) => {
                     const radiusPct = ((pixelRadii[idx] ?? DEFAULT_RADIUS) / 1024) * 100;
                     const isActive = activeSpotIndex === idx;
+                    const handleY = `${(p.yPct ?? 0) * 100 - radiusPct - 2}`;
                     return (
                       <g key={idx}>
                         <circle
-                          onPointerDown={e => {
-                            if (isLocked) return;
-                            e.stopPropagation();
-                            setDraggingIndex(idx);
-                            setActiveSpotIndex(idx);
-                          }}
+                          onPointerDown={e => beginMoveGesture(e, idx)}
                           cx={`${(p.xPct ?? 0) * 100}`}
                           cy={`${(p.yPct ?? 0) * 100}`}
                           r={radiusPct}
@@ -708,6 +796,31 @@ export default function AnnotationPanel({
                           stroke={isActive ? 'rgba(59,130,246,0.8)' : 'rgba(34,197,94,0.8)'}
                           strokeWidth={isActive ? 0.6 : 0.4}
                         />
+                        {isActive && !isLocked && (
+                          <g>
+                            <line
+                              x1={`${(p.xPct ?? 0) * 100}`}
+                              y1={`${(p.yPct ?? 0) * 100 - radiusPct}`}
+                              x2={`${(p.xPct ?? 0) * 100}`}
+                              y2={handleY}
+                              stroke="rgba(96,165,250,0.8)"
+                              strokeWidth={0.35}
+                              strokeLinecap="round"
+                              strokeDasharray="0.8 0.8"
+                              className="pointer-events-none"
+                            />
+                            <circle
+                              cx={`${(p.xPct ?? 0) * 100}`}
+                              cy={handleY}
+                              r={1.4}
+                              fill="rgba(96,165,250,0.95)"
+                              stroke="white"
+                              strokeWidth={0.25}
+                              style={{ cursor: 'ns-resize', pointerEvents: 'auto' }}
+                              onPointerDown={e => beginResizeGesture(e, idx)}
+                            />
+                          </g>
+                        )}
                         <text
                           x={`${(p.xPct ?? 0) * 100}`}
                           y={`${(p.yPct ?? 0) * 100}`}
@@ -807,7 +920,7 @@ export default function AnnotationPanel({
               <div className="p-6 rounded-2xl border-2 border-dashed border-white/5 bg-white/2 text-center">
                 <span className="text-2xl mb-2 block">🎯</span>
                 <p className="text-[11px] font-medium text-slate-500 leading-relaxed uppercase tracking-widest">
-                  Tap the solar image above to mark areas of interest
+                  Long-press the solar image above to mark areas of interest
                 </p>
               </div>
             )}

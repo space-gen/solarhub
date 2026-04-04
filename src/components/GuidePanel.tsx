@@ -125,7 +125,7 @@ export default function GuidePanel({
         <details className="mt-3 bg-white/3 p-3 rounded-lg">
           <summary className="cursor-pointer text-slate-200 text-sm font-semibold">More info & examples</summary>
           <div className="mt-2 text-xs text-slate-400">
-            <p className="mb-2"><strong>How to mark regions</strong>: Click the image to add numbered markers. Drag a marker to reposition it. Use the slider to adjust the region size.</p>
+            <p className="mb-2"><strong>How to mark regions</strong>: Long-press the image to add numbered markers. Drag a marker to reposition it. Use the slider or blue handle to adjust the region size.</p>
             <p className="mb-2"><strong>Sunspots</strong>: Mark dark circular regions on the disk. Try to place markers on the center; for groups place 1–3 markers on the most prominent areas.</p>
             <p className="mb-2"><strong>Magnetograms</strong>: Place a marker on the centre of the region. Use the "Region radius" slider to cover the area.</p>
             <p className="mb-2"><strong>Flares</strong>: Click the brightest point of the flash.</p>
