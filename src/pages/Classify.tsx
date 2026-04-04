@@ -356,24 +356,22 @@ function AnnotationView({
                       </div>
                     </div>
 
-                    {/* Arrow Navigation Controls - Bottom Center (only when zoomed) */}
+                    {/* Arrow Navigation Controls - Bottom Right (only when zoomed) */}
                     {imageZoom > 1 && (
-                      <div className="absolute left-1/2 bottom-4 -translate-x-1/2 z-40 flex flex-col items-center gap-1.5">
-                        <div className="flex items-center gap-1.5">
-                          <button
-                            type="button"
-                            onClick={() => panImage(0, panStep)}
-                            className="h-10 w-10 rounded-lg border border-white/20 bg-black/70 text-white text-lg backdrop-blur-md hover:bg-black/80 active:bg-black/90 transition-colors touch-manipulation shadow-xl"
-                            title="Pan up"
-                          >
-                            ↑
-                          </button>
-                        </div>
-                        <div className="flex items-center gap-1.5">
+                      <div className="absolute right-2 bottom-2 sm:right-3 sm:bottom-3 z-40 flex flex-col items-center gap-1">
+                        <button
+                          type="button"
+                          onClick={() => panImage(0, panStep)}
+                          className="h-8 w-8 sm:h-9 sm:w-9 rounded-md border border-white/20 bg-black/50 text-white text-sm backdrop-blur-sm hover:bg-black/70 active:bg-black/80 transition-colors touch-manipulation shadow-lg"
+                          title="Pan up"
+                        >
+                          ↑
+                        </button>
+                        <div className="flex items-center gap-1">
                           <button
                             type="button"
                             onClick={() => panImage(panStep, 0)}
-                            className="h-10 w-10 rounded-lg border border-white/20 bg-black/70 text-white text-lg backdrop-blur-md hover:bg-black/80 active:bg-black/90 transition-colors touch-manipulation shadow-xl"
+                            className="h-8 w-8 sm:h-9 sm:w-9 rounded-md border border-white/20 bg-black/50 text-white text-sm backdrop-blur-sm hover:bg-black/70 active:bg-black/80 transition-colors touch-manipulation shadow-lg"
                             title="Pan left"
                           >
                             ←
@@ -381,7 +379,7 @@ function AnnotationView({
                           <button
                             type="button"
                             onClick={() => panImage(0, 0)}
-                            className="h-10 w-10 rounded-lg border border-white/20 bg-black/70 text-white text-xs backdrop-blur-md hover:bg-black/80 active:bg-black/90 transition-colors touch-manipulation shadow-xl"
+                            className="h-8 w-8 sm:h-9 sm:w-9 rounded-md border border-white/20 bg-black/50 text-white text-xs backdrop-blur-sm hover:bg-black/70 active:bg-black/80 transition-colors touch-manipulation shadow-lg"
                             title="Reset position"
                           >
                             ⌖
@@ -389,25 +387,20 @@ function AnnotationView({
                           <button
                             type="button"
                             onClick={() => panImage(-panStep, 0)}
-                            className="h-10 w-10 rounded-lg border border-white/20 bg-black/70 text-white text-lg backdrop-blur-md hover:bg-black/80 active:bg-black/90 transition-colors touch-manipulation shadow-xl"
+                            className="h-8 w-8 sm:h-9 sm:w-9 rounded-md border border-white/20 bg-black/50 text-white text-sm backdrop-blur-sm hover:bg-black/70 active:bg-black/80 transition-colors touch-manipulation shadow-lg"
                             title="Pan right"
                           >
                             →
                           </button>
                         </div>
-                        <div className="flex items-center gap-1.5">
-                          <button
-                            type="button"
-                            onClick={() => panImage(0, -panStep)}
-                            className="h-10 w-10 rounded-lg border border-white/20 bg-black/70 text-white text-lg backdrop-blur-md hover:bg-black/80 active:bg-black/90 transition-colors touch-manipulation shadow-xl"
-                            title="Pan down"
-                          >
-                            ↓
-                          </button>
-                        </div>
-                        <div className="mt-1 px-2 py-1 rounded-md bg-black/60 backdrop-blur-sm text-[10px] text-slate-300">
-                          Drag or use arrows to pan
-                        </div>
+                        <button
+                          type="button"
+                          onClick={() => panImage(0, -panStep)}
+                          className="h-8 w-8 sm:h-9 sm:w-9 rounded-md border border-white/20 bg-black/50 text-white text-sm backdrop-blur-sm hover:bg-black/70 active:bg-black/80 transition-colors touch-manipulation shadow-lg"
+                          title="Pan down"
+                        >
+                          ↓
+                        </button>
                       </div>
                     )}
                   </>
@@ -453,7 +446,8 @@ function AnnotationView({
                   )}
                 </div>
               </div>
-              <div className="px-4 py-3 flex flex-col gap-2 text-xs text-slate-500 border-t border-white/5 lg:flex-row lg:items-center lg:justify-between">
+              {!isImageFullscreen && (
+                <div className="px-4 py-3 flex flex-col gap-2 text-xs text-slate-500 border-t border-white/5 lg:flex-row lg:items-center lg:justify-between">
                 <div className="flex items-center gap-3">
                   <span>{task.source}</span>
                   {task.date && <span>{task.date}</span>}
@@ -475,6 +469,7 @@ function AnnotationView({
                   )}
                 </div>
               </div>
+              )}
             </motion.div>
           </div>
 
