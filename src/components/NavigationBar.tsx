@@ -210,11 +210,12 @@ export default function NavigationBar({ points }: NavBarProps) {
         className={[
           'fixed top-0 left-0 right-0 z-50',
           'glass-dark border-b border-white/[0.06]',
+          'backdrop-blur-2xl',
           scrolled ? 'shadow-glass-lg' : '',
         ].join(' ')}
       >
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-16">
+          <div className="flex items-center justify-between h-16 lg:h-20">
             <NavLink
               to="/"
               className="flex items-center gap-3 group select-none"
@@ -232,7 +233,7 @@ export default function NavigationBar({ points }: NavBarProps) {
               </div>
             </NavLink>
 
-            <div className="hidden md:flex items-center gap-1">
+            <div className="hidden md:flex items-center gap-1 lg:gap-2">
               {NAV_ITEMS.map(item => (
                 <DesktopNavLink key={item.to} item={item} />
               ))}
