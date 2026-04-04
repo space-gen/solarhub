@@ -11,11 +11,11 @@ export default function Footer() {
             Fund this project
           </Link>
 
-          <a href="https://www.patreon.com/SoumyadipKarforma" target="_blank" rel="noopener noreferrer" className="btn-secondary px-3 py-2 rounded text-sm">
+          <a href="https://www.patreon.com/SoumyadipKarforma" target="_blank" rel="noopener noreferrer" className="text-slate-300 hover:underline text-sm">
             Patreon
           </a>
 
-          <a href="https://www.buymeacoffee.com/soumyadipkarforma" target="_blank" rel="noopener noreferrer" className="btn-secondary px-3 py-2 rounded text-sm">
+          <a href="https://www.buymeacoffee.com/soumyadipkarforma" target="_blank" rel="noopener noreferrer" className="text-slate-300 hover:underline text-sm">
             Buy me a coffee
           </a>
 

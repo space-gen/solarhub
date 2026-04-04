@@ -33,16 +33,24 @@ export default function Funding() {
             and community events) to grow the SolarHub contributor base.
           </motion.p>
 
-          <motion.div variants={itemVariants} className="flex flex-col md:flex-row gap-4 items-start">
-            <a href="mailto:soumyadipkarforma02@gmail.com" className="btn-solar px-6 py-3 rounded-2xl">
+          <motion.div variants={itemVariants} className="flex flex-col sm:flex-row gap-4 items-start w-full">
+            <a href="mailto:soumyadipkarforma02@gmail.com" className="btn-solar w-full sm:w-auto px-6 py-3 rounded-2xl text-center">
               Contact to Donate (email)
             </a>
 
-            <a href="https://github.com/sponsors/soumyadipkarforma" target="_blank" rel="noopener noreferrer" className="btn-solar px-6 py-3 rounded-2xl">
+            <a href="https://github.com/sponsors/soumyadipkarforma" target="_blank" rel="noopener noreferrer" className="btn-solar w-full sm:w-auto px-6 py-3 rounded-2xl text-center">
               Sponsor on GitHub
             </a>
 
-            <a href="/" className="btn-secondary px-6 py-3 rounded-2xl">
+            <a href="https://www.patreon.com/SoumyadipKarforma" target="_blank" rel="noopener noreferrer" className="btn-secondary w-full sm:w-auto px-6 py-3 rounded-2xl text-center">
+              Patreon
+            </a>
+
+            <a href="https://www.buymeacoffee.com/soumyadipkarforma" target="_blank" rel="noopener noreferrer" className="btn-secondary w-full sm:w-auto px-6 py-3 rounded-2xl text-center">
+              Buy me a coffee
+            </a>
+
+            <a href="/solarhub/" className="btn-secondary w-full sm:w-auto px-6 py-3 rounded-2xl text-center">
               Back to Home
             </a>
           </motion.div>
