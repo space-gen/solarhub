@@ -134,7 +134,7 @@ export default function Connect() {
                   <h2 className="text-lg font-bold text-slate-100">2) Connect GitHub (Device Flow)</h2>
                   <p className="text-sm text-slate-400">
                     You will get a short <strong>device code</strong>. Then you manually paste it at{' '}
-                    <a className="text-solar-300 underline underline-offset-2" href="https://github.com/login/device" target="_blank" rel="noopener noreferrer">
+                    <a className="px-3 py-2 rounded-xl border border-solar-500/20 text-solar-300 hover:bg-white/5 transition-colors inline-block" href="https://github.com/login/device" target="_blank" rel="noopener noreferrer">
                       github.com/login/device
                     </a>.
                     GitHub will ask permission for this app to create issues on your behalf (
@@ -226,7 +226,7 @@ export default function Connect() {
                           href={deviceFlow.verification_uri_complete ?? deviceFlow.verification_uri ?? 'https://github.com/login/device'}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="mt-2 inline-block text-xs text-solar-300 underline underline-offset-2 break-all"
+                          className="mt-2 inline-block text-xs text-solar-300 px-3 py-1 rounded border border-solar-500/20 hover:bg-white/5 break-all"
                         >
                           {deviceFlow.verification_uri_complete ?? deviceFlow.verification_uri ?? 'https://github.com/login/device'}
                         </a>
