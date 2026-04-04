@@ -11,6 +11,7 @@ type SyncConfig = {
 };
 
 async function githubFetch(url: string, init: RequestInit, token: string): Promise<Response> {
+  // Accept both modern bearer semantics and legacy PAT semantics by retrying once.
   const bearerHeaders = {
     ...(init.headers ?? {}),
     Authorization: `Bearer ${token}`,
@@ -36,6 +37,7 @@ async function githubGetFile(config: SyncConfig): Promise<{ sha: string; content
   if (res.status === 404) return null;
   if (!res.ok) throw new Error(`GitHub download failed: ${res.status}`);
   const json = await res.json() as { sha: string; content: string };
+  // GitHub contents API may return base64 split with newlines; normalize before decode/write.
   return { sha: json.sha, content: json.content.replace(/\n/g, '') };
 }
 

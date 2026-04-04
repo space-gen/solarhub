@@ -51,6 +51,7 @@ export interface AnnotationPanelNativeProps {
 }
 
 // Radius bounds in canonical 1024-space, matching web scaling logic.
+const CANONICAL_DIMENSION = 1024;
 const DEFAULT_RADIUS = 5;
 const MAX_RADIUS = 300;
 const RESIZE_HANDLE_THRESHOLD = 18;
@@ -73,8 +74,8 @@ function mapPointToCanonical(x: number, y: number, width: number, height: number
   const xPct = clamp01(x / width);
   const yPct = clamp01(y / height);
   // Keep canonical coordinate scaling exactly aligned with the web component.
-  const x1024 = Math.round(xPct * 1024);
-  const y1024 = Math.round(yPct * 1024);
+  const x1024 = Math.round(xPct * CANONICAL_DIMENSION);
+  const y1024 = Math.round(yPct * CANONICAL_DIMENSION);
   return { x: x1024, y: y1024, xPct, yPct };
 }
 
@@ -85,6 +86,13 @@ function distance(aX: number, aY: number, bX: number, bY: number): number {
 function deriveOverallUserLabel(spotLabels: Array<UserLabel | null>, isNone: boolean): UserLabel {
   if (isNone) return 'none';
   return (spotLabels.find(l => l !== null) as UserLabel | undefined) ?? 'none';
+}
+
+function calculateRadiusFromDistance(distancePx: number, layoutWidth: number): number {
+  return Math.max(
+    DEFAULT_RADIUS,
+    Math.min(MAX_RADIUS, Math.round((distancePx / layoutWidth) * CANONICAL_DIMENSION)),
+  );
 }
 
 export default function AnnotationPanelNative({
@@ -121,7 +129,7 @@ export default function AnnotationPanelNative({
 
     ctx.clearRect(0, 0, layout.width, layout.height);
     spots.forEach((spot, idx) => {
-      const radiusPx = ((spotRadii[idx] ?? DEFAULT_RADIUS) / 1024) * layout.width;
+      const radiusPx = ((spotRadii[idx] ?? DEFAULT_RADIUS) / CANONICAL_DIMENSION) * layout.width;
       const cx = spot.xPct * layout.width;
       const cy = spot.yPct * layout.height;
       const isActive = idx === activeSpotIndex;
@@ -169,7 +177,7 @@ export default function AnnotationPanelNative({
       const spot = spots[i];
       const cx = spot.xPct * layout.width;
       const cy = spot.yPct * layout.height;
-      const radiusPx = ((spotRadii[i] ?? DEFAULT_RADIUS) / 1024) * layout.width;
+      const radiusPx = ((spotRadii[i] ?? DEFAULT_RADIUS) / CANONICAL_DIMENSION) * layout.width;
       const d = distance(x, y, cx, cy);
       if (Math.abs(d - radiusPx) <= RESIZE_HANDLE_THRESHOLD) {
         return { index: i, centerX: cx, centerY: cy };
@@ -194,7 +202,7 @@ export default function AnnotationPanelNative({
       if (!resizing) return;
       const { locationX, locationY } = event.nativeEvent;
       const d = distance(locationX, locationY, resizing.centerX, resizing.centerY);
-      const nextRadius = Math.max(DEFAULT_RADIUS, Math.min(MAX_RADIUS, Math.round((d / layout.width) * 1024)));
+      const nextRadius = calculateRadiusFromDistance(d, layout.width);
       setSpotRadii(prev => prev.map((r, i) => (i === resizing.index ? nextRadius : r)));
     },
     onPanResponderRelease: event => {

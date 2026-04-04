@@ -40,7 +40,7 @@ export async function startGitHubAuthSession(clientId: string): Promise<string> 
   const redirectUri = AuthSession.makeRedirectUri({ scheme: 'solarhub' });
   const query = new URLSearchParams({
     client_id: clientId,
-    scope: 'public_repo',
+    scope: 'repo',
     redirect_uri: redirectUri,
   });
   const authUrl = `https://github.com/login/oauth/authorize?${query.toString()}`;
