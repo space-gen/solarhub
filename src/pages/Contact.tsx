@@ -10,16 +10,16 @@ export default function Contact() {
       initial="hidden"
       animate="visible"
       exit="exit"
-      className="min-h-screen pt-24 pb-16 px-4"
+      className="min-h-screen pt-24 pb-16 px-4 lg:px-8"
     >
       <StarField />
 
-      <div className="max-w-4xl mx-auto relative z-10 flex flex-col gap-12">
+      <div className="max-w-6xl mx-auto relative z-10 flex flex-col gap-12">
         <motion.div variants={cosmicEntranceUp} className="text-center flex flex-col items-center gap-4">
-          <h1 className="text-5xl md:text-7xl font-black tracking-tight">
+          <h1 className="text-5xl md:text-7xl lg:text-8xl font-black tracking-tight">
             Get in <span className="gradient-text">Touch</span>
           </h1>
-          <p className="text-xl text-slate-300 max-w-2xl">
+          <p className="text-xl text-slate-300 max-w-3xl">
             Have questions or want to collaborate? We'd love to hear from you.
           </p>
           <div className="flex gap-4 mt-2">

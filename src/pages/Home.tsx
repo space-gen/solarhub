@@ -353,70 +353,72 @@ export default function Home() {
       {/* ──────────────────────────────────────────────────────────────────── */}
       {/* Hero section                                                          */}
       {/* ──────────────────────────────────────────────────────────────────── */}
-      <section className="relative min-h-screen flex flex-col items-center justify-center
-                           text-center px-4 pt-20 pb-16 overflow-hidden cosmic-bg">
+      <section className="relative min-h-screen flex items-center justify-center
+               text-center lg:text-left px-4 lg:px-8 pt-24 pb-16 lg:pb-24 overflow-hidden cosmic-bg">
 
         {/* Star field background */}
         <StarField />
 
         {/* Content stack */}
-        <div className="relative z-10 flex flex-col items-center gap-8 max-w-4xl">
+        <div className="relative z-10 w-full max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-[minmax(0,1.05fr)_minmax(320px,0.95fr)] items-center gap-12 lg:gap-16">
 
-          {/* Animated sun */}
-          <motion.div variants={cosmicEntrance}>
+          <div className="flex flex-col items-center lg:items-start gap-8">
+            <motion.div variants={cosmicEntrance} className="lg:hidden">
+              <HeroSun />
+            </motion.div>
+
+            <motion.div variants={cosmicEntranceUp} className="flex flex-col items-center lg:items-start gap-4">
+              <h1 className="text-6xl md:text-8xl font-black tracking-tight flex flex-col items-center lg:items-start">
+                <span className="gradient-text">SolarHub</span>
+                <span className="text-sm md:text-base uppercase tracking-[0.3em] text-slate-500 font-bold -mt-2">
+                  A community project
+                </span>
+              </h1>
+              <p className="text-xl md:text-2xl text-slate-300 max-w-2xl leading-relaxed mt-4">
+                A citizen-science initiative founded by <b>Soumyadip Karforma</b>.
+                Help classify real solar observations from NASA's SDO to build open-source ML datasets.
+              </p>
+            </motion.div>
+
+            <motion.div variants={itemVariants} className="flex flex-col sm:flex-row gap-4 w-full sm:w-auto justify-center lg:justify-start">
+              <motion.button
+                variants={glowButtonVariants}
+                initial="rest"
+                whileHover="hover"
+                whileTap="tap"
+                onClick={() => navigate('/classify')}
+                className="btn-solar text-lg px-10 py-4 rounded-2xl w-full sm:w-auto"
+              >
+                🚀&nbsp; Start Classifying
+              </motion.button>
+
+              <motion.button
+                variants={glowButtonVariants}
+                initial="rest"
+                whileHover="hover"
+                whileTap="tap"
+                onClick={() => navigate('/funding')}
+                className="btn-solar text-sm px-6 py-3 rounded-2xl w-full sm:w-auto"
+              >
+                💙&nbsp; Fund / Donate
+              </motion.button>
+            </motion.div>
+
+            <motion.div
+              variants={itemVariants}
+              animate={{ y: [0, 8, 0] }}
+              transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
+              className="text-slate-600 text-sm flex flex-col items-center lg:items-start gap-1 mt-4"
+            >
+              <span>Scroll to learn more</span>
+              <svg viewBox="0 0 24 24" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+              </svg>
+            </motion.div>
+          </div>
+
+          <motion.div variants={cosmicEntrance} className="hidden lg:flex justify-center">
             <HeroSun />
-          </motion.div>
-
-          {/* Title */}
-          <motion.div variants={cosmicEntranceUp} className="flex flex-col items-center gap-4">
-            <h1 className="text-6xl md:text-8xl font-black tracking-tight flex flex-col items-center">
-              <span className="gradient-text">SolarHub</span>
-              <span className="text-sm md:text-base uppercase tracking-[0.3em] text-slate-500 font-bold -mt-2">
-                A community project
-              </span>
-            </h1>
-            <p className="text-xl md:text-2xl text-slate-300 max-w-2xl leading-relaxed mt-4">
-              A citizen-science initiative founded by <b>Soumyadip Karforma</b>.
-              Help classify real solar observations from NASA's SDO to build open-source ML datasets.
-            </p>
-          </motion.div>
-
-          {/* CTA button */}
-          <motion.div variants={itemVariants} className="flex gap-4">
-            <motion.button
-              variants={glowButtonVariants}
-              initial="rest"
-              whileHover="hover"
-              whileTap="tap"
-              onClick={() => navigate('/classify')}
-              className="btn-solar text-lg px-10 py-4 rounded-2xl"
-            >
-              🚀&nbsp; Start Classifying
-            </motion.button>
-
-            <motion.button
-              variants={glowButtonVariants}
-              initial="rest"
-              whileHover="hover"
-              whileTap="tap"
-              onClick={() => navigate('/funding')}
-              className="btn-solar text-sm px-6 py-3 rounded-2xl"
-            >
-              💙&nbsp; Fund / Donate
-            </motion.button>
-          </motion.div>
-
-          {/* Scroll hint */}
-          <motion.div
-            variants={itemVariants}
-            animate={{ y: [0, 8, 0] }}
-            transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
-            className="text-slate-600 text-sm flex flex-col items-center gap-1 mt-4"
-          >
-            <span>Scroll to learn more</span>
-            <svg viewBox="0 0 24 24" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
-            </svg>
           </motion.div>
         </div>
       </section>
@@ -424,7 +426,7 @@ export default function Home() {
       {/* ──────────────────────────────────────────────────────────────────── */}
       {/* Stats bar                                                             */}
       {/* ──────────────────────────────────────────────────────────────────── */}
-      <section className="py-12 px-4 bg-cosmic-950/80">
+      <section className="py-12 lg:py-16 px-4 lg:px-8 bg-cosmic-950/80">
         <motion.div
           variants={containerVariants}
           initial="hidden"
@@ -439,7 +441,7 @@ export default function Home() {
       {/* ──────────────────────────────────────────────────────────────────── */}
       {/* Feature cards                                                         */}
       {/* ──────────────────────────────────────────────────────────────────── */}
-      <section className="py-24 px-4 cosmic-bg">
+      <section className="py-24 lg:py-32 px-4 lg:px-8 cosmic-bg">
         <div className="max-w-7xl mx-auto flex flex-col items-center gap-12">
           <motion.h2
             className="text-4xl font-bold text-slate-100 text-center"
@@ -457,7 +459,7 @@ export default function Home() {
       {/* ──────────────────────────────────────────────────────────────────── */}
       {/* How it works                                                          */}
       {/* ──────────────────────────────────────────────────────────────────── */}
-      <section className="py-24 px-4 bg-cosmic-950/80">
+      <section className="py-24 lg:py-32 px-4 lg:px-8 bg-cosmic-950/80">
         <div className="max-w-7xl mx-auto flex flex-col items-center gap-8">
           <HowItWorks />
         </div>
@@ -466,7 +468,7 @@ export default function Home() {
       {/* ──────────────────────────────────────────────────────────────────── */}
       {/* Founder Section                                                      */}
       {/* ──────────────────────────────────────────────────────────────────── */}
-      <section className="py-24 px-4 bg-cosmic-950/90 relative overflow-hidden">
+      <section className="py-24 lg:py-32 px-4 lg:px-8 bg-cosmic-950/90 relative overflow-hidden">
         {/* Background glow for this section */}
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px]
                         bg-solar-500/5 rounded-full blur-[120px] pointer-events-none" />
@@ -534,7 +536,7 @@ export default function Home() {
       {/* ──────────────────────────────────────────────────────────────────── */}
       {/* Bottom CTA                                                            */}
       {/* ──────────────────────────────────────────────────────────────────── */}
-      <section className="py-24 px-4 cosmic-bg">
+      <section className="py-24 lg:py-32 px-4 lg:px-8 cosmic-bg">
         <motion.div
           className="max-w-2xl mx-auto text-center flex flex-col items-center gap-8"
           variants={containerVariants}
