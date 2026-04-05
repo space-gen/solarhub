@@ -137,16 +137,6 @@ function AnnotationView({
   const clampZoom = useCallback((value: number) => Math.min(Math.max(Number(value.toFixed(2)), 1), 8), []);
   const zoomStep = 0.2;
 
-  // Calculate max pan limits based on viewport size and zoom
-  const maxPanLimits = useMemo(() => {
-    if (imageZoom <= 1 || !imageViewportRef.current) return { x: 0, y: 0 };
-    const rect = imageViewportRef.current.getBoundingClientRect();
-    return {
-      x: Math.round((rect.width * (imageZoom - 1)) / 2),
-      y: Math.round((rect.height * (imageZoom - 1)) / 2)
-    };
-  }, [imageZoom]);
-
   const toggleImageFullscreen = useCallback(() => {
     const shell = imageShellRef.current;
     if (!shell) return;
@@ -371,38 +361,47 @@ function AnnotationView({
                       </div>
                     </div>
 
-                    {/* Vertical Pan Slider - Left Side (only when zoomed) */}
+                    {/* Arrow Navigation Controls (only when zoomed) */}
                     {imageZoom > 1 && (
                       <>
-                        <div className="absolute left-1 top-1/2 -translate-y-1/2 z-40 h-1/2">
-                          <input
-                            type="range"
-                            min={-maxPanLimits.y}
-                            max={maxPanLimits.y}
-                            step={10}
-                            value={panOffset.y}
-                            onChange={(e) => setPanOffset(prev => getClampedPanOffset({ x: prev.x, y: Number(e.target.value) }, imageZoom))}
-                            className="vertical-slider h-full appearance-none bg-transparent cursor-pointer"
-                            style={{
-                              writingMode: 'vertical-lr',
-                              width: '32px',
-                            }}
-                            title="Pan vertically"
-                          />
+                        {/* Vertical Arrows - Left Side */}
+                        <div className="absolute left-2 top-1/2 -translate-y-1/2 z-40 flex flex-col gap-2">
+                          <button
+                            type="button"
+                            onClick={() => panImage(0, 1)}
+                            className="h-12 w-12 rounded-lg bg-black/30 text-white text-2xl backdrop-blur-sm hover:bg-black/50 active:bg-black/60 transition-colors touch-manipulation border border-white/10"
+                            title="Pan up"
+                          >
+                            ↑
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => panImage(0, -1)}
+                            className="h-12 w-12 rounded-lg bg-black/30 text-white text-2xl backdrop-blur-sm hover:bg-black/50 active:bg-black/60 transition-colors touch-manipulation border border-white/10"
+                            title="Pan down"
+                          >
+                            ↓
+                          </button>
                         </div>
 
-                        {/* Horizontal Pan Slider - Bottom */}
-                        <div className="absolute bottom-1 left-1/2 -translate-x-1/2 z-40 w-1/2">
-                          <input
-                            type="range"
-                            min={-maxPanLimits.x}
-                            max={maxPanLimits.x}
-                            step={10}
-                            value={panOffset.x}
-                            onChange={(e) => setPanOffset(prev => getClampedPanOffset({ x: Number(e.target.value), y: prev.y }, imageZoom))}
-                            className="horizontal-slider w-full appearance-none bg-transparent cursor-pointer h-8"
-                            title="Pan horizontally"
-                          />
+                        {/* Horizontal Arrows - Bottom */}
+                        <div className="absolute bottom-2 left-1/2 -translate-x-1/2 z-40 flex gap-2">
+                          <button
+                            type="button"
+                            onClick={() => panImage(1, 0)}
+                            className="h-12 w-12 rounded-lg bg-black/30 text-white text-2xl backdrop-blur-sm hover:bg-black/50 active:bg-black/60 transition-colors touch-manipulation border border-white/10"
+                            title="Pan left"
+                          >
+                            ←
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => panImage(-1, 0)}
+                            className="h-12 w-12 rounded-lg bg-black/30 text-white text-2xl backdrop-blur-sm hover:bg-black/50 active:bg-black/60 transition-colors touch-manipulation border border-white/10"
+                            title="Pan right"
+                          >
+                            →
+                          </button>
                         </div>
                       </>
                     )}
