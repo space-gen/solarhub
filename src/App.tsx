@@ -16,6 +16,7 @@
 
 import { useState, useEffect } from 'react';
 import { loadDailyProgress } from '@/services/dailyProgressService';
+import { initializeFromGitHub } from '@/services/githubSyncService';
 import { HashRouter, Routes, Route, useLocation } from 'react-router-dom';
 import { AnimatePresence } from 'framer-motion';
 import NavigationBar from '@/components/NavigationBar';
@@ -90,15 +91,28 @@ export default function App() {
     savePoints(newPoints);
   }
 
-  // Sync points from dailyProgressService on app startup so header shows accurate value
+  // Initialize SQLite from GitHub and sync points on app startup
   useEffect(() => {
-    void loadDailyProgress().then(progress => {
-      if (typeof progress.points === 'number' && progress.points !== points) {
-        handlePointsChange(progress.points);
+    const initialize = async () => {
+      // Initialize SQLite from GitHub (if user is authenticated)
+      try {
+        await initializeFromGitHub();
+      } catch (err) {
+        console.warn('[App] Failed to initialize SQLite from GitHub:', err);
       }
-    }).catch(() => {
-      // ignore — keep current points
-    });
+
+      // Load daily progress and update points
+      try {
+        const progress = await loadDailyProgress();
+        if (typeof progress.points === 'number' && progress.points !== points) {
+          handlePointsChange(progress.points);
+        }
+      } catch (err) {
+        console.warn('[App] Failed to load daily progress:', err);
+      }
+    };
+
+    void initialize();
   }, []);
 
   return (
