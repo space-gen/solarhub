@@ -5,6 +5,12 @@ node_modules/
 dist/
 dist-ssr/
 
+# Expo / React Native
+app/android/
+app/ios/
+app/.expo/
+app/node_modules/
+
 # Vite cache
 .vite/
 
