@@ -315,11 +315,13 @@ function AnnotationView({
 
             <motion.div
               variants={itemVariants}
-              ref={imageShellRef}
-              className={`glass overflow-hidden transition-all duration-300 ${isImageFullscreen ? 'rounded-none' : 'rounded-2xl'}`}
-              onWheel={handleImageWheel}
+              className="glass rounded-2xl overflow-hidden transition-all duration-300"
             >
-              <div className={`relative bg-cosmic-900 overflow-hidden select-none ${isImageFullscreen ? 'w-screen h-screen' : 'aspect-square'}`}>
+              <div 
+                ref={imageShellRef}
+                className={`relative bg-cosmic-900 overflow-hidden select-none ${isImageFullscreen ? 'w-screen h-screen fixed inset-0 z-[100]' : 'aspect-square'}`}
+                onWheel={handleImageWheel}
+              >
                 {isImageFullscreen && (
                   <>
                     {/* Zoom Controls - Top Left */}
