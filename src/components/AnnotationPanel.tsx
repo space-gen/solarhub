@@ -548,7 +548,7 @@ export default function AnnotationPanel({
   const onTouchMoveNative = (ev: TouchEvent) => {
     if (!isPinchingRef.current || ev.touches.length < 2) return;
     // Prevent default browser pinch-zoom, but intentionally do not change scale.
-    try { ev.preventDefault(); } catch {}
+    try { ev.preventDefault(); } catch (e) { /* ignore */ }
   };
   const onTouchEndNative = (ev: TouchEvent) => {
     if (ev.touches.length < 2) {
@@ -580,7 +580,7 @@ export default function AnnotationPanel({
     imageRef.current = imgEl;
     setPortalContainer(imgEl.parentElement);
     // disable default touch-action on the image so custom handlers work
-    try { imgEl.style.touchAction = 'none'; } catch {}
+    try { imgEl.style.touchAction = 'none'; } catch (e) { /* ignore */ }
     if (imgEl.naturalWidth && imgEl.naturalHeight) {
       setNaturalSize({ w: imgEl.naturalWidth, h: imgEl.naturalHeight });
     }

@@ -148,7 +148,7 @@ export async function loadDailyProgress(): Promise<DailyProgress> {
     const yKey = localDailyKey(yesterdayKey());
     // Only cleanup if yesterday is strictly not today
     if (yKey !== dailyKey) {
-      try { localStorage.removeItem(yKey); } catch {}
+      try { localStorage.removeItem(yKey); } catch (e) { /* ignore */ }
       // We also clean up cloud for yesterday to save space/keep it clean
       await puterSet(yKey, JSON.stringify([]));
     }

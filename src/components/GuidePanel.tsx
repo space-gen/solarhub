@@ -17,7 +17,7 @@ interface TaskOption {
 interface HelpText { scientific: string; plain: string; uncertainLabel: string }
 
 interface TaskTypeMeta {
-  value: any; // TaskType
+  value: string; // TaskType
   friendlyName: string;
   icon: string;
   description: string;
@@ -28,7 +28,7 @@ interface GuidePanelProps {
   selectedOption?: TaskOption | null;
   help?: HelpText;
   // For selection mode
-  onSelect?: (type: any) => void;
+  onSelect?: (type: string) => void;
   availability?: Record<string, boolean | null>;
   taskTypes?: TaskTypeMeta[];
 }
