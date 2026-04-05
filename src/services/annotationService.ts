@@ -26,7 +26,8 @@
 import { GITHUB_CONFIG }  from '@/config/endpoints';
 import { generateSessionId } from '@/utils/helpers';
 import { getStoredToken }    from '@/services/githubAuthService';
-import { insertAnnotation, checkAnnotationExists, syncToGitHub } from '@/services/sqliteService';
+import { insertAnnotation, checkAnnotationExists } from '@/services/sqliteService';
+import { syncToGitHub } from '@/services/githubSyncService';
 
 // ---------------------------------------------------------------------------
 // Data model

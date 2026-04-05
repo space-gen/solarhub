@@ -8,8 +8,8 @@
 import {
   getDailyStats,
   updateDailyStats,
-  syncToGitHub,
 } from './sqliteService';
+import { syncToGitHub } from './githubSyncService';
 
 const DAILY_IDS_KEY_PREFIX = 'solarhub_daily_completed_';
 const STATS_KEY = 'solarhub_user_stats_v1';

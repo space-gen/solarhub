@@ -20,6 +20,7 @@ import { fetchAuroraTasksByType } from '@/services/auroraService';
 import type { AuroraTask } from '@/services/auroraService';
 import { classifyTaskType } from '@/utils/helpers';
 import { loadDailyProgress, markTaskCompletedForToday } from '@/services/dailyProgressService';
+import { checkAnnotationExists } from '@/services/sqliteService';
 import { pageVariants, itemVariants } from '@/animations/pageTransitions';
 
 interface TaskTypeMeta {
@@ -290,6 +291,7 @@ export default function Classify({ points, onPointsChange }: ClassifyProps) {
   const [doneIds, setDoneIds] = useState<Set<string>>(new Set());
   const [streak, setStreak] = useState(0);
   const [showSuccess, setShowSuccess] = useState(false);
+  const [sqliteAnnotatedIds, setSqliteAnnotatedIds] = useState<Set<string>>(new Set());
 
   const [availability, setAvailability] = useState<Record<TaskType, boolean | null>>(
     () => Object.fromEntries(TASK_TYPES.map(t => [t.value, null])) as Record<TaskType, boolean | null>,
@@ -324,7 +326,29 @@ export default function Classify({ points, onPointsChange }: ClassifyProps) {
     });
   }, [selectedType]);
 
-  const pendingTasks = useMemo(() => tasks.filter(t => !doneIds.has(t.id)), [tasks, doneIds]);
+  // Check SQLite for existing annotations to prevent duplicates
+  useEffect(() => {
+    const checkSQLiteAnnotations = async () => {
+      const annotatedIds = new Set<string>();
+      for (const task of tasks) {
+        try {
+          const exists = await checkAnnotationExists(task.id);
+          if (exists) {
+            annotatedIds.add(task.id);
+          }
+        } catch (err) {
+          console.warn(`[Classify] SQLite check failed for task ${task.id}:`, err);
+        }
+      }
+      setSqliteAnnotatedIds(annotatedIds);
+    };
+
+    if (tasks.length > 0) {
+      void checkSQLiteAnnotations();
+    }
+  }, [tasks]);
+
+  const pendingTasks = useMemo(() => tasks.filter(t => !doneIds.has(t.id) && !sqliteAnnotatedIds.has(t.id)), [tasks, doneIds, sqliteAnnotatedIds]);
   const currentTask = pendingTasks[0] ?? null;
 
   const handleTypeSelect = useCallback((tt: TaskType) => {
