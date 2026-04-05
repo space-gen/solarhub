@@ -1,57 +1,84 @@
-Hi — I'm Soumyadip Karforma, founder of SolarHub.
+# SolarHub — Frontend
 
-SolarHub is a citizen-science project I created to help the community build ML-ready solar datasets from NASA SDO imagery. The simplest way to experience SolarHub is on the hosted site:
+> **Citizen-science web client for SolarHub.**
+>
+> The hosted web app is the primary user-facing interface for image classification and contributor workflows.
 
-  https://space-gen.github.io/solarhub/
+[![Pages](https://github.com/space-gen/solarhub/actions/workflows/deploy.yml/badge.svg)](https://space-gen.github.io/solarhub/)
+[![Sponsor on GitHub](https://img.shields.io/badge/Sponsor-GitHub-ff69b4?style=for-the-badge&logo=github-sponsors&logoColor=white)](https://github.com/sponsors/soumyadipkarforma)
+[![Patreon](https://img.shields.io/badge/Support-Patreon-FF424D?style=for-the-badge&logo=patreon&logoColor=white)](https://www.patreon.com/SoumyadipKarforma)
+[![Buy Me a Coffee](https://img.shields.io/badge/Support-Buy%20Me%20a%20Coffee-orange?style=for-the-badge&logo=buy-me-a-coffee&logoColor=white)](https://buymeacoffee.com/soumyadipkarforma)
 
-Please use the GitHub Pages site above to try SolarHub — no cloning is required for most users. The hosted site is kept up-to-date and is the recommended place to classify images, support the project, or explore the platform.
+## Overview
 
-Why this project exists
+This repository contains the SolarHub frontend — a React + Vite TypeScript application that provides the classification UI, contributor tools, and documentation site. The hosted GitHub Pages site provides a ready-to-use experience for most contributors.
 
-I built SolarHub to lower the barrier for contributing useful scientific labels and to make dataset creation more transparent. Contributions help researchers and enable reproducible ML experiments.
+The frontend reads task manifests (JSONL) produced by the `aurora` backend and displays them for human annotation.
 
-Support / Funding
+## Tech Stack
 
-If you like this work, please consider supporting it. Available options:
+![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?style=for-the-badge&logo=typescript&logoColor=white)
+![React](https://img.shields.io/badge/React-61DAFB?style=for-the-badge&logo=react&logoColor=black)
+![Vite](https://img.shields.io/badge/Vite-646CFF?style=for-the-badge&logo=vite&logoColor=white)
+![GitHub Actions](https://img.shields.io/badge/github%20actions-%232671E5.svg?style=for-the-badge&logo=githubactions&logoColor=white)
 
-- GitHub Sponsors: https://github.com/sponsors/soumyadipkarforma
-- Patreon: https://www.patreon.com/SoumyadipKarforma
-- Buy Me A Coffee: https://www.buymeacoffee.com/soumyadipkarforma
+## Repository Structure
 
-Or visit the Funding page on the site: /funding
+```
+solarhub/
+├── public/                 # Static assets (images, favicon)
+├── src/                    # Application source (React + TypeScript)
+│   ├── components/         # UI components (AnnotationPanel, NavigationBar...)
+│   ├── pages/              # Route-level pages (Home, Classify, About)
+│   ├── services/           # API + integration services
+│   └── styles/             # Global and component styles
+├── docs/                   # Documentation used for GitHub Pages
+├── package.json            # Node scripts + dependencies
+└── vite.config.ts          # Vite configuration
+```
 
-Quick start (developer)
+## Quick start (developer)
 
-If you want to run locally for development or to contribute code (not necessary for casual use):
+Run locally for development:
 
-  git clone https://github.com/space-gen/solarhub.git
-  cd solarhub
-  npm install
-  npm run dev
+```
+git clone https://github.com/space-gen/solarhub.git
+cd solarhub
+npm install
+npm run dev
+```
 
-Configure GitHub auth in src/config/endpoints.ts if you plan to use the Device Flow for GitHub integrations.
+Configure GitHub auth in `src/config/endpoints.ts` if you plan to test the Device Flow integration.
 
-Founder image
+## Hosted site
 
-To add the founder photo shown on About, upload a PNG named:
+The recommended place for most contributors is the hosted site:
 
-  public/images/soumyadipkarforma.png
+https://space-gen.github.io/solarhub/
 
-(Upload via GitHub web UI or add locally and commit. If the image is missing, the site shows a fallback avatar automatically.)
+## Documentation
 
-How to help
+Documentation for the frontend (Pages + usage) is available on the hosted site under the Docs section.
+
+## How to help
 
 - Classify images on the hosted site
 - Open issues describing bugs or features
 - Send PRs with documentation, accessibility improvements, or bug fixes
 
-Contact & Social
+## Funding
 
-- Twitter: https://twitter.com/soumyadip_k
-- Instagram: https://instagram.com/soumyadip_karforma
-- Email: soumyadipkarforma02@gmail.com
+Support the project:
 
-License
+[![GitHub Sponsors](https://img.shields.io/badge/Sponsor-GitHub-ff69b4?style=for-the-badge&logo=github-sponsors&logoColor=white)](https://github.com/sponsors/soumyadipkarforma)
+[![Patreon](https://img.shields.io/badge/Support-Patreon-FF424D?style=for-the-badge&logo=patreon&logoColor=white)](https://www.patreon.com/SoumyadipKarforma)
+[![Buy Me a Coffee](https://img.shields.io/badge/Support-Buy%20Me%20a%20Coffee-orange?style=for-the-badge&logo=buy-me-a-coffee&logoColor=white)](https://buymeacoffee.com/soumyadipkarforma)
 
-SolarHub is open-source. Solar images are provided by NASA's SDO and are public domain.
+## Contact
 
+[![Twitter](https://img.shields.io/badge/Twitter-@soumyadip_k-1DA1F2?style=for-the-badge&logo=twitter&logoColor=white)](https://twitter.com/soumyadip_k)
+[![Email](https://img.shields.io/badge/Email-soumyadipkarforma02@gmail.com-D14836?style=for-the-badge&logo=gmail&logoColor=white)](mailto:soumyadipkarforma02@gmail.com)
+
+## License
+
+SolarHub is open-source. See [LICENSE](LICENSE). Solar images are provided by NASA's SDO and are public domain.
