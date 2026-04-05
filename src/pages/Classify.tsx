@@ -136,6 +136,16 @@ function AnnotationView({
   const clampZoom = useCallback((value: number) => Math.min(Math.max(Number(value.toFixed(2)), 1), 4), []);
   const zoomStep = 0.2;
 
+  // Calculate max pan limits based on viewport size and zoom
+  const maxPanLimits = useMemo(() => {
+    if (imageZoom <= 1 || !imageViewportRef.current) return { x: 0, y: 0 };
+    const rect = imageViewportRef.current.getBoundingClientRect();
+    return {
+      x: Math.round((rect.width * (imageZoom - 1)) / 2),
+      y: Math.round((rect.height * (imageZoom - 1)) / 2)
+    };
+  }, [imageZoom]);
+
   const toggleImageFullscreen = useCallback(() => {
     const shell = imageShellRef.current;
     if (!shell) return;
@@ -190,10 +200,16 @@ function AnnotationView({
     const viewport = imageViewportRef.current;
     if (!viewport) return offset;
     
-    const maxPan = ((zoom - 1) / zoom) * 50; // percentage-based limit
+    // Calculate how much we can pan based on zoom level
+    // At 2x zoom, image is twice as large, so we can pan half the viewport width/height
+    // Formula: maxPan = (viewport_size * (zoom - 1)) / 2
+    const rect = viewport.getBoundingClientRect();
+    const maxPanX = (rect.width * (zoom - 1)) / 2;
+    const maxPanY = (rect.height * (zoom - 1)) / 2;
+    
     return {
-      x: Math.max(-maxPan, Math.min(maxPan, offset.x)),
-      y: Math.max(-maxPan, Math.min(maxPan, offset.y))
+      x: Math.max(-maxPanX, Math.min(maxPanX, offset.x)),
+      y: Math.max(-maxPanY, Math.min(maxPanY, offset.y))
     };
   }, []);
 
@@ -360,8 +376,8 @@ function AnnotationView({
                         <div className="absolute left-1 top-1/2 -translate-y-1/2 z-40 h-1/2">
                           <input
                             type="range"
-                            min="-100"
-                            max="100"
+                            min={-maxPanLimits.y}
+                            max={maxPanLimits.y}
                             value={panOffset.y}
                             onChange={(e) => setPanOffset(prev => getClampedPanOffset({ x: prev.x, y: Number(e.target.value) }, imageZoom))}
                             className="vertical-slider h-full appearance-none bg-transparent cursor-pointer"
@@ -377,8 +393,8 @@ function AnnotationView({
                         <div className="absolute bottom-1 left-1/2 -translate-x-1/2 z-40 w-1/2">
                           <input
                             type="range"
-                            min="-100"
-                            max="100"
+                            min={-maxPanLimits.x}
+                            max={maxPanLimits.x}
                             value={panOffset.x}
                             onChange={(e) => setPanOffset(prev => getClampedPanOffset({ x: Number(e.target.value), y: prev.y }, imageZoom))}
                             className="horizontal-slider w-full appearance-none bg-transparent cursor-pointer h-8"
