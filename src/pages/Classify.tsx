@@ -134,7 +134,7 @@ function AnnotationView({
   const [isDragging, setIsDragging] = useState(false);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
 
-  const clampZoom = useCallback((value: number) => Math.min(Math.max(Number(value.toFixed(2)), 1), 4), []);
+  const clampZoom = useCallback((value: number) => Math.min(Math.max(Number(value.toFixed(2)), 1), 8), []);
   const zoomStep = 0.2;
 
   // Calculate max pan limits based on viewport size and zoom
@@ -379,6 +379,7 @@ function AnnotationView({
                             type="range"
                             min={-maxPanLimits.y}
                             max={maxPanLimits.y}
+                            step={10}
                             value={panOffset.y}
                             onChange={(e) => setPanOffset(prev => getClampedPanOffset({ x: prev.x, y: Number(e.target.value) }, imageZoom))}
                             className="vertical-slider h-full appearance-none bg-transparent cursor-pointer"
@@ -396,6 +397,7 @@ function AnnotationView({
                             type="range"
                             min={-maxPanLimits.x}
                             max={maxPanLimits.x}
+                            step={10}
                             value={panOffset.x}
                             onChange={(e) => setPanOffset(prev => getClampedPanOffset({ x: Number(e.target.value), y: prev.y }, imageZoom))}
                             className="horizontal-slider w-full appearance-none bg-transparent cursor-pointer h-8"
