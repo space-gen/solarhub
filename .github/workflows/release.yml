@@ -3,11 +3,6 @@ name: Release Android APK
 on:
   release:
     types: [created]
-  push:
-    branches:
-      - app
-    tags:
-      - 'v*'
   workflow_dispatch:
 
 permissions:
