@@ -316,10 +316,10 @@ function AnnotationView({
             <motion.div
               variants={itemVariants}
               ref={imageShellRef}
-              className="glass rounded-2xl overflow-hidden transition-all duration-300"
+              className={`glass overflow-hidden transition-all duration-300 ${isImageFullscreen ? 'rounded-none' : 'rounded-2xl'}`}
               onWheel={handleImageWheel}
             >
-              <div className="relative aspect-square bg-cosmic-900 overflow-hidden select-none">
+              <div className={`relative bg-cosmic-900 overflow-hidden select-none ${isImageFullscreen ? 'w-screen h-screen' : 'aspect-square'}`}>
                 {isImageFullscreen && (
                   <>
                     {/* Zoom Controls - Top Left */}
@@ -352,59 +352,45 @@ function AnnotationView({
                       </div>
                     </div>
 
-                    {/* Arrow Navigation Controls - Bottom Right (only when zoomed) */}
+                    {/* Vertical Pan Slider - Left Side (only when zoomed) */}
                     {imageZoom > 1 && (
-                      <div className="absolute right-2 bottom-2 sm:right-3 sm:bottom-3 z-40 flex flex-col items-center gap-1">
-                        <button
-                          type="button"
-                          onClick={() => panImage(0, panStep)}
-                          className="h-8 w-8 sm:h-9 sm:w-9 rounded-md border border-white/20 bg-black/50 text-white text-sm backdrop-blur-sm hover:bg-black/70 active:bg-black/80 transition-colors touch-manipulation shadow-lg"
-                          title="Pan up"
-                        >
-                          ↑
-                        </button>
-                        <div className="flex items-center gap-1">
-                          <button
-                            type="button"
-                            onClick={() => panImage(panStep, 0)}
-                            className="h-8 w-8 sm:h-9 sm:w-9 rounded-md border border-white/20 bg-black/50 text-white text-sm backdrop-blur-sm hover:bg-black/70 active:bg-black/80 transition-colors touch-manipulation shadow-lg"
-                            title="Pan left"
-                          >
-                            ←
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => panImage(0, 0)}
-                            className="h-8 w-8 sm:h-9 sm:w-9 rounded-md border border-white/20 bg-black/50 text-white text-xs backdrop-blur-sm hover:bg-black/70 active:bg-black/80 transition-colors touch-manipulation shadow-lg"
-                            title="Reset position"
-                          >
-                            ⌖
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => panImage(-panStep, 0)}
-                            className="h-8 w-8 sm:h-9 sm:w-9 rounded-md border border-white/20 bg-black/50 text-white text-sm backdrop-blur-sm hover:bg-black/70 active:bg-black/80 transition-colors touch-manipulation shadow-lg"
-                            title="Pan right"
-                          >
-                            →
-                          </button>
+                      <>
+                        <div className="absolute left-1 top-1/2 -translate-y-1/2 z-40 h-1/2">
+                          <input
+                            type="range"
+                            min="-100"
+                            max="100"
+                            value={panOffset.y}
+                            onChange={(e) => setPanOffset(prev => getClampedPanOffset({ x: prev.x, y: Number(e.target.value) }, imageZoom))}
+                            className="vertical-slider h-full appearance-none bg-transparent cursor-pointer"
+                            style={{
+                              writingMode: 'vertical-lr',
+                              width: '32px',
+                            }}
+                            title="Pan vertically"
+                          />
                         </div>
-                        <button
-                          type="button"
-                          onClick={() => panImage(0, -panStep)}
-                          className="h-8 w-8 sm:h-9 sm:w-9 rounded-md border border-white/20 bg-black/50 text-white text-sm backdrop-blur-sm hover:bg-black/70 active:bg-black/80 transition-colors touch-manipulation shadow-lg"
-                          title="Pan down"
-                        >
-                          ↓
-                        </button>
-                      </div>
+
+                        {/* Horizontal Pan Slider - Bottom */}
+                        <div className="absolute bottom-1 left-1/2 -translate-x-1/2 z-40 w-1/2">
+                          <input
+                            type="range"
+                            min="-100"
+                            max="100"
+                            value={panOffset.x}
+                            onChange={(e) => setPanOffset(prev => getClampedPanOffset({ x: Number(e.target.value), y: prev.y }, imageZoom))}
+                            className="horizontal-slider w-full appearance-none bg-transparent cursor-pointer h-8"
+                            title="Pan horizontally"
+                          />
+                        </div>
+                      </>
                     )}
                   </>
                 )}
                 <button
                   type="button"
                   onClick={toggleImageFullscreen}
-                  className="absolute top-2 right-2 sm:top-3 sm:right-3 z-30 rounded-lg border border-white/20 bg-black/60 px-3 py-2 text-xs sm:text-[11px] font-semibold text-slate-100 hover:bg-black/75 active:bg-black/85 transition-colors touch-manipulation shadow-lg"
+                  className="absolute top-2 right-2 sm:top-3 sm:right-3 z-50 rounded-lg border border-white/20 bg-black/60 px-3 py-2 text-xs sm:text-[11px] font-semibold text-slate-100 hover:bg-black/75 active:bg-black/85 transition-colors touch-manipulation shadow-lg"
                   title={isImageFullscreen ? 'Exit fullscreen' : 'Open image fullscreen'}
                 >
                   {isImageFullscreen ? '✕' : '⛶'}

@@ -315,3 +315,90 @@
   to   { opacity: 1; transform: translateY(0); }
 }
 
+/* ─────────────────────────────────────────────────────────────────────────── */
+/* 9. Fullscreen image pan sliders                                              */
+/* ─────────────────────────────────────────────────────────────────────────── */
+
+/* Vertical slider (left side) */
+.vertical-slider {
+  -webkit-appearance: none;
+  background: linear-gradient(to bottom, rgba(255,255,255,0.1) 0%, rgba(255,255,255,0.2) 50%, rgba(255,255,255,0.1) 100%);
+  border-radius: 8px;
+  outline: none;
+  backdrop-filter: blur(10px);
+}
+
+.vertical-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 24px;
+  height: 40px;
+  background: rgba(251, 146, 60, 0.9);
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-radius: 6px;
+  cursor: grab;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+}
+
+.vertical-slider::-webkit-slider-thumb:active {
+  cursor: grabbing;
+  background: rgba(251, 146, 60, 1);
+}
+
+.vertical-slider::-moz-range-thumb {
+  width: 24px;
+  height: 40px;
+  background: rgba(251, 146, 60, 0.9);
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-radius: 6px;
+  cursor: grab;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+}
+
+.vertical-slider::-moz-range-thumb:active {
+  cursor: grabbing;
+  background: rgba(251, 146, 60, 1);
+}
+
+/* Horizontal slider (bottom) */
+.horizontal-slider {
+  -webkit-appearance: none;
+  background: linear-gradient(to right, rgba(255,255,255,0.1) 0%, rgba(255,255,255,0.2) 50%, rgba(255,255,255,0.1) 100%);
+  border-radius: 8px;
+  outline: none;
+  backdrop-filter: blur(10px);
+  height: 8px;
+}
+
+.horizontal-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 40px;
+  height: 24px;
+  background: rgba(251, 146, 60, 0.9);
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-radius: 6px;
+  cursor: grab;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+}
+
+.horizontal-slider::-webkit-slider-thumb:active {
+  cursor: grabbing;
+  background: rgba(251, 146, 60, 1);
+}
+
+.horizontal-slider::-moz-range-thumb {
+  width: 40px;
+  height: 24px;
+  background: rgba(251, 146, 60, 0.9);
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-radius: 6px;
+  cursor: grab;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+}
+
+.horizontal-slider::-moz-range-thumb:active {
+  cursor: grabbing;
+  background: rgba(251, 146, 60, 1);
+}
+
