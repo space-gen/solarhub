@@ -93,7 +93,7 @@ function SuccessPopup({ points }: { points: number }) {
               className="h-full bg-solar-500"
               initial={{ width: "0%" }}
               animate={{ width: "100%" }}
-              transition={{ duration: 2, ease: "linear" }}
+              transition={{ duration: 1, ease: "linear" }}
             />
           </div>
         </div>
@@ -642,7 +642,7 @@ export default function Classify({ points, onPointsChange }: ClassifyProps) {
 
   const handleAnnotationSubmit = useCallback((input: AnnotationInput) => {
     setShowSuccess(true);
-    // Let SuccessPopup show for 2 seconds before advancing
+    // Let SuccessPopup show for 1 second before advancing
     setTimeout(() => {
       void markTaskCompletedForToday(input.task_id).then(({ progress }) => {
         setDoneIds(new Set(progress.completedTaskIds));
@@ -650,7 +650,7 @@ export default function Classify({ points, onPointsChange }: ClassifyProps) {
         onPointsChange(progress.points); // +1 point per successful annotation
         setShowSuccess(false);
       });
-    }, 2_000);
+    }, 1_000);
   }, [onPointsChange]);
 
   return (
