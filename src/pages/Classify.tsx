@@ -133,6 +133,7 @@ function AnnotationView({
   const [panOffset, setPanOffset] = useState({ x: 0, y: 0 });
   const [isDragging, setIsDragging] = useState(false);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
+  const panIntervalRef = useRef<number | null>(null);
 
   const clampZoom = useCallback((value: number) => Math.min(Math.max(Number(value.toFixed(2)), 1), 8), []);
   const zoomStep = 0.2;
@@ -179,6 +180,10 @@ function AnnotationView({
 
   const handleImageWheel = useCallback((event: React.WheelEvent) => {
     if (!isImageFullscreen) return;
+    
+    // Allow browser zoom with Ctrl+wheel
+    if (event.ctrlKey || event.metaKey) return;
+    
     event.preventDefault();
     const direction = event.deltaY > 0 ? -1 : 1;
     changeImageZoom(direction * 0.12);
@@ -261,6 +266,33 @@ function AnnotationView({
       y: prev.y + deltaY
     }, imageZoom));
   }, [imageZoom, getClampedPanOffset]);
+
+  // Long-press pan handlers for continuous panning
+  const startContinuousPan = useCallback((deltaX: number, deltaY: number) => {
+    if (panIntervalRef.current) return; // Already panning
+    
+    panImage(deltaX, deltaY); // First immediate pan
+    
+    panIntervalRef.current = window.setInterval(() => {
+      panImage(deltaX, deltaY);
+    }, 16); // ~60fps
+  }, [panImage]);
+
+  const stopContinuousPan = useCallback(() => {
+    if (panIntervalRef.current) {
+      clearInterval(panIntervalRef.current);
+      panIntervalRef.current = null;
+    }
+  }, []);
+
+  // Cleanup interval on unmount
+  useEffect(() => {
+    return () => {
+      if (panIntervalRef.current) {
+        clearInterval(panIntervalRef.current);
+      }
+    };
+  }, []);
 
   useEffect(() => {
     if (!isImageFullscreen) return;
@@ -366,40 +398,56 @@ function AnnotationView({
                     {imageZoom > 1 && (
                       <>
                         {/* Vertical Arrows - Left Side */}
-                        <div className="absolute left-2 top-1/2 -translate-y-1/2 z-40 flex flex-col gap-2">
+                        <div className="absolute left-2 top-20 md:top-24 z-40 flex flex-col gap-2">
                           <button
                             type="button"
-                            onClick={() => panImage(0, 1)}
+                            onMouseDown={() => startContinuousPan(0, 5)}
+                            onMouseUp={stopContinuousPan}
+                            onMouseLeave={stopContinuousPan}
+                            onTouchStart={() => startContinuousPan(0, 5)}
+                            onTouchEnd={stopContinuousPan}
                             className="h-12 w-12 rounded-lg bg-black/30 text-white text-2xl backdrop-blur-sm hover:bg-black/50 active:bg-black/60 transition-colors touch-manipulation border border-white/10"
-                            title="Pan up"
+                            title="Pan up (hold for continuous)"
                           >
                             ↑
                           </button>
                           <button
                             type="button"
-                            onClick={() => panImage(0, -1)}
+                            onMouseDown={() => startContinuousPan(0, -5)}
+                            onMouseUp={stopContinuousPan}
+                            onMouseLeave={stopContinuousPan}
+                            onTouchStart={() => startContinuousPan(0, -5)}
+                            onTouchEnd={stopContinuousPan}
                             className="h-12 w-12 rounded-lg bg-black/30 text-white text-2xl backdrop-blur-sm hover:bg-black/50 active:bg-black/60 transition-colors touch-manipulation border border-white/10"
-                            title="Pan down"
+                            title="Pan down (hold for continuous)"
                           >
                             ↓
                           </button>
                         </div>
 
                         {/* Horizontal Arrows - Bottom */}
-                        <div className="absolute bottom-2 left-1/2 -translate-x-1/2 z-40 flex gap-2">
+                        <div className="absolute bottom-2 left-2 md:left-auto md:right-1/2 md:translate-x-1/2 z-40 flex gap-2">
                           <button
                             type="button"
-                            onClick={() => panImage(1, 0)}
+                            onMouseDown={() => startContinuousPan(5, 0)}
+                            onMouseUp={stopContinuousPan}
+                            onMouseLeave={stopContinuousPan}
+                            onTouchStart={() => startContinuousPan(5, 0)}
+                            onTouchEnd={stopContinuousPan}
                             className="h-12 w-12 rounded-lg bg-black/30 text-white text-2xl backdrop-blur-sm hover:bg-black/50 active:bg-black/60 transition-colors touch-manipulation border border-white/10"
-                            title="Pan left"
+                            title="Pan left (hold for continuous)"
                           >
                             ←
                           </button>
                           <button
                             type="button"
-                            onClick={() => panImage(-1, 0)}
+                            onMouseDown={() => startContinuousPan(-5, 0)}
+                            onMouseUp={stopContinuousPan}
+                            onMouseLeave={stopContinuousPan}
+                            onTouchStart={() => startContinuousPan(-5, 0)}
+                            onTouchEnd={stopContinuousPan}
                             className="h-12 w-12 rounded-lg bg-black/30 text-white text-2xl backdrop-blur-sm hover:bg-black/50 active:bg-black/60 transition-colors touch-manipulation border border-white/10"
-                            title="Pan right"
+                            title="Pan right (hold for continuous)"
                           >
                             →
                           </button>

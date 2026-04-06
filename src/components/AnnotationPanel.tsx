@@ -619,8 +619,18 @@ export default function AnnotationPanel({
     if (!imgEl) return;
     imageRef.current = imgEl;
     setPortalContainer(imgEl.parentElement);
-    // disable default touch-action on the image so custom handlers work
-    try { imgEl.style.touchAction = 'none'; } catch {}
+    
+    // Only disable touch-action when not in fullscreen to allow native pinch zoom
+    const updateTouchAction = () => {
+      const isFullscreen = document.fullscreenElement !== null;
+      try { 
+        imgEl.style.touchAction = isFullscreen ? 'auto' : 'none';
+      } catch {}
+    };
+    
+    updateTouchAction();
+    document.addEventListener('fullscreenchange', updateTouchAction);
+    
     if (imgEl.naturalWidth && imgEl.naturalHeight) {
       setNaturalSize({ w: imgEl.naturalWidth, h: imgEl.naturalHeight });
     }
@@ -630,6 +640,7 @@ export default function AnnotationPanel({
 
     return () => {
       imgEl.removeEventListener('load', onLoad);
+      document.removeEventListener('fullscreenchange', updateTouchAction);
     };
   }, [externalImageId]);
 
