@@ -401,13 +401,53 @@ export default function AnnotationPanel({
 
   const clampRadius = (radius: number) => Math.min(Math.max(Math.round(radius), MIN_RADIUS), MAX_RADIUS);
 
+  // Calculate actual rendered image bounds when using object-fit: contain
+  // Returns the rect of the actual image content, accounting for letterboxing
+  const getActualImageBounds = (): DOMRect | null => {
+    const img = imageRef.current;
+    if (!img || !naturalSize) return null;
+    
+    const rect = img.getBoundingClientRect();
+    const { w: naturalWidth, h: naturalHeight } = naturalSize;
+    
+    // Calculate aspect ratios
+    const elementRatio = rect.width / rect.height;
+    const imageRatio = naturalWidth / naturalHeight;
+    
+    let renderedWidth: number, renderedHeight: number, offsetX: number, offsetY: number;
+    
+    if (imageRatio > elementRatio) {
+      // Image is wider - letterbox top/bottom
+      renderedWidth = rect.width;
+      renderedHeight = rect.width / imageRatio;
+      offsetX = 0;
+      offsetY = (rect.height - renderedHeight) / 2;
+    } else {
+      // Image is taller or equal - letterbox left/right
+      renderedHeight = rect.height;
+      renderedWidth = rect.height * imageRatio;
+      offsetX = (rect.width - renderedWidth) / 2;
+      offsetY = 0;
+    }
+    
+    return new DOMRect(
+      rect.left + offsetX,
+      rect.top + offsetY,
+      renderedWidth,
+      renderedHeight
+    );
+  };
+
   const addMarkerAt = (clientX: number, clientY: number): number | null => {
     if (isLocked || isPinchingRef.current) return null;
-    const rect = imageRef.current?.getBoundingClientRect();
-    if (!rect) return null;
-
-    const xPct = Math.min(Math.max((clientX - rect.left) / rect.width, 0), 1);
-    const yPct = Math.min(Math.max((clientY - rect.top) / rect.height, 0), 1);
+    
+    // Get actual rendered image bounds (accounts for object-fit: contain letterboxing)
+    const actualBounds = getActualImageBounds();
+    if (!actualBounds) return null;
+    
+    // Calculate position relative to actual image content, not the element
+    const xPct = Math.min(Math.max((clientX - actualBounds.left) / actualBounds.width, 0), 1);
+    const yPct = Math.min(Math.max((clientY - actualBounds.top) / actualBounds.height, 0), 1);
     const x1024 = Math.round(xPct * 1024);
     const y1024 = Math.round(yPct * 1024);
 
@@ -494,10 +534,10 @@ export default function AnnotationPanel({
     if (!pending || pending.pointerId !== event.pointerId || !pending.fired) return;
     if (pending.createdSpotIndex === null || pending.resizeStartY === null || pending.resizeStartRadius === null) return;
 
-    const rect = imageRef.current?.getBoundingClientRect();
-    if (!rect) return;
+    const actualBounds = getActualImageBounds();
+    if (!actualBounds) return;
 
-    const deltaRadius = ((pending.resizeStartY - event.clientY) / rect.height) * 1024;
+    const deltaRadius = ((pending.resizeStartY - event.clientY) / actualBounds.height) * 1024;
     const nextRadius = clampRadius(pending.resizeStartRadius + deltaRadius);
     setPixelRadii(pr => pr.map((radius, i) => i === pending.createdSpotIndex ? nextRadius : radius));
   };
@@ -759,9 +799,9 @@ export default function AnnotationPanel({
                 }
 
                 if (markerGesture.mode === 'resize') {
-                  const rect = imageRef.current?.getBoundingClientRect();
-                  if (!rect) return;
-                  const deltaRadius = ((markerGesture.startY - e.clientY) / rect.height) * 1024;
+                  const actualBounds = getActualImageBounds();
+                  if (!actualBounds) return;
+                  const deltaRadius = ((markerGesture.startY - e.clientY) / actualBounds.height) * 1024;
                   const nextRadius = clampRadius(markerGesture.startRadius + deltaRadius);
                   setPixelRadii(pr => pr.map((radius, i) => i === markerGesture.spotIndex ? nextRadius : radius));
                   return;
@@ -770,10 +810,10 @@ export default function AnnotationPanel({
 
               if (resizingIndex !== null) {
                 const resizeGesture = resizeGestureRef.current;
-                const rect = imageRef.current?.getBoundingClientRect();
-                if (!resizeGesture || resizeGesture.pointerId !== e.pointerId || !rect) return;
+                const actualBounds = getActualImageBounds();
+                if (!resizeGesture || resizeGesture.pointerId !== e.pointerId || !actualBounds) return;
 
-                const deltaRadius = ((resizeGesture.startY - e.clientY) / rect.height) * 1024;
+                const deltaRadius = ((resizeGesture.startY - e.clientY) / actualBounds.height) * 1024;
                 const nextRadius = clampRadius(resizeGesture.startRadius + deltaRadius);
                 setPixelRadii(pr => pr.map((radius, i) => i === resizingIndex ? nextRadius : radius));
                 return;
@@ -785,10 +825,10 @@ export default function AnnotationPanel({
                 return;
               }
 
-              const rect = imageRef.current?.getBoundingClientRect();
-              if (!rect) return;
-              const xPct = Math.min(Math.max((e.clientX - rect.left) / rect.width, 0), 1);
-              const yPct = Math.min(Math.max((e.clientY - rect.top) / rect.height, 0), 1);
+              const actualBounds = getActualImageBounds();
+              if (!actualBounds) return;
+              const xPct = Math.min(Math.max((e.clientX - actualBounds.left) / actualBounds.width, 0), 1);
+              const yPct = Math.min(Math.max((e.clientY - actualBounds.top) / actualBounds.height, 0), 1);
               const x1024 = Math.round(xPct * 1024);
               const y1024 = Math.round(yPct * 1024);
               setPixelCoords(prev => prev.map((p, i) => i === draggingIndex ? { x: x1024, y: y1024, xPct, yPct } : p));
