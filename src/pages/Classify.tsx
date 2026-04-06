@@ -644,12 +644,18 @@ export default function Classify({ points, onPointsChange }: ClassifyProps) {
     setShowSuccess(true);
     // Let SuccessPopup show for 1 second before advancing
     setTimeout(() => {
-      void markTaskCompletedForToday(input.task_id).then(({ progress }) => {
-        setDoneIds(new Set(progress.completedTaskIds));
-        setStreak(progress.streak);
-        onPointsChange(progress.points); // +1 point per successful annotation
-        setShowSuccess(false);
-      });
+      void markTaskCompletedForToday(input.task_id)
+        .then(({ progress }) => {
+          setDoneIds(new Set(progress.completedTaskIds));
+          setStreak(progress.streak);
+          onPointsChange(progress.points); // +1 point per successful annotation
+          setShowSuccess(false);
+        })
+        .catch((err) => {
+          console.error('[Classify] Failed to mark task completed:', err);
+          // Still hide the popup and allow user to continue
+          setShowSuccess(false);
+        });
     }, 1_000);
   }, [onPointsChange]);
 
