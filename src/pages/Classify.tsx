@@ -326,9 +326,10 @@ function AnnotationView({
             >
               <div 
                 ref={imageShellRef}
-                className={`relative bg-cosmic-900 overflow-hidden select-none ${isImageFullscreen ? 'w-screen h-screen fixed inset-0 z-[100]' : 'aspect-square'}`}
+                className={`relative bg-cosmic-900 overflow-hidden select-none ${isImageFullscreen ? 'w-screen h-screen fixed inset-0 z-[100] flex items-center justify-center' : 'aspect-square'}`}
                 onWheel={handleImageWheel}
               >
+                <div className={`relative ${isImageFullscreen ? 'w-full h-full max-w-[100vh] max-h-[100vw] aspect-square' : 'w-full h-full'}`}>
                 {isImageFullscreen && (
                   <>
                     {/* Zoom Controls - Top Left */}
@@ -419,7 +420,7 @@ function AnnotationView({
                   ref={imageViewportRef}
                   className={`absolute inset-0 transition-transform duration-150 ease-out ${isDragging ? 'cursor-grabbing' : imageZoom > 1 && isImageFullscreen ? 'cursor-grab' : ''}`}
                   style={{ 
-                    transform: `scale(${isImageFullscreen ? imageZoom : 1}) translate(${panOffset.x}px, ${panOffset.y}px)`,
+                    transform: `translate(${isImageFullscreen ? panOffset.x : 0}px, ${isImageFullscreen ? panOffset.y : 0}px) scale(${isImageFullscreen ? imageZoom : 1})`,
                     transformOrigin: 'center center'
                   }}
                   onMouseDown={handleMouseDown}
@@ -447,6 +448,7 @@ function AnnotationView({
                     />
                   )}
                 </div>
+              </div>
               </div>
               {!isImageFullscreen && (
                 <div className="px-4 py-3 flex flex-col gap-2 text-xs text-slate-500 border-t border-white/5 lg:flex-row lg:items-center lg:justify-between">
