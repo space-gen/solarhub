@@ -77,6 +77,7 @@ Support the project:
 ## Contact
 
 [![Twitter](https://img.shields.io/badge/Twitter-@soumyadip_k-1DA1F2?style=for-the-badge&logo=twitter&logoColor=white)](https://twitter.com/soumyadip_k)
+[![Instagram](https://img.shields.io/badge/Instagram-@soumyadip_karforma-E4405F?style=for-the-badge&logo=instagram&logoColor=white)](https://instagram.com/soumyadip_karforma)
 [![Email](https://img.shields.io/badge/Email-soumyadipkarforma02@gmail.com-D14836?style=for-the-badge&logo=gmail&logoColor=white)](mailto:soumyadipkarforma02@gmail.com)
 
 ## License
