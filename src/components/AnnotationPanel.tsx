@@ -399,6 +399,23 @@ export default function AnnotationPanel({
     setActiveSpotIndex(draggingIndex);
   }, [draggingIndex]);
 
+  // Keep parallel marker arrays aligned with `pixelCoords` even under dev
+  // Strict Mode re-invocations.
+  useEffect(() => {
+    if (pixelLabels.length !== pixelCoords.length) {
+      setPixelLabels(prev => {
+        if (prev.length > pixelCoords.length) return prev.slice(0, pixelCoords.length);
+        return [...prev, ...Array(pixelCoords.length - prev.length).fill(null)];
+      });
+    }
+    if (pixelRadii.length !== pixelCoords.length) {
+      setPixelRadii(prev => {
+        if (prev.length > pixelCoords.length) return prev.slice(0, pixelCoords.length);
+        return [...prev, ...Array(pixelCoords.length - prev.length).fill(DEFAULT_RADIUS)];
+      });
+    }
+  }, [pixelCoords.length, pixelLabels.length, pixelRadii.length]);
+
   const clampRadius = (radius: number) => Math.min(Math.max(Math.round(radius), MIN_RADIUS), MAX_RADIUS);
 
   // Calculate actual rendered image bounds when using object-fit: contain
@@ -451,16 +468,12 @@ export default function AnnotationPanel({
     const x1024 = Math.round(xPct * 1024);
     const y1024 = Math.round(yPct * 1024);
 
-    let createdIndex: number | null = null;
-    setPixelCoords(prev => {
-      const next = [...prev, { x: x1024, y: y1024, xPct, yPct }];
-      createdIndex = next.length - 1;
-      setPixelLabels(pl => [...pl, null]);
-      setPixelRadii(pr => [...pr, DEFAULT_RADIUS]);
-      setActiveSpotIndex(next.length - 1);
-      setIsNone(false);
-      return next;
-    });
+    const createdIndex = pixelCoords.length;
+    setPixelCoords(prev => [...prev, { x: x1024, y: y1024, xPct, yPct }]);
+    setPixelLabels(pl => [...pl, null]);
+    setPixelRadii(pr => [...pr, DEFAULT_RADIUS]);
+    setActiveSpotIndex(createdIndex);
+    setIsNone(false);
 
     return createdIndex;
   };
@@ -709,8 +722,13 @@ export default function AnnotationPanel({
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [selectedOption, activeSpotIndex, isLocked, removeSpotAtIndex]);
 
-  // Derive user_label from the first labeled spot if it's not explicitly set
-  const derivedUserLabel = isNone ? 'none' : (userLabel || pixelLabels.find(l => l !== null) || 'none');
+  // Derive `user_label` from the first explicitly labeled spot if the
+  // global `userLabel` hasn't been explicitly chosen. Treat 'none' and
+  // empty strings as not explicitly set.
+  const firstExplicitLabel = pixelLabels.find(l => l != null && l !== 'none') ?? 'none';
+  const derivedUserLabel = isNone
+    ? 'none'
+    : ((userLabel && userLabel !== 'none') ? userLabel : firstExplicitLabel);
 
   const handleSubmit = useCallback(async () => {
     if (!derivedUserLabel || isLocked) return;
@@ -731,19 +749,20 @@ export default function AnnotationPanel({
     };
 
     try {
+      onSubmit(input);
+      // Reset local state immediately so the next task can render without
+      // waiting for the remote save path.
+      setUserLabel('none');
+      setConfidence(75);
+      setComments('');
+      setSubmitError(null);
+      setPixelCoords([]);
+      setPixelLabels([]);
+      setPixelRadii([]);
+      setActiveSpotIndex(null);
+
       const result = await submitAnnotation(input);
-      if (result.success) {
-        onSubmit(input);
-        // Reset local state immediately
-        setUserLabel('none');
-        setConfidence(75);
-        setComments('');
-        setSubmitError(null);
-        setPixelCoords([]);
-        setPixelLabels([]);
-        setPixelRadii([]);
-        setActiveSpotIndex(null);
-      } else if (result.error) {
+      if (result.error && !result.success) {
         setSubmitError(result.error);
       }
     } catch {
@@ -755,8 +774,15 @@ export default function AnnotationPanel({
 
   if (!selectedOption) return null;
 
-  const hasAtLeastOneLabeledSpot = pixelLabels.length > 0 && pixelLabels.every(l => l !== null);
-  const canSubmit = Boolean((hasAtLeastOneLabeledSpot || isNone) && !submitting);
+  // Enforce strict per-spot labeling: require at least one marker and that every
+  // marker has an explicit, non-'none', non-empty label. Also ensure arrays
+  // line up to avoid transient mismatch states (e.g., pixelCoords updated but
+  // pixelLabels not yet). Treat only non-empty strings (not null/undefined)
+  // and not 'none' as valid labels.
+  const hasAllSpotsLabeled = pixelCoords.length > 0
+    && pixelLabels.length === pixelCoords.length
+    && pixelLabels.every(l => typeof l === 'string' && l.trim() !== '' && l !== 'none');
+  const canSubmit = Boolean((hasAllSpotsLabeled || isNone) && !submitting);
 
   return (
     <div className="relative">

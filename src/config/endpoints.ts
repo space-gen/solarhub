@@ -27,12 +27,21 @@ export const GITHUB_CONFIG = {
 /**
  * AUTH_CONFIG — GitHub OAuth App settings.
  *
- * This site is 100% static (GitHub Pages). We use GitHub's OAuth **Device Flow**,
- * which only requires a public **Client ID** (no client secret, no backend, no workers).
+ * Device flow uses your public client ID, but browser CORS restrictions require
+ * these endpoints to be served by a proxy in static deployments.
  */
 export const AUTH_CONFIG = {
   /** GitHub OAuth App client ID (public). */
   clientId: 'Ov23lisiMUCpxHrplfOe',
-  /** OAuth scopes: 'repo' allows access to user's private repos for SQLite storage. */
-  scopes: ['repo'],
+  /** OAuth scopes: 'public_repo' allows writing progress.json to a public user repo. */
+  scopes: ['public_repo'],
+  /** Device-flow proxy endpoint forwarding to POST https://github.com/login/device/code */
+  deviceCodeUrl: '/api/github/device/code',
+  /** Token proxy endpoint forwarding to POST https://github.com/login/oauth/access_token */
+  accessTokenUrl: '/api/github/access_token',
+  /**
+   * Static fallback hack for GitHub Pages when no backend proxy exists.
+   * WARNING: This is a public proxy and should not be relied on for production security.
+   */
+  fallbackCorsProxyUrl: 'https://corsproxy.io/?',
 } as const;

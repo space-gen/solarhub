@@ -17,6 +17,7 @@ import { getStoredUser, type GitHubUser } from '@/services/githubAuthService';
 
 interface NavBarProps {
   points: number;
+  streak?: number;
 }
 
 interface NavItem {
@@ -174,7 +175,7 @@ function GitHubStatusPill({ user }: { user: GitHubUser | null }) {
   );
 }
 
-export default function NavigationBar({ points }: NavBarProps) {
+export default function NavigationBar({ points, streak = 0 }: NavBarProps) {
   const location = useLocation();
 
   const [menuOpen, setMenuOpen] = useState(false);
@@ -241,7 +242,15 @@ export default function NavigationBar({ points }: NavBarProps) {
 
             <div className="flex items-center gap-3">
               <GitHubStatusPill user={ghUser} />
-              {ghUser && <PointsDisplay points={points} compact />}
+              {ghUser && (
+                <div className="flex items-center gap-3">
+                  <PointsDisplay points={points} compact />
+                  <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-full bg-black/30 border border-white/6 text-xs text-emerald-300 font-semibold">
+                    <svg viewBox="0 0 24 24" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3" /></svg>
+                    <span>Streak: <strong className="ml-1 text-emerald-200">{streak}</strong></span>
+                  </div>
+                </div>
+              )}
               <HamburgerButton isOpen={menuOpen} onClick={() => setMenuOpen(v => !v)} />
             </div>
           </div>

@@ -26,8 +26,8 @@
 /* ─────────────────────────────────────────────────────────────────────────── */
 :root {
   /* Background colours */
-  --bg-primary:   #0a0a1a;   /* deepest space black */
-  --bg-secondary: #0d0d2b;   /* slightly lighter deep blue */
+  --bg-primary:   #03030a;   /* deepest space black */
+  --bg-secondary: #070724;   /* slightly lighter deep blue */
   --bg-card:      rgba(255, 255, 255, 0.04);
 
   /* Brand colours */

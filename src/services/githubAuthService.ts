@@ -5,18 +5,19 @@
  *
  * We use GitHub's OAuth **Device Flow** (client-id only):
  *   - No client secret in the frontend bundle
- *   - No backend server
- *   - No Puter Workers
- *
- * CORS note:
- *   GitHub's device endpoints do not include browser CORS headers.
- *   We call them via `puter.net.fetch()` which proxies the request.
+ *   - Static frontend compatible
+ *   - Endpoint URLs are configurable for proxy deployments
  */
 
 import { AUTH_CONFIG } from '../config/endpoints';
 
 const CLIENT_ID = AUTH_CONFIG.clientId;
 const SCOPE     = (AUTH_CONFIG.scopes ?? ['public_repo']).join(' ');
+const DEVICE_CODE_URL = AUTH_CONFIG.deviceCodeUrl || 'https://github.com/login/device/code';
+const ACCESS_TOKEN_URL = AUTH_CONFIG.accessTokenUrl || 'https://github.com/login/oauth/access_token';
+const FALLBACK_CORS_PROXY_URL = AUTH_CONFIG.fallbackCorsProxyUrl || '';
+const RAW_DEVICE_CODE_URL = 'https://github.com/login/device/code';
+const RAW_ACCESS_TOKEN_URL = 'https://github.com/login/oauth/access_token';
 
 const TOKEN_KEY = 'solarhub_gh_token';
 const USER_KEY  = 'solarhub_gh_user';
@@ -44,26 +45,44 @@ type DeviceTokenResponse = {
   interval?: number;
 };
 
-function requirePuterNetFetch(): PuterNet['fetch'] {
-  const puter = window.puter;
-  if (!puter?.net?.fetch) {
-    throw new Error('Puter.js is required for GitHub sign-in (for CORS-bypassing fetch).');
-  }
-  return puter.net.fetch.bind(puter.net);
+function withCorsProxy(proxyBase: string, targetUrl: string): string {
+  return `${proxyBase}${encodeURIComponent(targetUrl)}`;
 }
 
-async function postFormJson<T>(url: string, form: Record<string, string>): Promise<T> {
-  const netFetch = requirePuterNetFetch();
-  const body = new URLSearchParams(form).toString();
+function canUseFallbackProxy(url: string): boolean {
+  if (!FALLBACK_CORS_PROXY_URL) return false;
+  return !/^https:\/\/github\.com\//i.test(url);
+}
 
-  const res = await netFetch(url, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/x-www-form-urlencoded',
-      'Accept': 'application/json',
-    },
-    body,
-  });
+async function postFormJson<T>(url: string, form: Record<string, string>, timeoutMs = 8000): Promise<T> {
+  const body = new URLSearchParams(form).toString();
+  const controller = new AbortController();
+  const timeoutId = window.setTimeout(() => controller.abort(), timeoutMs);
+
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'Accept': 'application/json',
+      },
+      body,
+      signal: controller.signal,
+    });
+  } catch (err) {
+    if (err instanceof DOMException && err.name === 'AbortError') {
+      throw new Error('GitHub OAuth request timed out. Check your network or OAuth proxy endpoint settings.');
+    }
+    if (err instanceof TypeError) {
+      throw new Error(
+        'Could not reach GitHub OAuth endpoint from the browser. Configure AUTH_CONFIG.deviceCodeUrl/accessTokenUrl to your OAuth proxy endpoints.'
+      );
+    }
+    throw err;
+  } finally {
+    window.clearTimeout(timeoutId);
+  }
 
   if (!res.ok) {
     const text = await res.text().catch(() => '');
@@ -71,6 +90,33 @@ async function postFormJson<T>(url: string, form: Record<string, string>): Promi
   }
 
   return res.json() as Promise<T>;
+}
+
+async function postFormJsonWithFallback<T>(params: {
+  primaryUrl: string;
+  fallbackTargetUrl: string;
+  form: Record<string, string>;
+  timeoutMs?: number;
+}): Promise<T> {
+  const { primaryUrl, fallbackTargetUrl, form, timeoutMs } = params;
+
+  try {
+    return await postFormJson<T>(primaryUrl, form, timeoutMs);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : '';
+    if (!canUseFallbackProxy(primaryUrl)) throw err;
+
+    const shouldFallback =
+      message.includes('Could not reach GitHub OAuth endpoint from the browser') ||
+      message.includes('GitHub OAuth request timed out') ||
+      /^HTTP 404\s/.test(message) ||
+      /^HTTP 5\d\d\s/.test(message);
+
+    if (!shouldFallback) throw err;
+
+    const fallbackUrl = withCorsProxy(FALLBACK_CORS_PROXY_URL, fallbackTargetUrl);
+    return postFormJson<T>(fallbackUrl, form, timeoutMs);
+  }
 }
 
 export function isOAuthConfigured(): boolean {
@@ -81,19 +127,27 @@ export async function startDeviceFlow(): Promise<DeviceFlowStart> {
   if (!CLIENT_ID) throw new Error('AUTH_CONFIG.clientId is not set.');
 
   // https://docs.github.com/en/apps/oauth-apps/building-oauth-apps/authorizing-oauth-apps#device-flow
-  return postFormJson<DeviceFlowStart>('https://github.com/login/device/code', {
-    client_id: CLIENT_ID,
-    scope: SCOPE,
+  return postFormJsonWithFallback<DeviceFlowStart>({
+    primaryUrl: DEVICE_CODE_URL,
+    fallbackTargetUrl: RAW_DEVICE_CODE_URL,
+    form: {
+      client_id: CLIENT_ID,
+      scope: SCOPE,
+    },
   });
 }
 
 export async function exchangeDeviceCodeOnce(deviceCode: string): Promise<DeviceTokenResponse> {
   if (!CLIENT_ID) throw new Error('AUTH_CONFIG.clientId is not set.');
 
-  return postFormJson<DeviceTokenResponse>('https://github.com/login/oauth/access_token', {
-    client_id: CLIENT_ID,
-    device_code: deviceCode,
-    grant_type: 'urn:ietf:params:oauth:grant-type:device_code',
+  return postFormJsonWithFallback<DeviceTokenResponse>({
+    primaryUrl: ACCESS_TOKEN_URL,
+    fallbackTargetUrl: RAW_ACCESS_TOKEN_URL,
+    form: {
+      client_id: CLIENT_ID,
+      device_code: deviceCode,
+      grant_type: 'urn:ietf:params:oauth:grant-type:device_code',
+    },
   });
 }
 
@@ -105,22 +159,19 @@ export async function fetchGitHubUser(token: string): Promise<GitHubUser> {
   return response.json() as Promise<GitHubUser>;
 }
 
-export async function storeCredentials(token: string, user: GitHubUser): Promise<void> {
-  // 1. User-owned Puter KV (Source of Truth)
-  try {
-    const puter = window.puter;
-    if (puter?.kv) {
-      const signedIn = await puter.auth?.isSignedIn?.().catch(() => false);
-      if (signedIn) {
-        await puter.kv.set(TOKEN_KEY, token);
-        await puter.kv.set(USER_KEY, JSON.stringify(user));
-      }
-    }
-  } catch (err) {
-    console.warn('[GitHubAuthService] Puter cloud save failed:', err);
+export async function signInWithToken(token: string): Promise<GitHubUser> {
+  const trimmed = token.trim();
+  if (!trimmed) {
+    throw new Error('Token is required.');
   }
 
-  // 2. Local cache (fallback/offline)
+  const user = await fetchGitHubUser(trimmed);
+  await storeCredentials(trimmed, user);
+  return user;
+}
+
+export async function storeCredentials(token: string, user: GitHubUser): Promise<void> {
+  // Local cache for the active session and offline reloads.
   try {
     localStorage.setItem(TOKEN_KEY, token);
     localStorage.setItem(USER_KEY, JSON.stringify(user));
@@ -129,34 +180,6 @@ export async function storeCredentials(token: string, user: GitHubUser): Promise
   }
   
   try { window.dispatchEvent(new Event('solarhub:github-auth-changed')); } catch { /* ignore */ }
-}
-
-export async function loadCredentialsFromPuter(): Promise<{ token: string; user: GitHubUser } | null> {
-  try {
-    const puter = window.puter;
-    if (!puter?.kv) return null;
-    const signedIn = await puter.auth?.isSignedIn?.().catch(() => false);
-    if (!signedIn) return null;
-
-    const token = await puter.kv.get(TOKEN_KEY);
-    const rawUser = await puter.kv.get(USER_KEY);
-    if (!token || !rawUser) return null;
-
-    const user = JSON.parse(rawUser) as GitHubUser;
-
-    // Refresh local cache
-    try {
-      localStorage.setItem(TOKEN_KEY, token);
-      localStorage.setItem(USER_KEY, JSON.stringify(user));
-    } catch {
-      // ignore
-    }
-    try { window.dispatchEvent(new Event('solarhub:github-auth-changed')); } catch { /* ignore */ }
-
-    return { token, user };
-  } catch {
-    return null;
-  }
 }
 
 export function getStoredToken(): string | null {
@@ -184,18 +207,4 @@ export function clearLocalCredentials(): void {
     // ignore
   }
   try { window.dispatchEvent(new Event('solarhub:github-auth-changed')); } catch { /* ignore */ }
-}
-
-export async function clearPuterCredentials(): Promise<void> {
-  try {
-    const puter = window.puter;
-    if (!puter?.kv) return;
-    const signedIn = await puter.auth?.isSignedIn?.().catch(() => false);
-    if (!signedIn) return;
-
-    await puter.kv.del(TOKEN_KEY);
-    await puter.kv.del(USER_KEY);
-  } catch {
-    // ignore
-  }
 }

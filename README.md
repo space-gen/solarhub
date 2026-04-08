@@ -1,85 +1,138 @@
-# SolarHub — Frontend
+# SolarHub Frontend
 
-> **Citizen-science web client for SolarHub.**
->
-> The hosted web app is the primary user-facing interface for image classification and contributor workflows.
+SolarHub is a static React + TypeScript app hosted on GitHub Pages.
 
-[![Pages](https://github.com/space-gen/solarhub/actions/workflows/deploy.yml/badge.svg)](https://space-gen.github.io/solarhub/)
-[![Sponsor on GitHub](https://img.shields.io/badge/Sponsor-GitHub-ff69b4?style=for-the-badge&logo=github-sponsors&logoColor=white)](https://github.com/sponsors/soumyadipkarforma)
-[![Patreon](https://img.shields.io/badge/Support-Patreon-FF424D?style=for-the-badge&logo=patreon&logoColor=white)](https://www.patreon.com/SoumyadipKarforma)
-[![Buy Me a Coffee](https://img.shields.io/badge/Support-Buy%20Me%20a%20Coffee-orange?style=for-the-badge&logo=buy-me-a-coffee&logoColor=white)](https://buymeacoffee.com/soumyadipkarforma)
+User progress is persisted serverlessly in a public GitHub repository:
 
-## Overview
+- Repo name: `solarhub-data`
+- Owner: the currently signed-in GitHub user
+- File updated on each successful submit: `progress.json`
+- Storage model: single-file JSON with one cursor per task type
 
-This repository contains the SolarHub frontend — a React + Vite TypeScript application that provides the classification UI, contributor tools, and documentation site. The hosted GitHub Pages site provides a ready-to-use experience for most contributors.
+## What gets stored in progress.json
 
-The frontend reads task manifests (JSONL) produced by the `aurora` backend and displays them for human annotation.
+`progress.json` is the source of truth for progress UI in the frontend:
 
-## Tech Stack
+- `schemaVersion`: currently `2`
+- `points`: current total points
+- `streak`: current daily streak
+- `lastActiveDate`: latest UTC date with activity
+- `lastCompletedIdsByType`: cursor map keyed by task type, where each value is the most recent completed task id for that type
+- `updatedAt`: ISO timestamp of last write
 
-![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?style=for-the-badge&logo=typescript&logoColor=white)
-![React](https://img.shields.io/badge/React-61DAFB?style=for-the-badge&logo=react&logoColor=black)
-![Vite](https://img.shields.io/badge/Vite-646CFF?style=for-the-badge&logo=vite&logoColor=white)
-![GitHub Actions](https://img.shields.io/badge/github%20actions-%232671E5.svg?style=for-the-badge&logo=githubactions&logoColor=white)
+The app does not store a global completion history. It only remembers the latest completed id for each task type, so progress for `sunspot` does not overwrite `magnetogram`, and vice versa.
 
-## Repository Structure
+## Why this works on GitHub Pages (serverless)
 
-```
-solarhub/
-├── public/                 # Static assets (images, favicon)
-├── src/                    # Application source (React + TypeScript)
-│   ├── components/         # UI components (AnnotationPanel, NavigationBar...)
-│   ├── pages/              # Route-level pages (Home, Classify, About)
-│   ├── services/           # API + integration services
-│   └── styles/             # Global and component styles
-├── docs/                   # Documentation used for GitHub Pages
-├── package.json            # Node scripts + dependencies
-└── vite.config.ts          # Vite configuration
-```
+The app uses GitHub REST Contents API from the browser:
 
-## Quick start (developer)
+- `GET /repos/{owner}/{repo}/contents/progress.json`
+- `PUT /repos/{owner}/{repo}/contents/progress.json`
 
-Run locally for development:
+The update request includes Base64 content and the previous file `sha` when updating, which is GitHub's required optimistic concurrency mechanism.
 
-```
+This is a good fit for static hosting because no app server is required for data persistence.
+
+## Important OAuth/CORS note
+
+GitHub OAuth Device Flow endpoints (`github.com/login/...`) are not directly browser-CORS-friendly. For production, use a small proxy for these two endpoints:
+
+- `POST /login/device/code`
+- `POST /login/oauth/access_token`
+
+The project already supports proxy URLs via `src/config/endpoints.ts`.
+
+## Local development
+
+```bash
 git clone https://github.com/space-gen/solarhub.git
 cd solarhub
 npm install
 npm run dev
 ```
 
-Configure GitHub auth in `src/config/endpoints.ts` if you plan to test the Device Flow integration.
+## Configuration
 
-## Hosted site
+Edit `src/config/endpoints.ts`:
 
-The recommended place for most contributors is the hosted site:
+- `AUTH_CONFIG.clientId`: your GitHub OAuth App client ID
+- `AUTH_CONFIG.scopes`: includes `public_repo` for writing `progress.json` in a public repo
+- `AUTH_CONFIG.deviceCodeUrl`: your proxy route for device code exchange
+- `AUTH_CONFIG.accessTokenUrl`: your proxy route for token exchange
+- `AUTH_CONFIG.fallbackCorsProxyUrl`: optional best-effort fallback
+
+## First sign-in behavior
+
+When a user signs in:
+
+1. App fetches authenticated user login.
+2. App creates or reuses `{login}/solarhub-data` as a public repo.
+3. App creates `progress.json` if missing.
+4. App loads `progress.json` to initialize points/streak/completed IDs.
+
+## Submit behavior
+
+On successful submit:
+
+1. UI advances immediately to the next task in the current JSONL file.
+2. Progress object is updated in memory (`points`, `streak`, `lastCompletedIdsByType[taskType]`).
+3. Updated `progress.json` is pushed to GitHub with Contents API `PUT`.
+4. The next time that task type opens, the app resumes from the next available id after the stored cursor.
+
+## Expected contents of user solarhub-data repo
+
+The repo is intended to contain only one tracked data file:
+
+- `progress.json`
+
+Example document:
+
+```json
+{
+	"schemaVersion": 2,
+	"points": 17,
+	"streak": 4,
+	"lastActiveDate": "2026-04-08",
+	"lastCompletedIdsByType": {
+		"sunspot": "20260408_000123_Ic",
+		"magnetogram": "20260408_000044_Mg"
+	},
+	"updatedAt": "2026-04-08T12:34:56.000Z"
+}
+```
+
+Missing task types default to `null` in the app. New task types can be added without changing the storage shape.
+
+## How task rotation works
+
+SolarHub fetches the per-type `.jsonl` files from Aurora at runtime. For the selected type:
+
+1. The app loads that task type's JSONL file.
+2. The app loads `progress.json`.
+3. The app finds the stored cursor for the selected type.
+4. The UI starts at the first task after that cursor.
+5. On submit, the app writes the submitted task id back into `lastCompletedIdsByType[taskType]`.
+
+This means each type advances independently and the next item is always chosen from the current file order, not from a shared global completion list.
+
+## Repository layout
+
+The public `solarhub-data` repo should contain:
+
+- `progress.json`
+
+No annotations, no task history, and no SQLite database are required.
+
+## Build
+
+```bash
+npm run build
+```
+
+## Hosted App
 
 https://space-gen.github.io/solarhub/
 
-## Documentation
-
-Documentation for the frontend (Pages + usage) is available on the hosted site under the Docs section.
-
-## How to help
-
-- Classify images on the hosted site
-- Open issues describing bugs or features
-- Send PRs with documentation, accessibility improvements, or bug fixes
-
-## Funding
-
-Support the project:
-
-[![GitHub Sponsors](https://img.shields.io/badge/Sponsor-GitHub-ff69b4?style=for-the-badge&logo=github-sponsors&logoColor=white)](https://github.com/sponsors/soumyadipkarforma)
-[![Patreon](https://img.shields.io/badge/Support-Patreon-FF424D?style=for-the-badge&logo=patreon&logoColor=white)](https://www.patreon.com/SoumyadipKarforma)
-[![Buy Me a Coffee](https://img.shields.io/badge/Support-Buy%20Me%20a%20Coffee-orange?style=for-the-badge&logo=buy-me-a-coffee&logoColor=white)](https://buymeacoffee.com/soumyadipkarforma)
-
-## Contact
-
-[![Twitter](https://img.shields.io/badge/Twitter-@soumyadip_k-1DA1F2?style=for-the-badge&logo=twitter&logoColor=white)](https://twitter.com/soumyadip_k)
-[![Instagram](https://img.shields.io/badge/Instagram-@soumyadip_karforma-E4405F?style=for-the-badge&logo=instagram&logoColor=white)](https://instagram.com/soumyadip_karforma)
-[![Email](https://img.shields.io/badge/Email-soumyadipkarforma02@gmail.com-D14836?style=for-the-badge&logo=gmail&logoColor=white)](mailto:soumyadipkarforma02@gmail.com)
-
 ## License
 
-SolarHub is open-source. See [LICENSE](LICENSE). Solar images are provided by NASA's SDO and are public domain.
+See `LICENSE`.

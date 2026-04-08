@@ -68,38 +68,6 @@ export interface UseTasksReturn {
 }
 
 // ---------------------------------------------------------------------------
-// localStorage key for completed task IDs
-// ---------------------------------------------------------------------------
-const COMPLETED_KEY = 'solarhub_completed_tasks';
-
-/**
- * loadCompletedIds
- * Reads the set of completed task IDs from localStorage.
- */
-function loadCompletedIds(): Set<string> {
-  try {
-    const raw = localStorage.getItem(COMPLETED_KEY);
-    if (!raw) return new Set();
-    const arr = JSON.parse(raw) as string[];
-    return new Set(Array.isArray(arr) ? arr : []);
-  } catch {
-    return new Set();
-  }
-}
-
-/**
- * saveCompletedIds
- * Persists the completed task ID set back to localStorage.
- */
-function saveCompletedIds(ids: Set<string>): void {
-  try {
-    localStorage.setItem(COMPLETED_KEY, JSON.stringify([...ids]));
-  } catch {
-    // Ignore storage errors
-  }
-}
-
-// ---------------------------------------------------------------------------
 // Hook implementation
 // ---------------------------------------------------------------------------
 
@@ -112,7 +80,7 @@ export function useTasks(): UseTasksReturn {
 
   // ── Progress tracking ─────────────────────────────────────────────────────
   const [completedTaskIds, setCompletedTaskIds] = useState<Set<string>>(
-    () => loadCompletedIds(),
+    () => new Set(),
   );
 
   // ── Fetch tasks on mount ──────────────────────────────────────────────────
@@ -130,13 +98,8 @@ export function useTasks(): UseTasksReturn {
 
         setTasks(fetched);
 
-        // If user has already completed some tasks, start from the first
-        // uncompleted one so they don't see the same images again.
-        const completedIds   = loadCompletedIds();
-        const firstPending   = fetched.findIndex(t => !completedIds.has(t.id));
-        const startingIndex  = firstPending !== -1 ? firstPending : 0;
-
-        setTaskIndex(startingIndex);
+        // Start from the first item in the fetched queue.
+        setTaskIndex(0);
       } catch (err) {
         if (!isMounted) return;
         const message = err instanceof Error ? err.message : 'Failed to load tasks';
@@ -188,13 +151,12 @@ export function useTasks(): UseTasksReturn {
   /**
    * markTaskCompleted
    * Records that the user has submitted an annotation for the given task ID.
-   * Persists to localStorage and automatically advances to the next task.
+    * Keeps in-memory completion state and automatically advances to the next task.
    */
   const markTaskCompleted = useCallback((taskId: string) => {
     setCompletedTaskIds(prev => {
       const updated = new Set(prev);
       updated.add(taskId);
-      saveCompletedIds(updated);
       return updated;
     });
 

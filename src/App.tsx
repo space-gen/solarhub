@@ -28,33 +28,16 @@ import Funding from '@/pages/Funding';
 import Classify from '@/pages/Classify';
 import Connect from '@/pages/Connect';
 
-const POINTS_STORAGE_KEY = 'solarhub_points';
-
-function loadPoints(): number {
-  try {
-    const stored = localStorage.getItem(POINTS_STORAGE_KEY);
-    if (stored === null) return 0;
-    const parsed = parseInt(stored, 10);
-    return isNaN(parsed) ? 0 : parsed;
-  } catch {
-    return 0;
-  }
-}
-
-function savePoints(points: number): void {
-  try {
-    localStorage.setItem(POINTS_STORAGE_KEY, points.toString());
-  } catch {
-    // Ignore storage errors
-  }
-}
-
 function AppRoutes({
   points,
   onPointsChange,
+  onStreakChange,
+  streak,
 }: {
   points: number;
   onPointsChange: (p: number) => void;
+  onStreakChange: (s: number) => void;
+  streak: number;
 }) {
   const location = useLocation();
 
@@ -70,11 +53,11 @@ function AppRoutes({
 
         <Route
           path="/classify"
-          element={<Classify points={points} onPointsChange={onPointsChange} />}
+          element={<Classify points={points} onPointsChange={onPointsChange} onStreakChange={onStreakChange} streak={streak} />}
         />
         <Route
           path="/classify/:taskType"
-          element={<Classify points={points} onPointsChange={onPointsChange} />}
+          element={<Classify points={points} onPointsChange={onPointsChange} onStreakChange={onStreakChange} streak={streak} />}
         />
 
         <Route path="*" element={<Home />} />
@@ -84,21 +67,25 @@ function AppRoutes({
 }
 
 export default function App() {
-  const [points, setPoints] = useState<number>(loadPoints);
+  const [points, setPoints] = useState<number>(0);
+  const [streak, setStreak] = useState<number>(0);
 
   function handlePointsChange(newPoints: number) {
     setPoints(newPoints);
-    savePoints(newPoints);
   }
 
-  // Initialize SQLite from GitHub and sync points on app startup
+  function handleStreakChange(newStreak: number) {
+    setStreak(newStreak);
+  }
+
+  // Initialize progress.json from GitHub and sync points on app startup
   useEffect(() => {
     const initialize = async () => {
-      // Initialize SQLite from GitHub (if user is authenticated)
+      // Initialize progress.json from GitHub (if user is authenticated)
       try {
         await initializeFromGitHub();
       } catch (err) {
-        console.warn('[App] Failed to initialize SQLite from GitHub:', err);
+        console.warn('[App] Failed to initialize progress.json from GitHub:', err);
       }
 
       // Load daily progress and update points
@@ -106,6 +93,9 @@ export default function App() {
         const progress = await loadDailyProgress();
         if (typeof progress.points === 'number' && progress.points !== points) {
           handlePointsChange(progress.points);
+        }
+        if (typeof progress.streak === 'number' && progress.streak !== streak) {
+          handleStreakChange(progress.streak);
         }
       } catch (err) {
         console.warn('[App] Failed to load daily progress:', err);
@@ -118,9 +108,9 @@ export default function App() {
   return (
     <HashRouter>
       <div className="dark flex flex-col min-h-screen bg-cosmic-950 text-slate-100 font-sans">
-        <NavigationBar points={points} />
+        <NavigationBar points={points} streak={streak} />
         <main className="flex-1">
-          <AppRoutes points={points} onPointsChange={handlePointsChange} />
+          <AppRoutes points={points} onPointsChange={handlePointsChange} onStreakChange={handleStreakChange} streak={streak} />
         </main>
         <Footer />
       </div>

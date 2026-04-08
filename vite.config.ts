@@ -17,6 +17,23 @@ export default defineConfig({
   // For main branch: /solarhub/
   base,
 
+  server: {
+    proxy: {
+      '/api/github/device/code': {
+        target: 'https://github.com',
+        changeOrigin: true,
+        secure: true,
+        rewrite: () => '/login/device/code',
+      },
+      '/api/github/access_token': {
+        target: 'https://github.com',
+        changeOrigin: true,
+        secure: true,
+        rewrite: () => '/login/oauth/access_token',
+      },
+    },
+  },
+
   resolve: {
     alias: {
       // "@" resolves to the "src" directory at build time AND in the IDE.

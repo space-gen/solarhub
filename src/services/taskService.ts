@@ -5,16 +5,10 @@
  *
  * Data flow:
  *  1. fetchTasks() is called by useTasks hook on mount.
- *  2. It first checks localStorage for a fresh cached response.
- *  3. On cache miss it fetches from ENDPOINTS.TASKS (a JSON file in the
+ *  2. It fetches from ENDPOINTS.TASKS (a JSON file in the
  *     solarhub-data GitHub repo).
- *  4. If the network request fails, it falls back to MOCK_TASKS so the app
+ *  3. If the network request fails, it falls back to MOCK_TASKS so the app
  *     is always usable even without connectivity.
- *
- * Cache strategy:
- *  - Key    : "solarhub:tasks:YYYY-MM-DD"  (auto-expires each day)
- *  - Value  : JSON-serialised Task[] array
- *  - TTL    : Implicit – the date component in the key acts as a daily TTL.
  *
  * Task image sources:
  *  NASA's Solar Dynamics Observatory (SDO) publishes public-domain imagery.
@@ -24,7 +18,6 @@
  */
 
 import { ENDPOINTS } from '@/config/endpoints';
-import { generateTaskCacheKey } from '@/utils/helpers';
 import type { TaskType } from '@/services/annotationService';
 
 // ---------------------------------------------------------------------------
@@ -114,47 +107,6 @@ function mapRawToTask(raw: RawAuroraRecord, index: number): Task {
     serial_number:    raw.serial_number ?? index + 1,
     annotation_count: 0,
   };
-}
-
-// ---------------------------------------------------------------------------
-// Cache helpers
-// ---------------------------------------------------------------------------
-
-/** localStorage key for today's task list */
-const CACHE_KEY = generateTaskCacheKey('tasks');
-
-/**
- * readTasksFromCache
- *
- * Attempts to parse a Task[] array from localStorage.
- * Returns null on any failure (missing key, invalid JSON, wrong shape).
- */
-function readTasksFromCache(): Task[] | null {
-  try {
-    const raw = localStorage.getItem(CACHE_KEY);
-    if (!raw) return null;
-
-    const parsed = JSON.parse(raw) as unknown;
-    if (!Array.isArray(parsed) || parsed.length === 0) return null;
-
-    return parsed as Task[];
-  } catch {
-    return null;
-  }
-}
-
-/**
- * writeTasksToCache
- *
- * Serialises a Task[] array into localStorage.
- * Silently swallows errors (e.g. storage quota exceeded).
- */
-function writeTasksToCache(tasks: Task[]): void {
-  try {
-    localStorage.setItem(CACHE_KEY, JSON.stringify(tasks));
-  } catch {
-    // Non-fatal – the app works fine without caching
-  }
 }
 
 // ---------------------------------------------------------------------------
@@ -274,22 +226,14 @@ export const MOCK_TASKS: Task[] = [
  * Returns an array of Task objects for the current session.
  *
  * Strategy:
- *  1. Return cached tasks if they exist and are still fresh.
- *  2. Fetch from the remote JSON endpoint.
- *  3. Validate and cache the response.
- *  4. On network error, return MOCK_TASKS with a console warning.
+ *  1. Fetch from the remote JSON endpoint.
+ *  2. Validate the response.
+ *  3. On network error, return MOCK_TASKS with a console warning.
  *
  * @returns Promise<Task[]>
  */
 export async function fetchTasks(): Promise<Task[]> {
-  // ── Step 1: cache hit ──────────────────────────────────────────────────
-  const cached = readTasksFromCache();
-  if (cached) {
-    console.info('[TaskService] Returning %d tasks from cache.', cached.length);
-    return cached;
-  }
-
-  // ── Step 2: network fetch ──────────────────────────────────────────────
+  // Fetch fresh tasks from the Aurora endpoint every time.
   try {
     const controller = new AbortController();
     // Abort after 10 s to prevent hanging on slow connections
@@ -326,17 +270,16 @@ export async function fetchTasks(): Promise<Task[]> {
       }
     }
 
-    // ── Step 3: validate & cache ──────────────────────────────────────────
+    // Validate response
     if (!tasks || tasks.length === 0) {
       throw new Error('No valid tasks found in response.');
     }
 
-    writeTasksToCache(tasks);
-    console.info('[TaskService] Fetched and cached %d tasks.', tasks.length);
+    console.info('[TaskService] Fetched %d tasks from remote source.', tasks.length);
     return tasks;
 
   } catch (error) {
-    // ── Step 4: graceful fallback ─────────────────────────────────────────
+    // Graceful fallback
     console.warn(
       '[TaskService] Could not fetch tasks from remote URL. Using mock data.\nReason:',
       error instanceof Error ? error.message : error,

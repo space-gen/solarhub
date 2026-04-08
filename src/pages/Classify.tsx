@@ -5,7 +5,7 @@
  *
  * - Users pick a task type.
  * - The app shows one uncompleted task at a time (for today).
- * - Completed IDs rotate daily (date-scoped) and are persisted in Puter KV.
+ * - Completed IDs are persisted in progress.json and kept in insertion order.
  */
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
@@ -20,7 +20,7 @@ import { fetchAuroraTasksByType } from '@/services/auroraService';
 import type { AuroraTask } from '@/services/auroraService';
 
 import { loadDailyProgress, markTaskCompletedForToday } from '@/services/dailyProgressService';
-import { checkAnnotationExists } from '@/services/sqliteService';
+import { loadProgressFromGitHub } from '@/services/githubSyncService';
 import { pageVariants, itemVariants } from '@/animations/pageTransitions';
 
 interface TaskTypeMeta {
@@ -39,6 +39,8 @@ const TASK_TYPES: TaskTypeMeta[] = [
 interface ClassifyProps {
   points: number;
   onPointsChange: (p: number) => void;
+  streak: number;
+  onStreakChange: (s: number) => void;
 }
 
 function BackButton({ label, onClick }: { label: string; onClick: () => void }) {
@@ -106,9 +108,6 @@ function AnnotationView({
   task,
   taskType,
   points,
-  streak,
-  completedToday,
-  remainingToday,
   onSubmit,
   onBack,
   showSuccess
@@ -116,9 +115,6 @@ function AnnotationView({
   task: AuroraTask;
   taskType: TaskType;
   points: number;
-  streak: number;
-  completedToday: number;
-  remainingToday: number;
   onSubmit: (input: AnnotationInput) => void;
   onBack: () => void;
   showSuccess: boolean;
@@ -345,13 +341,6 @@ function AnnotationView({
               </div>
             </motion.div>
 
-            <motion.div variants={itemVariants} className="glass rounded-xl p-3 flex flex-wrap gap-3 text-xs text-slate-400">
-              <span>Done today: <strong className="text-emerald-300">{completedToday}</strong></span>
-              <span>Remaining today: <strong className="text-solar-300">{remainingToday}</strong></span>
-              <span>Streak: <strong className="text-nebula-300">{streak}</strong> day{streak === 1 ? '' : 's'}</span>
-              <span>Total points: <strong className="text-solar-300">{points}</strong></span>
-            </motion.div>
-
             <motion.div
               variants={itemVariants}
               className="glass rounded-2xl overflow-hidden transition-all duration-300"
@@ -559,7 +548,7 @@ function AnnotationView({
   );
 }
 
-export default function Classify({ points, onPointsChange }: ClassifyProps) {
+export default function Classify({ points, onPointsChange, onStreakChange }: ClassifyProps) {
   const { taskType: typeParam } = useParams<{ taskType?: string }>();
   const navigate = useNavigate();
 
@@ -567,23 +556,19 @@ export default function Classify({ points, onPointsChange }: ClassifyProps) {
   const [tasks, setTasks] = useState<AuroraTask[]>([]);
   const [gridLoading, setGridLoading] = useState(false);
   const [progressLoading, setProgressLoading] = useState(true);
-  const [doneIds, setDoneIds] = useState<Set<string>>(new Set());
-  const [streak, setStreak] = useState(0);
+  // `streak` is managed at App level and updated via `onStreakChange`.
   const [showSuccess, setShowSuccess] = useState(false);
-  const [sqliteAnnotatedIds, setSqliteAnnotatedIds] = useState<Set<string>>(new Set());
-
   const [availability, setAvailability] = useState<Record<TaskType, boolean | null>>(
     () => Object.fromEntries(TASK_TYPES.map(t => [t.value, null])) as Record<TaskType, boolean | null>,
   );
 
   useEffect(() => {
     void loadDailyProgress().then(progress => {
-      setDoneIds(progress.completedTaskIds);
-      setStreak(progress.streak);
+      onStreakChange(progress.streak);
       onPointsChange(progress.points);
       setProgressLoading(false);
     }).catch(() => setProgressLoading(false));
-  }, [onPointsChange]);
+  }, [onPointsChange, onStreakChange]);
 
   useEffect(() => {
     TASK_TYPES.forEach(async ({ value }) => {
@@ -599,35 +584,27 @@ export default function Classify({ points, onPointsChange }: ClassifyProps) {
     }
 
     setGridLoading(true);
-    fetchAuroraTasksByType(selectedType).then(result => {
-      setTasks(result ?? []);
+    void Promise.all([
+      fetchAuroraTasksByType(selectedType),
+      loadProgressFromGitHub(),
+    ]).then(([result, progress]) => {
+      const fetchedTasks = result ?? [];
+      const lastCompletedId = progress.lastCompletedIdsByType[selectedType];
+      const startIndex = lastCompletedId
+        ? fetchedTasks.findIndex(task => task.id === lastCompletedId) + 1
+        : 0;
+      const nextQueue = startIndex > 0 ? fetchedTasks.slice(startIndex) : fetchedTasks;
+
+      setTasks(nextQueue);
+      setGridLoading(false);
+    }).catch(() => {
+      setTasks([]);
+      
       setGridLoading(false);
     });
   }, [selectedType]);
 
-  // Check SQLite for existing annotations to prevent duplicates
-  useEffect(() => {
-    const checkSQLiteAnnotations = async () => {
-      const annotatedIds = new Set<string>();
-      for (const task of tasks) {
-        try {
-          const exists = await checkAnnotationExists(task.id);
-          if (exists) {
-            annotatedIds.add(task.id);
-          }
-        } catch (err) {
-          console.warn(`[Classify] SQLite check failed for task ${task.id}:`, err);
-        }
-      }
-      setSqliteAnnotatedIds(annotatedIds);
-    };
-
-    if (tasks.length > 0) {
-      void checkSQLiteAnnotations();
-    }
-  }, [tasks]);
-
-  const pendingTasks = useMemo(() => tasks.filter(t => !doneIds.has(t.id) && !sqliteAnnotatedIds.has(t.id)), [tasks, doneIds, sqliteAnnotatedIds]);
+  const pendingTasks = useMemo(() => tasks, [tasks]);
   const currentTask = pendingTasks[0] ?? null;
 
   const handleTypeSelect = useCallback((tt: TaskType) => {
@@ -642,13 +619,21 @@ export default function Classify({ points, onPointsChange }: ClassifyProps) {
 
   const handleAnnotationSubmit = useCallback((input: AnnotationInput) => {
     setShowSuccess(true);
-    // Let SuccessPopup show for 1 second before advancing
+    // Optimistically increment the local/global points so the success
+    // popup shows the new total immediately (+1). The server response
+    // below will reconcile the authoritative value when it arrives.
+    onPointsChange(points + 1);
+    // Advance immediately so the next task is shown as soon as submit is pressed.
+    setTasks(prev => prev.filter(t => t.id !== input.task_id));
+
+    // Let SuccessPopup show briefly while completion is recorded in the background.
     setTimeout(() => {
-      void markTaskCompletedForToday(input.task_id)
+      console.info('[Classify] handleAnnotationSubmit triggering markTaskCompletedForToday for', input.task_id);
+      void markTaskCompletedForToday(input.task_id, input.task_type)
         .then(({ progress }) => {
-          setDoneIds(new Set(progress.completedTaskIds));
-          setStreak(progress.streak);
+          onStreakChange(progress.streak);
           onPointsChange(progress.points); // +1 point per successful annotation
+
           setShowSuccess(false);
         })
         .catch((err) => {
@@ -657,7 +642,7 @@ export default function Classify({ points, onPointsChange }: ClassifyProps) {
           setShowSuccess(false);
         });
     }, 1_000);
-  }, [onPointsChange]);
+  }, [onPointsChange, points, onStreakChange]);
 
   return (
     <AnimatePresence mode="wait">
@@ -707,9 +692,6 @@ export default function Classify({ points, onPointsChange }: ClassifyProps) {
               task={currentTask}
               taskType={selectedType}
               points={points}
-              streak={streak}
-              completedToday={tasks.length - pendingTasks.length}
-              remainingToday={pendingTasks.length}
               onSubmit={handleAnnotationSubmit}
               onBack={handleBackToTypes}
               showSuccess={showSuccess}

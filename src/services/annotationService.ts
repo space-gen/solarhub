@@ -5,13 +5,12 @@
  *
  * What happens when a user clicks "Submit":
  *  1. A full Annotation record is built from the form data.
- *  2. It is saved to localStorage immediately (offline-first).
- *  3. It is saved to puter.kv (cloud backup, zero-config via Puter.js).
- *  4. A POST to the GitHub Issues API creates a public issue on space-gen/aurora
+ *  2. A POST to the GitHub Issues API creates a public issue on space-gen/aurora
  *     using the user's OAuth token obtained via githubAuthService.
  *     The issue body is formatted so aurora's parse_issue_annotation.py
  *     pipeline script can parse it automatically.
- *  5. On any API failure the localStorage + Puter copies are the durable record.
+ *  3. On failure, the annotation is not persisted locally; only the daily progress
+ *     progress.json store remains responsible for points, streak, and completed IDs.
  *
  * Issue format (matching aurora's parse_issue_annotation.py):
  *   ### Image URL
@@ -26,8 +25,6 @@
 import { GITHUB_CONFIG }  from '@/config/endpoints';
 import { generateSessionId } from '@/utils/helpers';
 import { getStoredToken }    from '@/services/githubAuthService';
-import { insertAnnotation, checkAnnotationExists } from '@/services/sqliteService';
-import { syncToGitHub } from '@/services/githubSyncService';
 
 // ---------------------------------------------------------------------------
 // Data model
@@ -98,32 +95,6 @@ export interface AnnotationResult {
 }
 
 // ---------------------------------------------------------------------------
-// localStorage helpers
-// ---------------------------------------------------------------------------
-
-const LOCAL_STORAGE_KEY = 'solarhub_annotations';
-
-export function saveAnnotationLocally(annotation: Annotation): void {
-  try {
-    const existing = getLocalAnnotations();
-    localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify([...existing, annotation]));
-  } catch (err) {
-    console.warn('[AnnotationService] localStorage save failed:', err);
-  }
-}
-
-export function getLocalAnnotations(): Annotation[] {
-  try {
-    const raw = localStorage.getItem(LOCAL_STORAGE_KEY);
-    if (!raw) return [];
-    const parsed = JSON.parse(raw) as unknown;
-    return Array.isArray(parsed) ? (parsed as Annotation[]) : [];
-  } catch {
-    return [];
-  }
-}
-
-// ---------------------------------------------------------------------------
 // GitHub Issue body formatter  (aurora parse_issue_annotation.py compatible)
 // ---------------------------------------------------------------------------
 
@@ -183,14 +154,10 @@ ${annotation.comments.trim() || '_No response_'}
  *
  * Full submission pipeline:
  *  1. Builds the Annotation record.
- *  2. Checks if already exists in SQLite (deduplication).
- *  3. Inserts to SQLite DB.
- *  4. Syncs SQLite to GitHub.
- *  5. Saves locally to localStorage.
- *  6. Creates a GitHub Issue on space-gen/aurora using the user's OAuth token.
+ *  2. Creates a GitHub Issue on space-gen/aurora using the user's OAuth token.
  *
  * Returns success=false (with a reason) if the user is not signed in or the
- * API call fails — the SQLite + localStorage copies are preserved either way.
+ * API call fails.
  */
 export async function submitAnnotation(
   input: AnnotationInput,
@@ -207,50 +174,6 @@ export async function submitAnnotation(
       return `annotate --task ${input.task_type} --label ${input.user_label}${coords ? ` --coords "${coords}"` : ''}${typeof input.region_radius === 'number' ? ` --radius ${input.region_radius}` : ''}`;
     })(),
   };
-
-  // ── Check if already exists in SQLite (deduplication) ────────────────────
-  try {
-    const exists = await checkAnnotationExists(input.task_id);
-    if (exists) {
-      return {
-        success:    false,
-        annotation,
-        error:      'This task annotation already exists.',
-      };
-    }
-  } catch (err) {
-    console.warn('[AnnotationService] SQLite check failed:', err);
-    // Continue even if SQLite check fails
-  }
-
-  // ── Insert to SQLite ──────────────────────────────────────────────────────
-  try {
-    // Encode pixel_coords + labels as RLE string: label,x,y,r;label,x,y,r
-    const rleString = input.pixel_coords && input.pixel_coords.length > 0
-      ? input.pixel_coords.map((p, i) => {
-          const label = input.pixel_labels?.[i] || input.user_label || 'none';
-          const radius = input.pixel_radii?.[i] || 0;
-          return `${label},${p.x},${p.y},${radius}`;
-        }).join(';')
-      : `${input.user_label || 'none'},0,0,0`;
-
-    await insertAnnotation(
-      input.task_id,
-      input.task_type,
-      input.user_label,
-      rleString
-    );
-
-    // Sync to GitHub
-    await syncToGitHub();
-    console.info('[AnnotationService] Inserted to SQLite and synced to GitHub');
-  } catch (err) {
-    console.warn('[AnnotationService] SQLite insert/sync failed:', err);
-    // Continue with GitHub Issues submission even if SQLite sync fails
-  }
-
-  // ── Local persistence (localStorage cache) ────────────────────────────────
-  saveAnnotationLocally(annotation);
 
   // ── GitHub Issue creation (unchanged) ─────────────────────────────────────
   const token = getStoredToken();
@@ -287,14 +210,6 @@ export async function submitAnnotation(
     }
 
     const issueData = await response.json() as { number: number; html_url: string };
-
-    // Update the local record with the issue number
-    const annotations = getLocalAnnotations();
-    const idx = annotations.findIndex(a => a.id === annotation.id);
-    if (idx !== -1) {
-      annotations[idx].github_issue_number = issueData.number;
-      try { localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(annotations)); } catch { /* non-fatal */ }
-    }
 
     return {
       success:    true,

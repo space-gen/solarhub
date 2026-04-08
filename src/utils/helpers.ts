@@ -34,13 +34,12 @@ export interface TaskTypeStyle {
 /**
  * generateTaskCacheKey
  *
- * Produces a deterministic localStorage key for a cached task list fetch.
- * Including the date string means the cache is automatically invalidated
- * each day so users always see fresh tasks.
+ * Produces a deterministic daily key string for optional cache namespaces.
+ * Including the date string means the key rotates automatically each day.
  *
  * @param prefix  - Logical namespace (e.g. "tasks", "task-detail")
  * @param suffix  - Optional further qualifier (e.g. a task id)
- * @returns A string suitable for use as a localStorage key
+ * @returns A deterministic namespaced key string
  *
  * @example
  *   generateTaskCacheKey('tasks')            // "solarhub:tasks:2024-01-15"
@@ -131,33 +130,23 @@ export function truncateText(text: string, maxLen = 120): string {
 /**
  * generateSessionId
  *
- * Creates or retrieves a stable anonymous session identifier stored in
- * localStorage.  This gives each visitor a persistent identity without
- * requiring sign-in, so their annotation history can be tracked across
- * page refreshes.
+ * Creates or retrieves a runtime-only anonymous session identifier.
  *
  * The ID format is:  "sh_<timestamp_base36>_<random_hex>"
  *
  * @returns A session ID string
  */
 export function generateSessionId(): string {
-  const STORAGE_KEY = 'solarhub_session_id';
-
-  // Return existing session ID if one was already created this session
-  const existing = localStorage.getItem(STORAGE_KEY);
-  if (existing) return existing;
+  // Keep a per-runtime session ID in memory (no local storage persistence).
+  const runtimeScope = globalThis as typeof globalThis & { __solarhubSessionId?: string };
+  if (runtimeScope.__solarhubSessionId) return runtimeScope.__solarhubSessionId;
 
   // Generate a new ID
   const timestamp = Date.now().toString(36);          // base-36 timestamp
   const randomPart = Math.random().toString(16).slice(2, 10); // 8 hex chars
   const newId = `sh_${timestamp}_${randomPart}`;
 
-  try {
-    localStorage.setItem(STORAGE_KEY, newId);
-  } catch {
-    // localStorage can be unavailable in some privacy modes; fall back to
-    // an in-memory ID that will only last the page session.
-  }
+  runtimeScope.__solarhubSessionId = newId;
 
   return newId;
 }

@@ -4,10 +4,10 @@
  * GitHub auth hook for a static GitHub Pages site.
  *
  * Requirements:
- *  - User signs in with Puter first.
  *  - GitHub auth uses OAuth Device Flow (client-id only).
- *  - The GitHub access token is stored in the user's own Puter KV (best-effort),
- *    plus a localStorage cache for offline friendliness.
+ *  - The GitHub access token is stored locally for offline reloads.
+ *  - The user's public GitHub repo is initialized as the progress.json backing store
+ *    after sign-in.
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -15,15 +15,15 @@ import {
   startDeviceFlow,
   exchangeDeviceCodeOnce,
   fetchGitHubUser,
+  signInWithToken,
   storeCredentials,
-  loadCredentialsFromPuter,
   clearLocalCredentials,
-  clearPuterCredentials,
   getStoredToken,
   getStoredUser,
   isOAuthConfigured,
   type GitHubUser,
 } from '@/services/githubAuthService';
+import { initializeFromGitHub } from '@/services/githubSyncService';
 
 export type DeviceFlowStatus = 'idle' | 'starting' | 'pending' | 'polling' | 'error';
 
@@ -52,12 +52,14 @@ export interface UseGitHubAuthReturn {
   startPolling: () => void;
   /** Reset the device flow UI state. */
   cancel: () => void;
+  /** Static fallback: connect with an existing GitHub token. */
+  connectWithToken: (token: string) => Promise<void>;
 
-  /** Disconnect GitHub (clears local + Puter KV copies). */
+  /** Disconnect GitHub (clears local session copies). */
   signOut: () => void;
 }
 
-export function useGitHubAuth(puterSignedIn: boolean): UseGitHubAuthReturn {
+export function useGitHubAuth(): UseGitHubAuthReturn {
   const [user,  setUser]  = useState<GitHubUser | null>(() => getStoredUser());
   const [token, setToken] = useState<string | null>(() => getStoredToken());
   const [loading, setLoading] = useState<boolean>(false);
@@ -66,6 +68,7 @@ export function useGitHubAuth(puterSignedIn: boolean): UseGitHubAuthReturn {
 
   const timerRef = useRef<number | null>(null);
   const cancelledRef = useRef<boolean>(false);
+  const initializedUserRef = useRef<string | null>(null);
 
   const clearTimer = useCallback(() => {
     if (timerRef.current !== null) {
@@ -81,17 +84,26 @@ export function useGitHubAuth(puterSignedIn: boolean): UseGitHubAuthReturn {
     setLoading(false);
   }, [clearTimer]);
 
-  // Load from Puter KV once Puter is signed in (if local cache missing)
   useEffect(() => {
-    if (!puterSignedIn) return;
-    if (getStoredToken() && getStoredUser()) return;
+    const storedToken = getStoredToken();
+    const storedUser = getStoredUser();
 
-    void loadCredentialsFromPuter().then(creds => {
-      if (!creds) return;
-      setToken(creds.token);
-      setUser(creds.user);
+    if (storedToken && storedUser) {
+      setToken(storedToken);
+      setUser(storedUser);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!token || !user?.login) return;
+    if (initializedUserRef.current === user.login) return;
+
+    initializedUserRef.current = user.login;
+    void initializeFromGitHub().catch(err => {
+      const msg = err instanceof Error ? err.message : 'Unknown error';
+      console.warn('[GitHubAuth] Failed to initialize progress repo:', msg);
     });
-  }, [puterSignedIn]);
+  }, [token, user]);
 
   // Cleanup on unmount
   useEffect(() => {
@@ -180,10 +192,6 @@ export function useGitHubAuth(puterSignedIn: boolean): UseGitHubAuthReturn {
       setDeviceFlow({ status: 'error', error: 'Missing GitHub OAuth Client ID.' });
       return;
     }
-    if (!puterSignedIn) {
-      setDeviceFlow({ status: 'error', error: 'Sign in to Puter first.' });
-      return;
-    }
 
     cancelledRef.current = false;
     clearTimer();
@@ -208,14 +216,9 @@ export function useGitHubAuth(puterSignedIn: boolean): UseGitHubAuthReturn {
         setDeviceFlow({ status: 'error', error: msg });
       })
       .finally(() => setLoading(false));
-  }, [puterSignedIn, clearTimer]);
+  }, [clearTimer]);
 
   const startPolling = useCallback(() => {
-    if (!puterSignedIn) {
-      setDeviceFlow({ status: 'error', error: 'Sign in to Puter first.' });
-      return;
-    }
-
     if (deviceFlow.status !== 'pending') return;
     if (!deviceFlow.device_code || !deviceFlow.user_code || !deviceFlow.verification_uri || !deviceFlow.expiresAt) return;
 
@@ -231,15 +234,27 @@ export function useGitHubAuth(puterSignedIn: boolean): UseGitHubAuthReturn {
       expiresAt: deviceFlow.expiresAt,
       interval: deviceFlow.interval,
     });
-  }, [puterSignedIn, deviceFlow, clearTimer, pollForToken]);
+  }, [deviceFlow, clearTimer, pollForToken]);
 
   const signOut = useCallback(() => {
     cancel();
     clearLocalCredentials();
-    void clearPuterCredentials();
     setUser(null);
     setToken(null);
+    initializedUserRef.current = null;
   }, [cancel]);
+
+  const connectWithToken = useCallback(async (rawToken: string) => {
+    setLoading(true);
+    try {
+      const ghUser = await signInWithToken(rawToken);
+      setToken(rawToken.trim());
+      setUser(ghUser);
+      setDeviceFlow({ status: 'idle' });
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   return {
     user,
@@ -250,6 +265,7 @@ export function useGitHubAuth(puterSignedIn: boolean): UseGitHubAuthReturn {
     generateDeviceCode,
     startPolling,
     cancel,
+    connectWithToken,
     signOut,
   };
 }
