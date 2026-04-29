@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="220" height="360" viewBox="0 0 220 360" xmlns="http://www.w3.org/2000/svg">
+
+  <defs>
+    <linearGradient id="strokeGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#FF6F00"/>
+      <stop offset="100%" stop-color="#C62828"/>
+    </linearGradient>
+  </defs>
+
+  <g transform="rotate(12 110 185)" fill="none" stroke="url(#strokeGrad)" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round">
+
+    <!-- Rocket -->
+    <path d="M110 20 C90 50,80 110,80 160 L80 260 C80 300,95 320,110 330 C125 320,140 300,140 260 L140 160 C140 110,130 50,110 20 Z"/>
+
+    <path d="M55 170 C60 140,75 120,80 150 L80 270 C80 300,70 315,55 320 C45 310,45 280,45 250 L45 190 C45 180,50 175,55 170 Z"/>
+
+    <path d="M165 170 C160 140,145 120,140 150 L140 270 C140 300,150 315,165 320 C175 310,175 280,175 250 L175 190 C175 180,170 175,165 170 Z"/>
+
+    <path d="M80 260 C90 255,130 255,140 260"/>
+
+    <path d="M110 260 C100 270,100 290,110 300 C120 290,120 270,110 260 Z"/>
+    <path d="M70 270 C62 278,62 295,70 305 C78 295,78 278,70 270 Z"/>
+    <path d="M150 270 C142 278,142 295,150 305 C158 295,158 278,150 270 Z"/>
+
+  </g>
+
+  <!-- removed embedded SPACEGEN text to use external label in header/footer -->
+
+</svg>
