@@ -8,21 +8,7 @@ interface LabelGuidePanelProps {
 export default function LabelGuidePanel({ selectedOption }: LabelGuidePanelProps) {
   if (!selectedOption) return null;
 
-  // Thumbnails and reference images for sunspot classifications (served from public/)
-  const base = (import.meta as any)?.env?.BASE_URL || '/';
-  const thumbMap: Record<string, string | undefined> = {
-    class_a: `${base}images/classifications/sunspot/class_a.svg`,
-    class_b: `${base}images/classifications/sunspot/class_b.svg`,
-    class_c: `${base}images/classifications/sunspot/class_c.svg`,
-    class_d: `${base}images/classifications/sunspot/class_d.svg`,
-    class_e: `${base}images/classifications/sunspot/class_e.svg`,
-    class_f: `${base}images/classifications/sunspot/class_f.svg`,
-    class_h: `${base}images/classifications/sunspot/class_h.svg`,
-  };
 
-  const classificationImage = selectedOption.value === 'sunspot'
-    ? `${base}images/classifications/sunspot/The-Modified-Zurich-Sunspot-Classification-System-developed-by-Patrick-McIntosh.png`
-    : undefined;
 
   const renderThumb = (val: string) => {
     if (selectedOption.value !== 'sunspot') return null;
