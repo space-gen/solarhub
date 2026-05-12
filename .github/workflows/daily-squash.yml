@@ -1,0 +1,40 @@
+name: Daily API Squash
+
+on:
+  schedule:
+    - cron: '0 0 * * *' # daily at 00:00 UTC
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+jobs:
+  squash:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Daily squash commit (create orphan root commit)
+        uses: actions/github-script@v6
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const branch = 'main';
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+
+            // Get the branch ref (latest commit SHA)
+            const ref = await github.rest.git.getRef({ owner, repo, ref: `heads/${branch}` });
+            const latestSha = ref.data.object.sha;
+
+            // Fetch the commit to get the tree SHA
+            const commit = await github.rest.git.getCommit({ owner, repo, commit_sha: latestSha });
+            const treeSha = commit.data.tree.sha;
+
+            // Create a new commit with the same tree but no parents (orphan/root)
+            const message = 'Daily progress snapshot';
+            const newCommit = await github.rest.git.createCommit({ owner, repo, message, tree: treeSha, parents: [] });
+            const newSha = newCommit.data.sha;
+
+            // Force-update the branch to point to the new root commit
+            await github.rest.git.updateRef({ owner, repo, ref: `heads/${branch}`, sha: newSha, force: true });
+
+            console.log(`Replaced branch ${branch} with new root commit ${newSha}`);

@@ -1,0 +1,755 @@
+/**
+ * src/pages/Classify.tsx
+ *
+ * Daily one-by-one classification flow.
+ *
+ * - Users pick a task type.
+ * - The app shows one uncompleted task at a time (for today).
+ * - Completed IDs are persisted in progress.json and kept in insertion order.
+ */
+
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
+import { motion, AnimatePresence } from 'framer-motion';
+import AnnotationPanel, { TASK_OPTIONS, SCIENTIFIC_HELP } from '@/components/AnnotationPanel';
+import PointsDisplay from '@/components/PointsDisplay';
+import GuidePanel from '@/components/GuidePanel';
+import LabelGuidePanel from '@/components/LabelGuidePanel';
+import StarField from '@/components/StarField';
+import type { AnnotationInput, TaskType, UserLabel } from '@/services/annotationService';
+import { fetchAuroraTasksByType } from '@/services/auroraService';
+import type { AuroraTask } from '@/services/auroraService';
+
+import { loadDailyProgress, markTaskCompletedForToday } from '@/services/dailyProgressService';
+import { loadProgressFromGitHub } from '@/services/githubSyncService';
+
+import { pageVariants, itemVariants } from '@/animations/pageTransitions';
+
+interface TaskTypeMeta {
+  value: TaskType;
+  friendlyName: string;
+  icon: string;
+  description: string;
+  subtitle?: string;
+}
+
+const TASK_TYPES: TaskTypeMeta[] = [
+  { value: 'sunspot',       friendlyName: 'Sun Spots',      icon: '🟤', description: 'Dark patches on the bright solar surface', subtitle: 'SDO HMI Continuum' },
+  { value: 'magnetogram',   friendlyName: 'Magnetic Map',   icon: '🧲', description: "Black & white map of the Sun's magnetic field", subtitle: 'SDO HMI Magnetogram' },
+];
+
+interface ClassifyProps {
+  points: number;
+  onPointsChange: (p: number) => void;
+  streak: number;
+  onStreakChange: (s: number) => void;
+}
+
+function BackButton({ label, onClick }: { label: string; onClick: () => void }) {
+  return (
+    <motion.button
+      onClick={onClick}
+      whileHover={{ x: -3 }}
+      whileTap={{ scale: 0.97 }}
+      className="flex items-center gap-1.5 text-sm text-slate-400 hover:text-slate-200 transition-colors"
+    >
+      <svg viewBox="0 0 24 24" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+      </svg>
+      {label}
+    </motion.button>
+  );
+}
+
+function SuccessPopup({ points }: { points: number }) {
+  return (
+    <motion.div
+      initial={{ opacity: 0, scale: 0.9 }}
+      animate={{ opacity: 1, scale: 1 }}
+      exit={{ opacity: 0, scale: 0.9 }}
+      className="fixed inset-0 z-[200] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+    >
+      <div className="bg-cosmic-800 border border-white/10 rounded-2xl p-8 max-w-sm w-full shadow-2xl flex flex-col items-center text-center gap-4 relative overflow-hidden">
+        {/* Shine effect */}
+        <div className="absolute inset-0 bg-gradient-to-br from-solar-500/10 to-transparent opacity-50 pointer-events-none" />
+        
+        <motion.div
+          initial={{ scale: 0 }}
+          animate={{ scale: 1 }}
+          transition={{ type: "spring", stiffness: 200, damping: 10 }}
+          className="w-20 h-20 rounded-full bg-emerald-500/20 flex items-center justify-center mb-2"
+        >
+          <span className="text-4xl">🎉</span>
+        </motion.div>
+        
+        <div>
+          <h2 className="text-2xl font-bold text-white mb-2">Great Job!</h2>
+          <p className="text-slate-300 mb-1">Your contribution helps science.</p>
+          <div className="text-sm font-mono text-emerald-400 bg-emerald-500/10 px-3 py-1 rounded-full inline-block mt-2">
+            +1 Point · Total: {points}
+          </div>
+        </div>
+
+        <div className="flex flex-col gap-2 w-full mt-2">
+          <div className="text-xs text-slate-500">Loading next image...</div>
+          <div className="h-1 w-full bg-white/10 rounded-full overflow-hidden">
+            <motion.div 
+              className="h-full bg-solar-500"
+              initial={{ width: "0%" }}
+              animate={{ width: "100%" }}
+              transition={{ duration: 1, ease: "linear" }}
+            />
+          </div>
+        </div>
+      </div>
+    </motion.div>
+  );
+}
+
+function AnnotationView({
+  task,
+  taskType,
+  points,
+  onSubmit,
+  onBack,
+  showSuccess
+  ,streak
+}: {
+  task: AuroraTask;
+  taskType: TaskType;
+  points: number;
+  onSubmit: (input: AnnotationInput) => void;
+  onBack: () => void;
+  showSuccess: boolean;
+  streak?: number;
+}) {
+  const [imgLoaded, setImgLoaded] = useState(false);
+  const [imgError, setImgError] = useState(false);
+  const [userLabel, setUserLabel] = useState<UserLabel>('none');
+  const imageShellRef = useRef<HTMLDivElement | null>(null);
+  const imageViewportRef = useRef<HTMLDivElement | null>(null);
+  const [isImageFullscreen, setIsImageFullscreen] = useState(false);
+  const [imageZoom, setImageZoom] = useState(1);
+  const [panOffset, setPanOffset] = useState({ x: 0, y: 0 });
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
+  const panIntervalRef = useRef<number | null>(null);
+
+  const clampZoom = useCallback((value: number) => Math.min(Math.max(Number(value.toFixed(2)), 1), 8), []);
+  const zoomStep = 0.2;
+
+  const toggleImageFullscreen = useCallback(() => {
+    const shell = imageShellRef.current;
+    if (!shell) return;
+
+    if (document.fullscreenElement === shell) {
+      void document.exitFullscreen().catch(() => {});
+      return;
+    }
+
+    if (!document.fullscreenElement) {
+      void shell.requestFullscreen().catch(() => {});
+    }
+  }, []);
+
+  useEffect(() => {
+    const onFullscreenChange = () => {
+      const nextIsFullscreen = document.fullscreenElement === imageShellRef.current;
+      setIsImageFullscreen(nextIsFullscreen);
+      if (!nextIsFullscreen) {
+        setImageZoom(1);
+        setPanOffset({ x: 0, y: 0 });
+      }
+    };
+
+    document.addEventListener('fullscreenchange', onFullscreenChange);
+    onFullscreenChange();
+    return () => document.removeEventListener('fullscreenchange', onFullscreenChange);
+  }, []);
+
+  const changeImageZoom = useCallback((delta: number) => {
+    setImageZoom(current => clampZoom(current + delta));
+  }, [clampZoom]);
+
+  const zoomIn = useCallback(() => changeImageZoom(zoomStep), [changeImageZoom]);
+  const zoomOut = useCallback(() => changeImageZoom(-zoomStep), [changeImageZoom]);
+  const resetZoom = useCallback(() => {
+    setImageZoom(1);
+    setPanOffset({ x: 0, y: 0 });
+  }, []);
+
+  const handleImageWheel = useCallback((event: React.WheelEvent) => {
+    if (!isImageFullscreen) return;
+    
+    // Allow browser zoom with Ctrl+wheel
+    if (event.ctrlKey || event.metaKey) return;
+    
+    event.preventDefault();
+    const direction = event.deltaY > 0 ? -1 : 1;
+    changeImageZoom(direction * 0.12);
+  }, [changeImageZoom, isImageFullscreen]);
+
+  // Pan offset limits to prevent panning too far
+  const getClampedPanOffset = useCallback((offset: { x: number; y: number }, zoom: number) => {
+    if (zoom <= 1) return { x: 0, y: 0 };
+    
+    const viewport = imageViewportRef.current;
+    if (!viewport) return offset;
+    
+    // Calculate how much we can pan based on zoom level
+    // At 2x zoom, image is twice as large, so we can pan half the viewport width/height
+    // Formula: maxPan = (viewport_size * (zoom - 1)) / 2
+    const rect = viewport.getBoundingClientRect();
+    const maxPanX = (rect.width * (zoom - 1)) / 2;
+    const maxPanY = (rect.height * (zoom - 1)) / 2;
+    
+    return {
+      x: Math.max(-maxPanX, Math.min(maxPanX, offset.x)),
+      y: Math.max(-maxPanY, Math.min(maxPanY, offset.y))
+    };
+  }, []);
+
+  const handleMouseDown = useCallback((event: React.MouseEvent) => {
+    if (!isImageFullscreen || imageZoom <= 1) return;
+    setIsDragging(true);
+    setDragStart({ x: event.clientX - panOffset.x, y: event.clientY - panOffset.y });
+  }, [isImageFullscreen, imageZoom, panOffset]);
+
+  const handleMouseMove = useCallback((event: React.MouseEvent) => {
+    if (!isDragging || !isImageFullscreen) return;
+    const newOffset = {
+      x: event.clientX - dragStart.x,
+      y: event.clientY - dragStart.y
+    };
+    setPanOffset(getClampedPanOffset(newOffset, imageZoom));
+  }, [isDragging, isImageFullscreen, dragStart, imageZoom, getClampedPanOffset]);
+
+  const handleMouseUp = useCallback(() => {
+    setIsDragging(false);
+  }, []);
+
+  const handleTouchStart = useCallback((event: React.TouchEvent) => {
+    if (!isImageFullscreen || imageZoom <= 1 || event.touches.length !== 1) return;
+    const touch = event.touches[0];
+    setIsDragging(true);
+    setDragStart({ x: touch.clientX - panOffset.x, y: touch.clientY - panOffset.y });
+  }, [isImageFullscreen, imageZoom, panOffset]);
+
+  const handleTouchMove = useCallback((event: React.TouchEvent) => {
+    if (!isDragging || !isImageFullscreen || event.touches.length !== 1) return;
+    const touch = event.touches[0];
+    const newOffset = {
+      x: touch.clientX - dragStart.x,
+      y: touch.clientY - dragStart.y
+    };
+    setPanOffset(getClampedPanOffset(newOffset, imageZoom));
+  }, [isDragging, isImageFullscreen, dragStart, imageZoom, getClampedPanOffset]);
+
+  const handleTouchEnd = useCallback(() => {
+    setIsDragging(false);
+  }, []);
+
+  // Arrow key navigation
+  const panStep = 50; // pixels to move per arrow press
+  
+  const panImage = useCallback((deltaX: number, deltaY: number) => {
+    if (imageZoom <= 1) return;
+    
+    // If both deltas are 0, reset to center
+    if (deltaX === 0 && deltaY === 0) {
+      setPanOffset({ x: 0, y: 0 });
+      return;
+    }
+    
+    setPanOffset(prev => getClampedPanOffset({
+      x: prev.x + deltaX,
+      y: prev.y + deltaY
+    }, imageZoom));
+  }, [imageZoom, getClampedPanOffset]);
+
+  // Long-press pan handlers for continuous panning
+  const startContinuousPan = useCallback((deltaX: number, deltaY: number) => {
+    if (panIntervalRef.current) return; // Already panning
+    
+    panImage(deltaX, deltaY); // First immediate pan
+    
+    panIntervalRef.current = window.setInterval(() => {
+      panImage(deltaX, deltaY);
+    }, 16); // ~60fps
+  }, [panImage]);
+
+  const stopContinuousPan = useCallback(() => {
+    if (panIntervalRef.current) {
+      clearInterval(panIntervalRef.current);
+      panIntervalRef.current = null;
+    }
+  }, []);
+
+  // Cleanup interval on unmount
+  useEffect(() => {
+    return () => {
+      if (panIntervalRef.current) {
+        clearInterval(panIntervalRef.current);
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!isImageFullscreen) return;
+    
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (!isImageFullscreen || imageZoom <= 1) return;
+      
+      switch (event.key) {
+        case 'ArrowUp':
+          event.preventDefault();
+          panImage(0, panStep);
+          break;
+        case 'ArrowDown':
+          event.preventDefault();
+          panImage(0, -panStep);
+          break;
+        case 'ArrowLeft':
+          event.preventDefault();
+          panImage(panStep, 0);
+          break;
+        case 'ArrowRight':
+          event.preventDefault();
+          panImage(-panStep, 0);
+          break;
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isImageFullscreen, imageZoom, panImage]);
+
+  const meta = TASK_TYPES.find(t => t.value === taskType)!;
+  const selectedOption = TASK_OPTIONS.find(o => o.value === taskType)!;
+
+  return (
+    <div className="relative">
+      <StarField />
+      {/** When showing the success popup, display the optimistic point total (current + 1) */}
+      <AnimatePresence>
+        {showSuccess && <SuccessPopup points={points + 1} />}
+      </AnimatePresence>
+
+      <motion.div variants={pageVariants} initial="hidden" animate="visible" exit="exit" className="min-h-screen pt-20 pb-16 px-4 lg:px-8 cosmic-bg">
+        <div className="max-w-7xl mx-auto flex flex-col gap-5 lg:grid lg:grid-cols-[minmax(0,1.15fr)_minmax(380px,0.85fr)] lg:items-start lg:gap-8">
+          <div className="flex flex-col gap-5 lg:sticky lg:top-24">
+            <motion.div variants={itemVariants} className="flex items-center gap-4 pt-4 flex-wrap">
+              <BackButton label="All types" onClick={onBack} />
+              <div className="flex items-center gap-2 ml-auto">
+                <span>{meta.icon}</span>
+                <span className={`text-sm font-semibold text-solar-400`}>{meta.friendlyName}</span>
+              </div>
+            </motion.div>
+            <motion.div variants={itemVariants} className="glass rounded-2xl p-5 flex flex-col gap-4">
+              <GuidePanel selectedOption={selectedOption} help={SCIENTIFIC_HELP[taskType]} />
+              <div className="mt-2">
+                <a
+                  href="#label-guide"
+                  aria-controls="label-guide"
+                  className="btn-solar inline-flex items-center gap-2"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    const el = document.getElementById('label-guide');
+                    if (el) {
+                      el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    } else {
+                      window.location.hash = 'label-guide';
+                    }
+                  }}
+                >
+                  <svg viewBox="0 0 24 24" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6"/></svg>
+                  Label reference
+                </a>
+              </div>
+            </motion.div>
+
+            <motion.div
+              variants={itemVariants}
+              className="glass rounded-2xl overflow-hidden transition-all duration-300"
+            >
+              <div 
+                ref={imageShellRef}
+                className={`relative bg-cosmic-900 overflow-hidden select-none ${isImageFullscreen ? 'w-screen h-screen fixed inset-0 z-[100] flex items-center justify-center' : 'aspect-square'}`}
+                onWheel={handleImageWheel}
+              >
+                <div className={`relative ${isImageFullscreen ? 'w-full h-full max-w-[100vh] max-h-[100vw] aspect-square' : 'w-full h-full'}`}>
+                {isImageFullscreen && (
+                  <>
+                    {/* Zoom Controls - Top Left */}
+                    <div className="absolute left-2 top-2 sm:left-3 sm:top-3 z-40 flex flex-col sm:flex-row items-stretch sm:items-center gap-1.5 sm:gap-2">
+                      <div className="flex items-center gap-1.5 rounded-xl border border-white/20 bg-black/70 px-2 py-2 backdrop-blur-md shadow-2xl">
+                        <button
+                          type="button"
+                          onClick={zoomOut}
+                          className="h-9 w-9 sm:h-8 sm:w-8 rounded-lg bg-white/10 text-white text-xl sm:text-lg font-bold leading-none hover:bg-white/20 active:bg-white/30 transition-colors touch-manipulation"
+                          title="Zoom out"
+                        >
+                          −
+                        </button>
+                        <button
+                          type="button"
+                          onClick={resetZoom}
+                          className="min-w-14 sm:min-w-16 rounded-lg bg-white/10 px-2.5 py-1.5 text-xs sm:text-[11px] font-semibold text-slate-100 hover:bg-white/20 active:bg-white/30 transition-colors touch-manipulation"
+                          title="Reset zoom"
+                        >
+                          {Math.round(imageZoom * 100)}%
+                        </button>
+                        <button
+                          type="button"
+                          onClick={zoomIn}
+                          className="h-9 w-9 sm:h-8 sm:w-8 rounded-lg bg-white/10 text-white text-xl sm:text-lg font-bold leading-none hover:bg-white/20 active:bg-white/30 transition-colors touch-manipulation"
+                          title="Zoom in"
+                        >
+                          +
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Arrow Navigation Controls (only when zoomed) */}
+                    {imageZoom > 1 && (
+                      <>
+                        {/* Vertical Arrows - Left Side */}
+                        <div className="absolute left-2 top-20 md:top-24 z-40 flex flex-col gap-2">
+                          <button
+                            type="button"
+                            onMouseDown={() => startContinuousPan(0, 5)}
+                            onMouseUp={stopContinuousPan}
+                            onMouseLeave={stopContinuousPan}
+                            onTouchStart={() => startContinuousPan(0, 5)}
+                            onTouchEnd={stopContinuousPan}
+                            className="h-12 w-12 rounded-lg bg-black/30 text-white text-2xl backdrop-blur-sm hover:bg-black/50 active:bg-black/60 transition-colors touch-manipulation border border-white/10"
+                            title="Pan up (hold for continuous)"
+                          >
+                            ↑
+                          </button>
+                          <button
+                            type="button"
+                            onMouseDown={() => startContinuousPan(0, -5)}
+                            onMouseUp={stopContinuousPan}
+                            onMouseLeave={stopContinuousPan}
+                            onTouchStart={() => startContinuousPan(0, -5)}
+                            onTouchEnd={stopContinuousPan}
+                            className="h-12 w-12 rounded-lg bg-black/30 text-white text-2xl backdrop-blur-sm hover:bg-black/50 active:bg-black/60 transition-colors touch-manipulation border border-white/10"
+                            title="Pan down (hold for continuous)"
+                          >
+                            ↓
+                          </button>
+                        </div>
+
+                        {/* Horizontal Arrows - Bottom */}
+                        <div className="absolute bottom-2 left-2 md:left-auto md:right-1/2 md:translate-x-1/2 z-40 flex gap-2">
+                          <button
+                            type="button"
+                            onMouseDown={() => startContinuousPan(5, 0)}
+                            onMouseUp={stopContinuousPan}
+                            onMouseLeave={stopContinuousPan}
+                            onTouchStart={() => startContinuousPan(5, 0)}
+                            onTouchEnd={stopContinuousPan}
+                            className="h-12 w-12 rounded-lg bg-black/30 text-white text-2xl backdrop-blur-sm hover:bg-black/50 active:bg-black/60 transition-colors touch-manipulation border border-white/10"
+                            title="Pan left (hold for continuous)"
+                          >
+                            ←
+                          </button>
+                          <button
+                            type="button"
+                            onMouseDown={() => startContinuousPan(-5, 0)}
+                            onMouseUp={stopContinuousPan}
+                            onMouseLeave={stopContinuousPan}
+                            onTouchStart={() => startContinuousPan(-5, 0)}
+                            onTouchEnd={stopContinuousPan}
+                            className="h-12 w-12 rounded-lg bg-black/30 text-white text-2xl backdrop-blur-sm hover:bg-black/50 active:bg-black/60 transition-colors touch-manipulation border border-white/10"
+                            title="Pan right (hold for continuous)"
+                          >
+                            →
+                          </button>
+                        </div>
+                      </>
+                    )}
+                  </>
+                )}
+                <button
+                  type="button"
+                  onClick={toggleImageFullscreen}
+                  className="absolute top-2 right-2 sm:top-3 sm:right-3 z-50 rounded-lg border border-white/20 bg-black/60 px-3 py-2 text-xs sm:text-[11px] font-semibold text-slate-100 hover:bg-black/75 active:bg-black/85 transition-colors touch-manipulation shadow-lg"
+                  title={isImageFullscreen ? 'Exit fullscreen' : 'Open image fullscreen'}
+                >
+                  {isImageFullscreen ? '✕' : '⛶'}
+                </button>
+                <div
+                  ref={imageViewportRef}
+                  className={`absolute inset-0 transition-transform duration-150 ease-out ${isDragging ? 'cursor-grabbing' : imageZoom > 1 && isImageFullscreen ? 'cursor-grab' : ''}`}
+                  style={{ 
+                    transform: `translate(${isImageFullscreen ? panOffset.x : 0}px, ${isImageFullscreen ? panOffset.y : 0}px) scale(${isImageFullscreen ? imageZoom : 1})`,
+                    transformOrigin: 'center center'
+                  }}
+                  onMouseDown={handleMouseDown}
+                  onMouseMove={handleMouseMove}
+                  onMouseUp={handleMouseUp}
+                  onMouseLeave={handleMouseUp}
+                  onTouchStart={handleTouchStart}
+                  onTouchMove={handleTouchMove}
+                  onTouchEnd={handleTouchEnd}
+                >
+                  {!imgLoaded && !imgError && <div className="absolute inset-0 shimmer-skeleton" />}
+                  {imgError ? (
+                    <div className="absolute inset-0 flex flex-col items-center justify-center text-slate-600 gap-2">
+                      <span className="text-3xl">🌑</span>
+                      <p className="text-sm">Image could not be loaded</p>
+                    </div>
+                  ) : (
+                    <img
+                      id={`aurora-img-${task.id}`}
+                      src={task.url}
+                      alt={`Solar observation – ${meta.friendlyName} – ${task.date}`}
+                      className={`w-full h-full object-contain transition-opacity duration-500 ${imgLoaded ? 'opacity-100' : 'opacity-0'}`}
+                      onLoad={() => setImgLoaded(true)}
+                      onError={() => { setImgError(true); setImgLoaded(true); }}
+                    />
+                  )}
+                </div>
+              </div>
+              </div>
+              {!isImageFullscreen && (
+                <div className="px-4 py-3 flex flex-col gap-2 text-xs text-slate-500 border-t border-white/5 lg:flex-row lg:items-center lg:justify-between">
+                <div className="flex items-center gap-3">
+                  <span>{task.source}</span>
+                  {task.date && <span>{task.date}</span>}
+                </div>
+                <div className="flex flex-col items-start lg:items-end gap-1">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-slate-400">Record ID:</span>
+                    <code className="text-xs bg-white/6 px-2 py-0.5 rounded">{task.id}</code>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-slate-400">Source:</span>
+                    <span className="text-xs">{task.source}</span>
+                  </div>
+                  {task.date && (
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-slate-400">Timestamp:</span>
+                      <span className="text-xs">{task.date}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+              )}
+            </motion.div>
+          </div>
+
+          <div className="flex flex-col gap-5 lg:sticky lg:top-24">
+            <motion.div variants={itemVariants} className="glass rounded-2xl p-5 flex flex-col gap-6">
+              <div className="pt-4 border-t border-white/5">
+                <p className="text-xs text-slate-400 italic">
+                  Not 100% sure? That's fine - pick the closest label for each region you mark.
+                </p>
+              </div>
+            </motion.div>
+
+            <motion.div variants={itemVariants} className="glass rounded-2xl p-5 lg:p-6">
+              <AnnotationPanel
+                taskType={taskType}
+                taskId={task.id}
+                serialNumber={task.serialNumber}
+                imageUrl={task.url}
+                externalImageId={`aurora-img-${task.id}`}
+                onSubmit={onSubmit}
+                showGuide={false}
+                userLabel={userLabel}
+                onUserLabelChange={setUserLabel}
+              />
+            </motion.div>
+
+            <motion.div id="label-guide" variants={itemVariants} className="glass rounded-2xl p-5 lg:p-6">
+              <LabelGuidePanel selectedOption={selectedOption} />
+            </motion.div>
+
+            <motion.div variants={itemVariants} className="flex justify-center">
+              <div className="flex flex-col items-center">
+                <PointsDisplay points={points} streak={streak} />
+                <a
+                  href="https://ko-fi.com/spacegen"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="btn-solar mt-3 w-40 text-center"
+                >
+                  Fund
+                </a>
+              </div>
+            </motion.div>
+          </div>
+        </div>
+      </motion.div>
+    </div>
+  );
+}
+
+export default function Classify({ points, onPointsChange, streak, onStreakChange }: ClassifyProps) {
+  const { taskType: typeParam } = useParams<{ taskType?: string }>();
+  const navigate = useNavigate();
+
+  const [selectedType, setSelectedType] = useState<TaskType | null>((typeParam as TaskType) ?? null);
+  const [tasks, setTasks] = useState<AuroraTask[]>([]);
+  const [gridLoading, setGridLoading] = useState(false);
+  const [progressLoading, setProgressLoading] = useState(true);
+  // `streak` is managed at App level and updated via `onStreakChange`.
+  const [showSuccess, setShowSuccess] = useState(false);
+  const [availability, setAvailability] = useState<Record<TaskType, boolean | null>>(
+    () => Object.fromEntries(TASK_TYPES.map(t => [t.value, null])) as Record<TaskType, boolean | null>,
+  );
+
+  useEffect(() => {
+    void loadDailyProgress().then(progress => {
+      onStreakChange(progress.streak);
+      onPointsChange(progress.points);
+      setProgressLoading(false);
+    }).catch(() => setProgressLoading(false));
+  }, [onPointsChange, onStreakChange]);
+
+  useEffect(() => {
+    TASK_TYPES.forEach(async ({ value }) => {
+      const result = await fetchAuroraTasksByType(value);
+      setAvailability(prev => ({ ...prev, [value]: result !== null && result.length > 0 }));
+    });
+  }, []);
+
+  useEffect(() => {
+    if (!selectedType) {
+      setTasks([]);
+      return;
+    }
+
+    setGridLoading(true);
+    void Promise.all([
+      fetchAuroraTasksByType(selectedType),
+      loadProgressFromGitHub(),
+    ]).then(([result, progress]) => {
+      const fetchedTasks = result ?? [];
+      const lastCompletedId = progress.lastCompletedIdsByType[selectedType];
+      const startIndex = lastCompletedId
+        ? fetchedTasks.findIndex(task => task.id === lastCompletedId) + 1
+        : 0;
+      const nextQueue = startIndex > 0 ? fetchedTasks.slice(startIndex) : fetchedTasks;
+
+      setTasks(nextQueue);
+      setGridLoading(false);
+    }).catch(() => {
+      setTasks([]);
+      
+      setGridLoading(false);
+    });
+  }, [selectedType]);
+
+  const pendingTasks = useMemo(() => tasks, [tasks]);
+  const currentTask = pendingTasks[0] ?? null;
+
+  const handleTypeSelect = useCallback((tt: TaskType) => {
+    setSelectedType(tt);
+    navigate(`/classify/${tt}`, { replace: true });
+  }, [navigate]);
+
+  const handleBackToTypes = useCallback(() => {
+    setSelectedType(null);
+    navigate('/classify', { replace: true });
+  }, [navigate]);
+
+  const handleAnnotationSubmit = useCallback((input: AnnotationInput) => {
+    setShowSuccess(true);
+    // Optimistically increment the local/global points so the success
+    // popup shows the new total immediately (+1). The server response
+    // below will reconcile the authoritative value when it arrives.
+    onPointsChange(points + 1);
+    // Advance immediately so the next task is shown as soon as submit is pressed.
+    setTasks(prev => prev.filter(t => t.id !== input.task_id));
+
+    // Let SuccessPopup show briefly while completion is recorded in the background.
+    setTimeout(() => {
+      // Add 15 second timeout to prevent infinite hang
+      const timeoutPromise = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error('Operation timed out')), 15_000)
+      );
+
+      console.info('[Classify] handleAnnotationSubmit triggering markTaskCompletedForToday for', input.task_id);
+      void Promise.race([
+        markTaskCompletedForToday(input.task_id, input.task_type),
+        timeoutPromise
+      ])
+        .then(({ progress }) => {
+          onStreakChange(progress.streak);
+          onPointsChange(progress.points); // +1 point per successful annotation
+
+          setShowSuccess(false);
+        })
+        .catch((err) => {
+          console.error('[Classify] Failed to mark task completed:', err);
+          // Hide popup even on failure - annotation was already saved
+          setShowSuccess(false);
+          // Show a brief error notification (optional)
+          alert('Annotation saved, but failed to sync progress. Please check your connection.');
+        });
+    }, 1_000);
+  }, [onPointsChange, points, onStreakChange]);
+
+  return (
+    <AnimatePresence mode="wait">
+      {!selectedType ? (
+        <motion.div key="picker" variants={pageVariants} initial="hidden" animate="visible" exit="exit" className="min-h-screen pt-24 pb-16 px-4 lg:px-8 cosmic-bg relative">
+          <StarField />
+          <div className="max-w-6xl mx-auto relative z-10">
+            <GuidePanel 
+              onSelect={handleTypeSelect} 
+              availability={availability} 
+              taskTypes={TASK_TYPES} 
+            />
+          </div>
+        </motion.div>
+      ) : (
+        <motion.div key="selected" variants={pageVariants} initial="hidden" animate="visible" exit="exit">
+          {progressLoading || gridLoading ? (
+            <div className="min-h-screen pt-24 flex items-center justify-center cosmic-bg relative">
+              <StarField />
+              <div className="flex flex-col items-center gap-4 text-slate-500 relative z-10">
+                <motion.div className="w-10 h-10 border-2 border-solar-500/40 border-t-solar-400 rounded-full" animate={{ rotate: 360 }} transition={{ duration: 1, ease: 'linear', repeat: Infinity }} />
+                <p className="text-sm">Loading today's queue…</p>
+              </div>
+            </div>
+          ) : tasks.length === 0 ? (
+            <div className="min-h-screen pt-24 flex items-center justify-center cosmic-bg px-4 relative">
+              <StarField />
+              <div className="glass rounded-2xl p-8 max-w-md text-center flex flex-col gap-4 relative z-10">
+                <span className="text-4xl">🔭</span>
+                <h2 className="font-bold text-slate-200">No images available yet</h2>
+                <button onClick={handleBackToTypes} className="btn-solar mt-2">Choose another type</button>
+              </div>
+            </div>
+          ) : !currentTask ? (
+            <div className="min-h-screen pt-24 flex items-center justify-center cosmic-bg px-4 relative">
+              <StarField />
+              <div className="glass rounded-2xl p-8 max-w-md text-center flex flex-col gap-4 relative z-10">
+                <span className="text-4xl">🎉</span>
+                <h2 className="font-bold text-slate-200">All done for today in this category</h2>
+                <p className="text-sm text-slate-500">Daily rotation resets tomorrow. Nothing will be shown twice today.</p>
+                <button onClick={handleBackToTypes} className="btn-solar mt-2">Choose another type</button>
+              </div>
+            </div>
+          ) : (
+            <AnnotationView
+              key={currentTask.id}
+              task={currentTask}
+              taskType={selectedType}
+              points={points}
+              streak={streak}
+              onSubmit={handleAnnotationSubmit}
+              onBack={handleBackToTypes}
+              showSuccess={showSuccess}
+            />
+          )}
+        </motion.div>
+      )}
+    </AnimatePresence>
+  );
+}

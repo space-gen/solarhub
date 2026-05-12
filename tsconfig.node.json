@@ -1,0 +1,20 @@
+{
+  /**
+   * tsconfig.node.json
+   *
+   * Separate TypeScript project for Node.js context files (vite.config.ts,
+   * postcss.config.js, tailwind.config.js …).
+   *
+   * Why split? vite.config.ts runs in Node, not the browser, so it needs
+   * different lib/module settings.  Keeping them separate avoids polluting the
+   * browser bundle with Node types.
+   */
+  "compilerOptions": {
+    "composite": true,           // Required for project references
+    "skipLibCheck": true,        // Speed: skip type-checking .d.ts files in node_modules
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "allowSyntheticDefaultImports": true
+  },
+  "include": ["vite.config.ts"]
+}
