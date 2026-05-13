@@ -25,6 +25,7 @@ import { loadProgressFromGitHub } from '@/services/githubSyncService';
 
 import { pageVariants, itemVariants } from '@/animations/pageTransitions';
 import { getDisplayUrl, isJp2Image } from '@/utils/jp2Converter';
+import { getCorrectDateFromUrl } from '@/utils/jsocDateExtractor';
 
 interface TaskTypeMeta {
   value: TaskType;
@@ -136,6 +137,9 @@ function AnnotationView({
   const [isDragging, setIsDragging] = useState(false);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
   const panIntervalRef = useRef<number | null>(null);
+
+  // Extract correct timestamp from URL (JSOC URLs encode this as the authoritative source)
+  const correctDate = useMemo(() => getCorrectDateFromUrl(task.url), [task.url]);
 
   const clampZoom = useCallback((value: number) => Math.min(Math.max(Number(value.toFixed(2)), 1), 8), []);
   const zoomStep = 0.2;
@@ -534,7 +538,7 @@ function AnnotationView({
                     <img
                       id={`aurora-img-${task.id}`}
                       src={displayUrl}
-                      alt={`Solar observation – ${meta.friendlyName} – ${task.date}`}
+                      alt={`Solar observation – ${meta.friendlyName} – ${correctDate || task.date}`}
                       className={`w-full h-full object-contain transition-opacity duration-500 ${imgLoaded ? 'opacity-100' : 'opacity-0'}`}
                       onLoad={() => setImgLoaded(true)}
                       onError={() => { setImgError(true); setImgLoaded(true); }}
@@ -547,7 +551,7 @@ function AnnotationView({
                 <div className="px-4 py-3 flex flex-col gap-2 text-xs text-slate-500 border-t border-white/5 lg:flex-row lg:items-center lg:justify-between">
                 <div className="flex items-center gap-3">
                   <span>{task.source}</span>
-                  {task.date && <span>{task.date}</span>}
+                  {correctDate && <span>{correctDate}</span>}
                 </div>
                 <div className="flex flex-col items-start lg:items-end gap-1">
                   <div className="flex items-center gap-2">
@@ -558,10 +562,10 @@ function AnnotationView({
                     <span className="text-xs text-slate-400">Source:</span>
                     <span className="text-xs">{task.source}</span>
                   </div>
-                  {task.date && (
+                  {correctDate && (
                     <div className="flex items-center gap-2">
                       <span className="text-xs text-slate-400">Timestamp:</span>
-                      <span className="text-xs">{task.date}</span>
+                      <span className="text-xs">{correctDate}</span>
                     </div>
                   )}
                 </div>
