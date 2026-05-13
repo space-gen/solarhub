@@ -69,11 +69,13 @@ export async function markTaskCompletedForToday(taskId: string, taskType: TaskTy
   let nextStreak = current.streak;
 
   if (current.lastActiveDate === today) {
-    // keep streak
+    // keep streak (already has correct value)
   } else if (current.lastActiveDate === yesterday) {
+    // consecutive day: increment streak
     nextStreak += 1;
   } else {
-    nextStreak = 1;
+    // first day or broken streak: start at 0
+    nextStreak = 0;
   }
 
   const nextStats = {
