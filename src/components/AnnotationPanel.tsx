@@ -195,7 +195,8 @@ export interface AnnotationPanelProps {
   taskType:     TaskType;
   taskId:       string;
   serialNumber: number;
-  imageUrl:     string;
+  imageUrl:     string; // Original image URL for metadata
+  displayImageUrl?: string; // Converted image URL for display (if different from imageUrl)
   externalImageId?: string; // if provided, use an external image element for overlays (prevents duplicate image)
   onSubmit:     (input: AnnotationInput) => void;
   showGuide?:    boolean; // when false, the parent is expected to render GuidePanel above the image
@@ -348,7 +349,7 @@ export function SubLabelCard({
 // ---------------------------------------------------------------------------
 
 export default function AnnotationPanel({
-  taskType, taskId, serialNumber, imageUrl, externalImageId, onSubmit,
+  taskType, taskId, serialNumber, imageUrl, displayImageUrl, externalImageId, onSubmit,
   showGuide = true, userLabel: externalUserLabel, onUserLabelChange, isLocked = false
 }: AnnotationPanelProps) {
   const [internalUserLabel, setInternalUserLabel] = useState<UserLabel>('none');
@@ -890,7 +891,7 @@ export default function AnnotationPanel({
               <>
                 <img
                   ref={imageRef}
-                  src={imageUrl}
+                  src={displayImageUrl || imageUrl}
                   alt="Solar observation"
                   className="w-full rounded-2xl border border-white/10 shadow-inner"
                   style={{ cursor: isLocked ? 'default' : 'crosshair', display: 'block', touchAction: 'none' }}

@@ -24,6 +24,7 @@ import { loadDailyProgress, markTaskCompletedForToday } from '@/services/dailyPr
 import { loadProgressFromGitHub } from '@/services/githubSyncService';
 
 import { pageVariants, itemVariants } from '@/animations/pageTransitions';
+import { getDisplayUrl, isJp2Image } from '@/utils/jp2Converter';
 
 interface TaskTypeMeta {
   value: TaskType;
@@ -125,6 +126,7 @@ function AnnotationView({
 }) {
   const [imgLoaded, setImgLoaded] = useState(false);
   const [imgError, setImgError] = useState(false);
+  const [displayUrl, setDisplayUrl] = useState<string>(task.url);
   const [userLabel, setUserLabel] = useState<UserLabel>('none');
   const imageShellRef = useRef<HTMLDivElement | null>(null);
   const imageViewportRef = useRef<HTMLDivElement | null>(null);
@@ -166,6 +168,33 @@ function AnnotationView({
     onFullscreenChange();
     return () => document.removeEventListener('fullscreenchange', onFullscreenChange);
   }, []);
+
+  useEffect(() => {
+    // Handle JP2 to JPG conversion for browser compatibility
+    const convertImageIfNeeded = async () => {
+      if (isJp2Image(task.url)) {
+        try {
+          const convertedUrl = await getDisplayUrl(task.url);
+          setDisplayUrl(convertedUrl);
+        } catch (error) {
+          console.error('Failed to convert JP2 image:', error);
+          // Fall back to original URL
+          setDisplayUrl(task.url);
+        }
+      } else {
+        setDisplayUrl(task.url);
+      }
+    };
+
+    convertImageIfNeeded();
+
+    // Cleanup: revoke object URLs when component unmounts or task changes
+    return () => {
+      if (displayUrl.startsWith('blob:')) {
+        URL.revokeObjectURL(displayUrl);
+      }
+    };
+  }, [task.url]);
 
   const changeImageZoom = useCallback((delta: number) => {
     setImageZoom(current => clampZoom(current + delta));
@@ -504,7 +533,7 @@ function AnnotationView({
                   ) : (
                     <img
                       id={`aurora-img-${task.id}`}
-                      src={task.url}
+                      src={displayUrl}
                       alt={`Solar observation – ${meta.friendlyName} – ${task.date}`}
                       className={`w-full h-full object-contain transition-opacity duration-500 ${imgLoaded ? 'opacity-100' : 'opacity-0'}`}
                       onLoad={() => setImgLoaded(true)}
@@ -556,6 +585,7 @@ function AnnotationView({
                 taskId={task.id}
                 serialNumber={task.serialNumber}
                 imageUrl={task.url}
+                displayImageUrl={displayUrl}
                 externalImageId={`aurora-img-${task.id}`}
                 onSubmit={onSubmit}
                 showGuide={false}
