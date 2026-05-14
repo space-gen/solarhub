@@ -144,6 +144,7 @@ function AnnotationView({
   const [imgLoaded, setImgLoaded] = useState(false);
   const [imgError, setImgError] = useState(false);
   const [displayUrl, setDisplayUrl] = useState<string>(task.url);
+  const [jp2ConversionFailed, setJp2ConversionFailed] = useState(false);
   const [userLabel, setUserLabel] = useState<UserLabel>('none');
   const imageShellRef = useRef<HTMLDivElement | null>(null);
   const imageViewportRef = useRef<HTMLDivElement | null>(null);
@@ -192,14 +193,17 @@ function AnnotationView({
   useEffect(() => {
     // Handle JP2 to JPG conversion for browser compatibility
     const convertImageIfNeeded = async () => {
+      setJp2ConversionFailed(false);
       if (isJp2Image(task.url)) {
         try {
           const convertedUrl = await getDisplayUrl(task.url);
           setDisplayUrl(convertedUrl);
         } catch (error) {
           console.error('Failed to convert JP2 image:', error);
-          // Fall back to original URL
-          setDisplayUrl(task.url);
+          // Mark as failed but don't try to display the unconvertible JP2
+          setJp2ConversionFailed(true);
+          setImgError(true);
+          setImgLoaded(true);
         }
       } else {
         setDisplayUrl(task.url);
@@ -560,7 +564,12 @@ function AnnotationView({
                   {imgError ? (
                     <div className="absolute inset-0 flex flex-col items-center justify-center text-slate-600 gap-2">
                       <span className="text-3xl">🌑</span>
-                      <p className="text-sm">Image could not be loaded</p>
+                      <p className="text-sm">{jp2ConversionFailed ? 'JP2 image format not supported' : 'Image could not be loaded'}</p>
+                      {jp2ConversionFailed && (
+                        <p className="text-xs text-slate-500 max-w-xs text-center px-4">
+                          This image is in JPEG 2000 format which requires additional processing
+                        </p>
+                      )}
                     </div>
                   ) : (
                     <img
