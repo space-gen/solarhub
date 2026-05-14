@@ -219,6 +219,117 @@ export function classifyTaskType(type: string): TaskTypeStyle {
         hex:    '#a78bfa',
       };
 
+    // AIA wavelengths with cycling colors
+    case 'aia_94':
+      return {
+        bg:     'bg-violet-500/20',
+        text:   'text-violet-300',
+        border: 'border-violet-500/40',
+        icon:   '🔭',
+        label:  'AIA 94Å',
+        hex:    '#c4b5fd',
+      };
+
+    case 'aia_131':
+      return {
+        bg:     'bg-purple-500/20',
+        text:   'text-purple-300',
+        border: 'border-purple-500/40',
+        icon:   '🔭',
+        label:  'AIA 131Å',
+        hex:    '#e9d5ff',
+      };
+
+    case 'aia_171':
+      return {
+        bg:     'bg-indigo-500/20',
+        text:   'text-indigo-300',
+        border: 'border-indigo-500/40',
+        icon:   '🔭',
+        label:  'AIA 171Å',
+        hex:    '#c4b5fd',
+      };
+
+    case 'aia_193':
+      return {
+        bg:     'bg-blue-500/20',
+        text:   'text-blue-300',
+        border: 'border-blue-500/40',
+        icon:   '🔭',
+        label:  'AIA 193Å',
+        hex:    '#93c5fd',
+      };
+
+    case 'aia_211':
+      return {
+        bg:     'bg-cyan-500/20',
+        text:   'text-cyan-300',
+        border: 'border-cyan-500/40',
+        icon:   '🔭',
+        label:  'AIA 211Å',
+        hex:    '#67e8f9',
+      };
+
+    case 'aia_304':
+      return {
+        bg:     'bg-teal-500/20',
+        text:   'text-teal-300',
+        border: 'border-teal-500/40',
+        icon:   '🔭',
+        label:  'AIA 304Å',
+        hex:    '#5eead4',
+      };
+
+    case 'aia_335':
+      return {
+        bg:     'bg-emerald-500/20',
+        text:   'text-emerald-300',
+        border: 'border-emerald-500/40',
+        icon:   '🔭',
+        label:  'AIA 335Å',
+        hex:    '#6ee7b7',
+      };
+
+    case 'aia_1600':
+      return {
+        bg:     'bg-green-500/20',
+        text:   'text-green-300',
+        border: 'border-green-500/40',
+        icon:   '🔭',
+        label:  'AIA 1600Å',
+        hex:    '#86efac',
+      };
+
+    case 'aia_1700':
+      return {
+        bg:     'bg-lime-500/20',
+        text:   'text-lime-300',
+        border: 'border-lime-500/40',
+        icon:   '🔭',
+        label:  'AIA 1700Å',
+        hex:    '#bef264',
+      };
+
+    case 'aia_4500':
+      return {
+        bg:     'bg-yellow-500/20',
+        text:   'text-yellow-300',
+        border: 'border-yellow-500/40',
+        icon:   '🔭',
+        label:  'AIA 4500Å',
+        hex:    '#fde047',
+      };
+
+    case 'random':
+      return {
+        bg:     'bg-gradient-to-r from-violet-500/20 to-pink-500/20',
+        text:   'text-pink-300',
+        border: 'border-pink-500/40',
+        icon:   '🎲',
+        label:  'Random',
+        hex:    '#ec4899',
+      };
+
     case 'prominence':
       return {
         bg:     'bg-sky-500/20',

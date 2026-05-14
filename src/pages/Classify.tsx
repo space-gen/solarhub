@@ -37,6 +37,7 @@ interface TaskTypeMeta {
 }
 
 const TASK_TYPES: TaskTypeMeta[] = [
+  { value: 'random',        friendlyName: 'Random',        icon: '🎲', description: 'Let the system select a data type for you', subtitle: 'Mix of all types' },
   { value: 'sunspot',       friendlyName: 'Sun Spots',      icon: '🟤', description: 'Dark patches on the bright solar surface', subtitle: 'SDO HMI Continuum' },
   { value: 'magnetogram',   friendlyName: 'Magnetic Map',   icon: '🧲', description: "Black & white map of the Sun's magnetic field", subtitle: 'SDO HMI Magnetogram' },
   { value: 'aia_94',        friendlyName: 'AIA 94Å',        icon: '🔭', description: 'Extreme ultraviolet corona', subtitle: 'SDO AIA' },
@@ -49,7 +50,6 @@ const TASK_TYPES: TaskTypeMeta[] = [
   { value: 'aia_1600',      friendlyName: 'AIA 1600Å',      icon: '🔭', description: 'Far ultraviolet chromosphere', subtitle: 'SDO AIA' },
   { value: 'aia_1700',      friendlyName: 'AIA 1700Å',      icon: '🔭', description: 'Far ultraviolet continuum', subtitle: 'SDO AIA' },
   { value: 'aia_4500',      friendlyName: 'AIA 4500Å',      icon: '🔭', description: 'Visible light continuum', subtitle: 'SDO AIA' },
-  { value: 'random',        friendlyName: 'Random',        icon: '🎲', description: 'Let the system select a data type for you', subtitle: 'Mix of all types' },
 ];
 
 interface ClassifyProps {
@@ -659,18 +659,25 @@ export default function Classify({ points, onPointsChange, streak, onStreakChang
   useEffect(() => {
     // Preload all tasks in parallel for lightning-fast availability checks
     const allTaskTypes = TASK_TYPES.map(t => t.value);
-    void preloadAllTasks(allTaskTypes).then(() => {
+    const nonRandomTypes = allTaskTypes.filter(t => t !== 'random');
+    
+    void preloadAllTasks(nonRandomTypes).then(() => {
       // After preload, quickly check availability without network delay
-      allTaskTypes.forEach(async (value) => {
+      nonRandomTypes.forEach(async (value) => {
         const result = await fetchAuroraTasksByType(value);
         setAvailability(prev => ({ ...prev, [value]: result !== null && result.length > 0 }));
       });
+      
+      // Random is available if any other type is available
+      setAvailability(prev => ({ ...prev, random: true }));
     }).catch(() => {
       // Fallback: check availability even if preload fails
-      allTaskTypes.forEach(async (value) => {
+      nonRandomTypes.forEach(async (value) => {
         const result = await fetchAuroraTasksByType(value);
         setAvailability(prev => ({ ...prev, [value]: result !== null && result.length > 0 }));
       });
+      // Still mark Random as available for fallback
+      setAvailability(prev => ({ ...prev, random: true }));
     });
   }, []);
 
