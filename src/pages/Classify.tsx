@@ -714,7 +714,7 @@ export default function Classify({ points, onPointsChange, streak, onStreakChang
 
     setGridLoading(true);
     
-    // Handle 'random' mode specially: combine all task types
+    // Handle 'random' mode specially: serve one task at a time from each type in rotation
     if (selectedType === 'random') {
       const nonRandomTypes = TASK_TYPES.map(t => t.value as TaskType).filter(t => t !== 'random');
       
@@ -722,7 +722,8 @@ export default function Classify({ points, onPointsChange, streak, onStreakChang
         loadAllTasksInParallel(nonRandomTypes),
         loadProgressFromGitHub(),
       ]).then(([allTasksByType, progress]) => {
-        // Build combined queue respecting sequence within each type
+        // Build a queue that cycles through types, respecting sequence within each type
+        // Only take the NEXT task from each type (the one right after lastCompletedId)
         const combinedQueue: AuroraTask[] = [];
         
         nonRandomTypes.forEach(taskType => {
@@ -731,14 +732,21 @@ export default function Classify({ points, onPointsChange, streak, onStreakChang
             // Get last completed ID for this type
             const lastCompletedId = progress.lastCompletedIdsByType[taskType];
             
-            // Find starting position
-            const startIndex = lastCompletedId
-              ? tasks.findIndex(task => task.id === lastCompletedId) + 1
-              : 0;
+            // Find the NEXT incomplete task (only one)
+            let nextTask: AuroraTask | null = null;
+            if (lastCompletedId) {
+              const lastCompletedIndex = tasks.findIndex(task => task.id === lastCompletedId);
+              if (lastCompletedIndex >= 0 && lastCompletedIndex + 1 < tasks.length) {
+                nextTask = tasks[lastCompletedIndex + 1];
+              }
+            } else {
+              // No tasks completed yet, take the first
+              nextTask = tasks[0] ?? null;
+            }
             
-            // Add all incomplete tasks for this type to combined queue
-            const incompleteTasks = tasks.slice(startIndex);
-            combinedQueue.push(...incompleteTasks);
+            if (nextTask) {
+              combinedQueue.push(nextTask);
+            }
           }
         });
         
@@ -787,27 +795,13 @@ export default function Classify({ points, onPointsChange, streak, onStreakChang
   const handleShuffleRandomType = useCallback(() => {
     if (selectedType !== 'random' || !currentTask) return;
     
-    // In Random mode, shuffle to find the next task with a different task type
-    // Keep cycling through the queue until we find a task from a different type
+    // In Random mode, rotate to the next task type
+    // Move current task to the end and bring the next type's task to front
     setTasks(prev => {
       if (prev.length <= 1) return prev;
       
-      const currentTaskType = currentTask.taskType;
-      let index = 1;
-      
-      // Find the next task with a different type
-      while (index < prev.length && prev[index].taskType === currentTaskType) {
-        index++;
-      }
-      
-      if (index >= prev.length) {
-        // No other task type found, just skip to next
-        return prev.slice(1);
-      }
-      
-      // Move the found task to the front and remove what's before it
-      const nextTask = prev[index];
-      return [nextTask, ...prev.slice(0, index), ...prev.slice(index + 1)];
+      // Simply rotate: remove first, append to end
+      return [...prev.slice(1), prev[0]];
     });
   }, [selectedType, currentTask]);
 

@@ -1,11 +1,25 @@
 declare module '@cornerstonejs/codec-openjpeg' {
-  interface ImageFrame {
-    rows: number;
-    columns: number;
-    samplesPerPixel: number;
-    bitsAllocated: number;
-    pixelData: Uint8Array | Uint16Array | Uint32Array;
+  interface FrameInfo {
+    width: number;
+    height: number;
+    numComps: number;
+    bitsPerSample: number;
+    isJP2: number;
+    isSigned: number;
   }
 
-  export function decode(arrayBuffer: ArrayBuffer): ImageFrame;
+  interface J2KDecoder {
+    getEncodedBuffer(length: number): Uint8Array;
+    getDecodedBuffer(): ArrayBuffer;
+    readHeader(): void;
+    decode(): void;
+    getFrameInfo(): FrameInfo;
+  }
+
+  interface OpenJPEGModule {
+    J2KDecoder: new () => J2KDecoder;
+  }
+
+  const defaultExport: Promise<OpenJPEGModule>;
+  export default defaultExport;
 }
