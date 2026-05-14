@@ -3,15 +3,17 @@
  * This is needed because browsers don't have native support for JP2 format.
  */
 
-// Using dynamic import with fallback for CommonJS module
 let JpxImage: any = null;
 
 async function initJpx() {
   if (!JpxImage) {
     try {
-      // Import jpx.js - it exports a CommonJS module
+      // Import jpx.js - it's a UMD module that works with both CommonJS and ES6
       const jpxModule = await import('jpx.js');
-      JpxImage = jpxModule.default;
+      // jpx.js exports as default
+      JpxImage = jpxModule.default || jpxModule;
+      
+      console.log('[JP2] jpx.js loaded, type:', typeof JpxImage);
     } catch (error) {
       console.error('Failed to load jpx.js module:', error);
       throw error;
@@ -34,23 +36,42 @@ export function isJp2Image(url: string): boolean {
  */
 export async function convertJp2ToJpg(jp2Url: string): Promise<string> {
   try {
-    const Jpx = await initJpx();
+    const JpxConstructor = await initJpx();
+    console.log('[JP2] Starting conversion for:', jp2Url);
 
-    // Fetch the JP2 file
-    const response = await fetch(jp2Url);
+    // Fetch the JP2 file with CORS
+    const response = await fetch(jp2Url, {
+      method: 'GET',
+      mode: 'cors',
+      credentials: 'omit',
+    });
+    
     if (!response.ok) {
-      throw new Error(`Failed to fetch JP2 image: ${response.statusText}`);
+      throw new Error(`Failed to fetch JP2 image: ${response.status} ${response.statusText}`);
     }
 
     const arrayBuffer = await response.arrayBuffer();
     const uint8Array = new Uint8Array(arrayBuffer);
+    console.log('[JP2] Fetched', uint8Array.length, 'bytes');
 
     // Decode JP2 using jpx.js
-    const jpxImage = new Jpx(uint8Array);
+    let jpxImage;
+    try {
+      jpxImage = new JpxConstructor(uint8Array);
+    } catch (decodeError) {
+      console.error('[JP2] Decoding failed:', decodeError);
+      throw new Error(`JP2 decode error: ${decodeError instanceof Error ? decodeError.message : String(decodeError)}`);
+    }
+    
+    console.log('[JP2] Decoded image dimensions:', jpxImage.width, 'x', jpxImage.height);
 
     // Get image dimensions
     const width = jpxImage.width;
     const height = jpxImage.height;
+
+    if (!width || !height) {
+      throw new Error('Invalid JP2 image dimensions');
+    }
 
     // Create canvas for conversion
     const canvas = document.createElement('canvas');
@@ -67,13 +88,22 @@ export async function convertJp2ToJpg(jp2Url: string): Promise<string> {
     const data = imageData.data;
 
     // Get the decoded image data from jpx
-    const jpxImageData = jpxImage.getData({ width, height });
+    let jpxImageData;
+    try {
+      jpxImageData = jpxImage.getData({ width, height });
+    } catch (getDataError) {
+      console.error('[JP2] getData failed:', getDataError);
+      throw new Error(`JP2 getData error: ${getDataError instanceof Error ? getDataError.message : String(getDataError)}`);
+    }
+    
+    console.log('[JP2] Image data length:', jpxImageData?.length || 'null');
 
     // Fill the canvas image data with the JP2 image data
     if (jpxImageData && jpxImageData.length > 0) {
       // Check if data is grayscale (length = width*height) or multi-channel (length = width*height*channels)
       const pixelCount = width * height;
       const channelCount = jpxImageData.length / pixelCount;
+      console.log('[JP2] Detected channels:', channelCount);
       
       if (channelCount === 1) {
         // Grayscale data - replicate to RGB, set A to 255
@@ -99,19 +129,28 @@ export async function convertJp2ToJpg(jp2Url: string): Promise<string> {
         }
       } else {
         // Fallback: copy directly as before
-        for (let i = 0; i < jpxImageData.length; i++) {
+        console.log('[JP2] Using fallback channel handling for', channelCount, 'channels');
+        for (let i = 0; i < Math.min(jpxImageData.length, data.length); i++) {
           data[i] = jpxImageData[i];
         }
       }
+    } else {
+      throw new Error('No image data returned from JP2 decoder');
     }
 
-    ctx.putImageData(imageData, 0, 0);
+    try {
+      ctx.putImageData(imageData, 0, 0);
+    } catch (putError) {
+      console.error('[JP2] putImageData failed:', putError);
+      throw new Error(`putImageData error: ${putError instanceof Error ? putError.message : String(putError)}`);
+    }
 
     // Convert canvas to JPG blob and create object URL
     return new Promise((resolve, reject) => {
       canvas.toBlob(
         (blob) => {
           if (blob) {
+            console.log('[JP2] Conversion successful, blob size:', blob.size);
             resolve(URL.createObjectURL(blob));
           } else {
             reject(new Error('Failed to create blob from canvas'));

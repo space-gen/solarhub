@@ -776,12 +776,31 @@ export default function Classify({ points, onPointsChange, streak, onStreakChang
   }, [navigate]);
 
   const handleShuffleRandomType = useCallback(() => {
-    if (selectedType !== 'random') return;
+    if (selectedType !== 'random' || !currentTask) return;
     
-    // In Random mode, just skip to the next task in the queue
-    // The next task will be from a different type due to sequence cycling
-    setTasks(prev => prev.slice(1));
-  }, [selectedType]);
+    // In Random mode, shuffle to find the next task with a different task type
+    // Keep cycling through the queue until we find a task from a different type
+    setTasks(prev => {
+      if (prev.length <= 1) return prev;
+      
+      const currentTaskType = currentTask.taskType;
+      let index = 1;
+      
+      // Find the next task with a different type
+      while (index < prev.length && prev[index].taskType === currentTaskType) {
+        index++;
+      }
+      
+      if (index >= prev.length) {
+        // No other task type found, just skip to next
+        return prev.slice(1);
+      }
+      
+      // Move the found task to the front and remove what's before it
+      const nextTask = prev[index];
+      return [nextTask, ...prev.slice(0, index), ...prev.slice(index + 1)];
+    });
+  }, [selectedType, currentTask]);
 
   const handleAnnotationSubmit = useCallback((input: AnnotationInput) => {
     setShowSuccess(true);
