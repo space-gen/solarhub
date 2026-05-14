@@ -43,7 +43,8 @@ export type TaskType =
   | 'aia_335'
   | 'aia_1600'
   | 'aia_1700'
-  | 'aia_4500';
+  | 'aia_4500'
+  | 'random';
 
 /**
  * UserLabel — the specific sub-classification within a task type.

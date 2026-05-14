@@ -19,8 +19,13 @@ const CACHE_TTL = 60 * 60 * 1000; // 1 hour
 const NIGHTLY_PARSER_START_UTC = 23 * 60 + 45; // 23:45 UTC in minutes
 const NIGHTLY_PARSER_END_UTC = 0 * 60 + 15; // 00:15 UTC in minutes (next day)
 
-// Track the next index in the combined pool for sequential serving
-let combinedPoolIndex = 0;
+// Track the next index in each task type for sequential serving
+// Format: { 'sunspot': 0, 'magnetogram': 0, 'aia_94': 0, ... }
+const typeSequenceIndex: Record<TaskType, number> = {} as any;
+
+// Track completed task IDs per type to enforce sequence
+// Format: { 'sunspot': ['sp-1', 'sp-2'], 'magnetogram': ['mg-1'], ... }
+const completedTasksByType: Record<TaskType, string[]> = {} as any;
 
 /**
  * Check if we're in the nightly parser window (23:45-00:15 UTC).
@@ -75,9 +80,46 @@ export async function loadAllTasksInParallel(
 }
 
 /**
+ * Mark a task as completed for a specific task type.
+ * Enforces sequential completion: cannot skip ahead in sequence.
+ */
+export function markTaskCompleted(taskType: TaskType, taskId: string): void {
+  if (!completedTasksByType[taskType]) {
+    completedTasksByType[taskType] = [];
+  }
+  if (!completedTasksByType[taskType].includes(taskId)) {
+    completedTasksByType[taskType].push(taskId);
+  }
+}
+
+/**
+ * Get the next available task for a specific task type.
+ * Skips any completed tasks and returns the first incomplete task in sequence.
+ * Returns null if all tasks are completed.
+ */
+export function getNextTaskForType(
+  taskType: TaskType,
+  allTasksForType: AuroraTask[],
+): AuroraTask | null {
+  if (!allTasksForType || !allTasksForType.length) return null;
+  
+  const completed = completedTasksByType[taskType] || [];
+  
+  // Find first task not in completed list
+  for (const task of allTasksForType) {
+    if (!completed.includes(task.id)) {
+      return task;
+    }
+  }
+  
+  return null; // All tasks completed
+}
+
+/**
  * Load all task types and combine into a single pool in ID sequence.
- * Serve tasks sequentially from the combined pool (following JSONL order).
- * Used by "Random" mode in the UI - users randomly select mode, but get sequential tasks.
+ * In Random mode, cycle through types but serve each type's next incomplete task in sequence.
+ * Enforces: can't serve type-100 if type-99 not completed.
+ * Used by "Random" mode in the UI.
  */
 export async function getRandomTaskFromCombinedPool(
   taskTypes: TaskType[],
@@ -87,29 +129,43 @@ export async function getRandomTaskFromCombinedPool(
   // Load all tasks in parallel
   const allTasksByType = await loadAllTasksInParallel(taskTypes);
   
-  // Combine all tasks from all types into a single pool (preserving JSONL ID order)
-  const combinedPool: Array<{ taskType: TaskType; task: AuroraTask }> = [];
+  // Build a pool of valid (type, next-incomplete-task) pairs
+  const validTasksPerType: Array<{ taskType: TaskType; task: AuroraTask }> = [];
   
-  // Add tasks in consistent order: follow taskTypes array order
   taskTypes.forEach(taskType => {
     const tasks = allTasksByType[taskType];
     if (tasks && Array.isArray(tasks)) {
-      tasks.forEach(task => {
-        combinedPool.push({ taskType, task });
-      });
+      // Get the next incomplete task for this type (enforces sequence)
+      const nextTask = getNextTaskForType(taskType, tasks);
+      if (nextTask) {
+        validTasksPerType.push({ taskType, task: nextTask });
+      }
     }
   });
   
-  if (!combinedPool.length) return null;
+  if (!validTasksPerType.length) return null; // All tasks across all types completed
   
-  // Serve tasks sequentially from combined pool
-  const currentIndex = combinedPoolIndex % combinedPool.length;
-  const result = combinedPool[currentIndex];
+  // Cycle through types round-robin, serving each type's next task
+  if (!typeSequenceIndex[validTasksPerType[0].taskType]) {
+    validTasksPerType.forEach(item => {
+      if (!typeSequenceIndex[item.taskType]) {
+        typeSequenceIndex[item.taskType] = 0;
+      }
+    });
+  }
   
-  // Advance index for next call
-  combinedPoolIndex = (combinedPoolIndex + 1) % combinedPool.length;
+  // Find next type with available tasks
+  let attempts = 0;
+  let typeIndex = 0;
+  let selectedItem = validTasksPerType[typeIndex];
   
-  return result;
+  while (attempts < validTasksPerType.length) {
+    typeIndex = (typeIndex + 1) % validTasksPerType.length;
+    selectedItem = validTasksPerType[typeIndex];
+    attempts++;
+  }
+  
+  return selectedItem;
 }
 
 /**
@@ -145,10 +201,14 @@ export function preloadAllTasks(taskTypes: TaskType[]): Promise<void> {
 }
 
 /**
- * Clear cache (for testing or manual refresh).
+ * Clear all tracking (completed tasks, sequence indices).
+ * Used for testing or session reset.
  */
-export function clearCache(): void {
-  Object.keys(CACHE).forEach(key => {
-    delete CACHE[key as TaskType];
+export function clearTracking(): void {
+  Object.keys(typeSequenceIndex).forEach(key => {
+    delete typeSequenceIndex[key as TaskType];
+  });
+  Object.keys(completedTasksByType).forEach(key => {
+    completedTasksByType[key as TaskType] = [];
   });
 }

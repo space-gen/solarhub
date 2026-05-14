@@ -100,6 +100,11 @@ export const SCIENTIFIC_HELP: Record<TaskType, { scientific: string; plain: stri
     plain: 'Look for photosphere structures and sunspot features.',
     uncertainLabel: 'none',
   },
+  random: {
+    scientific: 'Mixed observation types selected randomly.',
+    plain: 'Classify various solar observations in sequence.',
+    uncertainLabel: 'none',
+  },
 };
 
 const AURORA_ANNOTATE_YML_LABELS: Record<TaskType, UserLabel[]> = {
@@ -115,6 +120,7 @@ const AURORA_ANNOTATE_YML_LABELS: Record<TaskType, UserLabel[]> = {
   aia_1600: ['ax', 'ao', 'ai', 'bx', 'bo', 'bi', 'cr', 'cx', 'co', 'd', 'e', 'f'],
   aia_1700: ['ax', 'ao', 'ai', 'bx', 'bo', 'bi', 'cr', 'cx', 'co', 'd', 'e', 'f'],
   aia_4500: ['ax', 'ao', 'ai', 'bx', 'bo', 'bi', 'cr', 'cx', 'co', 'd', 'e', 'f'],
+  random: [],
 };
 
 const AURORA_LABEL_HINTS: Partial<Record<UserLabel, string>> = {

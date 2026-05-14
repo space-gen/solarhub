@@ -19,7 +19,7 @@ import StarField from '@/components/StarField';
 import type { AnnotationInput, TaskType, UserLabel } from '@/services/annotationService';
 import { fetchAuroraTasksByType } from '@/services/auroraService';
 import type { AuroraTask } from '@/services/auroraService';
-import { preloadAllTasks } from '@/services/parallelTaskLoader';
+import { preloadAllTasks, loadAllTasksInParallel } from '@/services/parallelTaskLoader';
 
 import { loadDailyProgress, markTaskCompletedForToday } from '@/services/dailyProgressService';
 import { loadProgressFromGitHub } from '@/services/githubSyncService';
@@ -49,6 +49,7 @@ const TASK_TYPES: TaskTypeMeta[] = [
   { value: 'aia_1600',      friendlyName: 'AIA 1600Å',      icon: '🔭', description: 'Far ultraviolet chromosphere', subtitle: 'SDO AIA' },
   { value: 'aia_1700',      friendlyName: 'AIA 1700Å',      icon: '🔭', description: 'Far ultraviolet continuum', subtitle: 'SDO AIA' },
   { value: 'aia_4500',      friendlyName: 'AIA 4500Å',      icon: '🔭', description: 'Visible light continuum', subtitle: 'SDO AIA' },
+  { value: 'random',        friendlyName: 'Random',        icon: '🎲', description: 'Let the system select a data type for you', subtitle: 'Mix of all types' },
 ];
 
 interface ClassifyProps {
@@ -680,24 +681,62 @@ export default function Classify({ points, onPointsChange, streak, onStreakChang
     }
 
     setGridLoading(true);
-    void Promise.all([
-      fetchAuroraTasksByType(selectedType),
-      loadProgressFromGitHub(),
-    ]).then(([result, progress]) => {
-      const fetchedTasks = result ?? [];
-      const lastCompletedId = progress.lastCompletedIdsByType[selectedType];
-      const startIndex = lastCompletedId
-        ? fetchedTasks.findIndex(task => task.id === lastCompletedId) + 1
-        : 0;
-      const nextQueue = startIndex > 0 ? fetchedTasks.slice(startIndex) : fetchedTasks;
-
-      setTasks(nextQueue);
-      setGridLoading(false);
-    }).catch(() => {
-      setTasks([]);
+    
+    // Handle 'random' mode specially: combine all task types
+    if (selectedType === 'random') {
+      const nonRandomTypes = TASK_TYPES.map(t => t.value as TaskType).filter(t => t !== 'random');
       
-      setGridLoading(false);
-    });
+      void Promise.all([
+        loadAllTasksInParallel(nonRandomTypes),
+        loadProgressFromGitHub(),
+      ]).then(([allTasksByType, progress]) => {
+        // Build combined queue respecting sequence within each type
+        const combinedQueue: AuroraTask[] = [];
+        
+        nonRandomTypes.forEach(taskType => {
+          const tasks = allTasksByType[taskType];
+          if (tasks && Array.isArray(tasks)) {
+            // Get last completed ID for this type
+            const lastCompletedId = progress.lastCompletedIdsByType[taskType];
+            
+            // Find starting position
+            const startIndex = lastCompletedId
+              ? tasks.findIndex(task => task.id === lastCompletedId) + 1
+              : 0;
+            
+            // Add all incomplete tasks for this type to combined queue
+            const incompleteTasks = tasks.slice(startIndex);
+            combinedQueue.push(...incompleteTasks);
+          }
+        });
+        
+        setTasks(combinedQueue);
+        setGridLoading(false);
+      }).catch(() => {
+        setTasks([]);
+        setGridLoading(false);
+      });
+    } else {
+      // Original logic for specific task types
+      void Promise.all([
+        fetchAuroraTasksByType(selectedType),
+        loadProgressFromGitHub(),
+      ]).then(([result, progress]) => {
+        const fetchedTasks = result ?? [];
+        const lastCompletedId = progress.lastCompletedIdsByType[selectedType];
+        const startIndex = lastCompletedId
+          ? fetchedTasks.findIndex(task => task.id === lastCompletedId) + 1
+          : 0;
+        const nextQueue = startIndex > 0 ? fetchedTasks.slice(startIndex) : fetchedTasks;
+
+        setTasks(nextQueue);
+        setGridLoading(false);
+      }).catch(() => {
+        setTasks([]);
+        
+        setGridLoading(false);
+      });
+    }
   }, [selectedType]);
 
   const pendingTasks = useMemo(() => tasks, [tasks]);
@@ -796,7 +835,7 @@ export default function Classify({ points, onPointsChange, streak, onStreakChang
             <AnnotationView
               key={currentTask.id}
               task={currentTask}
-              taskType={selectedType}
+              taskType={selectedType === 'random' ? currentTask.taskType : selectedType}
               points={points}
               streak={streak}
               onSubmit={handleAnnotationSubmit}
