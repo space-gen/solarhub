@@ -126,8 +126,10 @@ function AnnotationView({
   points,
   onSubmit,
   onBack,
-  showSuccess
-  ,streak
+  showSuccess,
+  streak,
+  isRandomMode,
+  onShuffle,
 }: {
   task: AuroraTask;
   taskType: TaskType;
@@ -136,6 +138,8 @@ function AnnotationView({
   onBack: () => void;
   showSuccess: boolean;
   streak?: number;
+  isRandomMode?: boolean;
+  onShuffle?: () => void;
 }) {
   const [imgLoaded, setImgLoaded] = useState(false);
   const [imgError, setImgError] = useState(false);
@@ -385,6 +389,18 @@ function AnnotationView({
           <div className="flex flex-col gap-5 lg:sticky lg:top-24">
             <motion.div variants={itemVariants} className="flex items-center gap-4 pt-4 flex-wrap">
               <BackButton label="All types" onClick={onBack} />
+              {isRandomMode && onShuffle && (
+                <motion.button
+                  onClick={onShuffle}
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  className="flex items-center gap-2 px-3 py-2 rounded-lg bg-gradient-to-r from-violet-500/20 to-pink-500/20 border border-pink-500/40 hover:border-pink-400 text-pink-300 font-semibold transition-all text-sm"
+                  title="Shuffle to random type"
+                >
+                  <span>🎲</span>
+                  <span className="hidden sm:inline">Shuffle</span>
+                </motion.button>
+              )}
               <div className="flex items-center gap-2 ml-auto">
                 <span>{meta.icon}</span>
                 <span className={`text-sm font-semibold text-solar-400`}>{meta.friendlyName}</span>
@@ -759,6 +775,14 @@ export default function Classify({ points, onPointsChange, streak, onStreakChang
     navigate('/classify', { replace: true });
   }, [navigate]);
 
+  const handleShuffleRandomType = useCallback(() => {
+    if (selectedType !== 'random') return;
+    
+    // In Random mode, just skip to the next task in the queue
+    // The next task will be from a different type due to sequence cycling
+    setTasks(prev => prev.slice(1));
+  }, [selectedType]);
+
   const handleAnnotationSubmit = useCallback((input: AnnotationInput) => {
     setShowSuccess(true);
     // Optimistically increment the local/global points so the success
@@ -848,6 +872,8 @@ export default function Classify({ points, onPointsChange, streak, onStreakChang
               onSubmit={handleAnnotationSubmit}
               onBack={handleBackToTypes}
               showSuccess={showSuccess}
+              isRandomMode={selectedType === 'random'}
+              onShuffle={selectedType === 'random' ? handleShuffleRandomType : undefined}
             />
           )}
         </motion.div>
