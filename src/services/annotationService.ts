@@ -33,12 +33,17 @@ import { getStoredToken }    from '@/services/githubAuthService';
 /** Top-level solar observation categories (must match aurora task_types). */
 export type TaskType =
   | 'sunspot'
-  | 'solar_flare'
   | 'magnetogram'
-  | 'coronal_hole'
-  | 'prominence'
-  | 'active_region'
-  | 'cme';
+  | 'aia_94'
+  | 'aia_131'
+  | 'aia_171'
+  | 'aia_193'
+  | 'aia_211'
+  | 'aia_304'
+  | 'aia_335'
+  | 'aia_1600'
+  | 'aia_1700'
+  | 'aia_4500';
 
 /**
  * UserLabel — the specific sub-classification within a task type.
@@ -46,19 +51,13 @@ export type TaskType =
  */
 export type UserLabel =
   // Sunspot McIntosh-like classes
-  | 'class_a' | 'class_b' | 'class_c' | 'class_d' | 'class_e' | 'class_f' | 'class_h' | 'none'
-  // Solar flare GOES classes
-  | 'x_class' | 'm_class' | 'c_class' | 'b_class' | 'a_class' | 'none'
+  | 'class_a' | 'class_b' | 'class_c' | 'class_d' | 'class_e' | 'class_f' | 'class_h'
   // Magnetogram Mount Wilson classes
-  | 'alpha' | 'beta' | 'gamma' | 'beta-gamma' | 'delta' | 'beta-delta' | 'beta-gamma-delta' | 'gamma-delta' | 'none'
-  // Coronal hole
-  | 'polar' | 'equatorial' | 'mid-latitude' | 'transequatorial' | 'none'
-  // Prominence
-  | 'quiescent' | 'active' | 'eruptive' | 'intermediate' | 'none'
-  // Active region structural
-  | 'alpha' | 'beta' | 'gamma' | 'beta-gamma' | 'beta-gamma-delta' | 'none'
-  // CME
-  | 'full_halo' | 'partial_halo' | 'normal' | 'narrow' | 'none';
+  | 'alpha' | 'beta' | 'gamma' | 'beta-gamma' | 'delta' | 'beta-delta' | 'beta-gamma-delta' | 'gamma-delta'
+  // AIA NOAA SRS Hale classification
+  | 'ax' | 'ao' | 'ai' | 'bx' | 'bo' | 'bi' | 'cr' | 'cx' | 'co' | 'd' | 'e' | 'f'
+  // Common 'none' for all types
+  | 'none';
 
 /** Fields the caller must supply to create an annotation. */
 export interface AnnotationInput {

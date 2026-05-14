@@ -19,6 +19,7 @@ import StarField from '@/components/StarField';
 import type { AnnotationInput, TaskType, UserLabel } from '@/services/annotationService';
 import { fetchAuroraTasksByType } from '@/services/auroraService';
 import type { AuroraTask } from '@/services/auroraService';
+import { preloadAllTasks } from '@/services/parallelTaskLoader';
 
 import { loadDailyProgress, markTaskCompletedForToday } from '@/services/dailyProgressService';
 import { loadProgressFromGitHub } from '@/services/githubSyncService';
@@ -38,6 +39,16 @@ interface TaskTypeMeta {
 const TASK_TYPES: TaskTypeMeta[] = [
   { value: 'sunspot',       friendlyName: 'Sun Spots',      icon: '🟤', description: 'Dark patches on the bright solar surface', subtitle: 'SDO HMI Continuum' },
   { value: 'magnetogram',   friendlyName: 'Magnetic Map',   icon: '🧲', description: "Black & white map of the Sun's magnetic field", subtitle: 'SDO HMI Magnetogram' },
+  { value: 'aia_94',        friendlyName: 'AIA 94Å',        icon: '🔭', description: 'Extreme ultraviolet corona', subtitle: 'SDO AIA' },
+  { value: 'aia_131',       friendlyName: 'AIA 131Å',       icon: '🔭', description: 'Extreme ultraviolet corona', subtitle: 'SDO AIA' },
+  { value: 'aia_171',       friendlyName: 'AIA 171Å',       icon: '🔭', description: 'Extreme ultraviolet corona', subtitle: 'SDO AIA' },
+  { value: 'aia_193',       friendlyName: 'AIA 193Å',       icon: '🔭', description: 'Extreme ultraviolet corona', subtitle: 'SDO AIA' },
+  { value: 'aia_211',       friendlyName: 'AIA 211Å',       icon: '🔭', description: 'Extreme ultraviolet corona', subtitle: 'SDO AIA' },
+  { value: 'aia_304',       friendlyName: 'AIA 304Å',       icon: '🔭', description: 'Extreme ultraviolet chromosphere', subtitle: 'SDO AIA' },
+  { value: 'aia_335',       friendlyName: 'AIA 335Å',       icon: '🔭', description: 'Extreme ultraviolet corona', subtitle: 'SDO AIA' },
+  { value: 'aia_1600',      friendlyName: 'AIA 1600Å',      icon: '🔭', description: 'Far ultraviolet chromosphere', subtitle: 'SDO AIA' },
+  { value: 'aia_1700',      friendlyName: 'AIA 1700Å',      icon: '🔭', description: 'Far ultraviolet continuum', subtitle: 'SDO AIA' },
+  { value: 'aia_4500',      friendlyName: 'AIA 4500Å',      icon: '🔭', description: 'Visible light continuum', subtitle: 'SDO AIA' },
 ];
 
 interface ClassifyProps {
@@ -645,9 +656,20 @@ export default function Classify({ points, onPointsChange, streak, onStreakChang
   }, [onPointsChange, onStreakChange]);
 
   useEffect(() => {
-    TASK_TYPES.forEach(async ({ value }) => {
-      const result = await fetchAuroraTasksByType(value);
-      setAvailability(prev => ({ ...prev, [value]: result !== null && result.length > 0 }));
+    // Preload all tasks in parallel for lightning-fast availability checks
+    const allTaskTypes = TASK_TYPES.map(t => t.value);
+    void preloadAllTasks(allTaskTypes).then(() => {
+      // After preload, quickly check availability without network delay
+      allTaskTypes.forEach(async (value) => {
+        const result = await fetchAuroraTasksByType(value);
+        setAvailability(prev => ({ ...prev, [value]: result !== null && result.length > 0 }));
+      });
+    }).catch(() => {
+      // Fallback: check availability even if preload fails
+      allTaskTypes.forEach(async (value) => {
+        const result = await fetchAuroraTasksByType(value);
+        setAvailability(prev => ({ ...prev, [value]: result !== null && result.length > 0 }));
+      });
     });
   }, []);
 

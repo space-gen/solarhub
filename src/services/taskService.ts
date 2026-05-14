@@ -123,97 +123,84 @@ function mapRawToTask(raw: RawAuroraRecord, index: number): Task {
  * NOTE: NASA SDO images are in the public domain – see:
  *       https://www.nasa.gov/content/goddard/sdo-data-use-guidelines
  */
-export const MOCK_TASKS: Task[] = [
-  {
-    id: 'sdo-2024-0001',
-    image_url:
-      'https://sdo.gsfc.nasa.gov/assets/img/latest/latest_1024_0193.jpg',
-    thumbnail_url:
-      'https://sdo.gsfc.nasa.gov/assets/img/latest/latest_256_0193.jpg',
-    ml_prediction: 'coronal_hole',
-    ml_confidence: 0.82,
-    description:
-      'AIA 193 Å image showing extreme ultraviolet emission from the corona. Dark regions may indicate coronal holes where solar wind escapes.',
-    observation_date: new Date().toISOString(),
-    instrument: 'AIA 193Å',
-    annotation_count: 14,
-    serial_number: 1,
-  },
-  {
-    id: 'sdo-2024-0002',
-    image_url:
-      'https://sdo.gsfc.nasa.gov/assets/img/latest/latest_1024_0304.jpg',
-    thumbnail_url:
-      'https://sdo.gsfc.nasa.gov/assets/img/latest/latest_256_0304.jpg',
-    ml_prediction: 'solar_flare',
-    ml_confidence: 0.74,
-    description:
-      'AIA 304 Å image sensitive to upper chromosphere and transition region. Bright arching structures may be solar prominences or flare ribbons.',
-    observation_date: new Date(Date.now() - 86400_000).toISOString(),
-    instrument: 'AIA 304Å',
-    annotation_count: 7,
-    serial_number: 2,
-  },
-  {
-    id: 'sdo-2024-0003',
-    image_url:
-      'https://sdo.gsfc.nasa.gov/assets/img/latest/latest_1024_HMII.jpg',
-    thumbnail_url:
-      'https://sdo.gsfc.nasa.gov/assets/img/latest/latest_256_HMII.jpg',
-    ml_prediction: 'sunspot',
-    ml_confidence: 0.91,
-    description:
-      'HMI intensitygram (visible light) showing the solar photosphere. Dark patches with umbra/penumbra structure are sunspot groups.',
-    observation_date: new Date(Date.now() - 2 * 86400_000).toISOString(),
-    instrument: 'HMI Continuum',
-    annotation_count: 23,
-    serial_number: 3,
-  },
-  {
-    id: 'sdo-2024-0004',
-    image_url:
-      'https://sdo.gsfc.nasa.gov/assets/img/latest/latest_1024_0171.jpg',
-    thumbnail_url:
-      'https://sdo.gsfc.nasa.gov/assets/img/latest/latest_256_0171.jpg',
-    ml_prediction: 'coronal_hole',
-    ml_confidence: 0.68,
-    description:
-      'AIA 171 Å image dominated by plasma at ~600,000 K. Bright loops outline active regions; dark filament channels may harbour eruptions.',
-    observation_date: new Date(Date.now() - 3 * 86400_000).toISOString(),
-    instrument: 'AIA 171Å',
-    annotation_count: 11,
-    serial_number: 4,
-  },
-  {
-    id: 'sdo-2024-0005',
-    image_url:
-      'https://sdo.gsfc.nasa.gov/assets/img/latest/latest_1024_0094.jpg',
-    thumbnail_url:
-      'https://sdo.gsfc.nasa.gov/assets/img/latest/latest_256_0094.jpg',
-    ml_prediction: 'solar_flare',
-    ml_confidence: 0.86,
-    description:
-      'AIA 94 Å image highlights plasma at ~6 million K – characteristic of impulsive flare phases. Bright concentrated emission may indicate an X-ray bright point.',
-    observation_date: new Date(Date.now() - 4 * 86400_000).toISOString(),
-    instrument: 'AIA 94Å',
-    annotation_count: 5,
-    serial_number: 5,
-  },
-  {
-    id: 'sdo-2024-0006',
-    image_url:
-      'https://sdo.gsfc.nasa.gov/assets/img/latest/latest_1024_HMId.jpg',
-    thumbnail_url:
-      'https://sdo.gsfc.nasa.gov/assets/img/latest/latest_256_HMId.jpg',
-    ml_prediction: 'sunspot',
-    ml_confidence: 0.79,
-    description:
-      'HMI Dopplergram showing line-of-sight plasma velocities. Sunspot moats and super-granulation flows are visible as blue/red patterns.',
-    observation_date: new Date(Date.now() - 5 * 86400_000).toISOString(),
-    instrument: 'HMI Doppler',
-    annotation_count: 9,
-    serial_number: 6,
-  },
+  /**
+   * MOCK_TASKS is deprecated - we now load all tasks from aurora's data branch
+   */
+  export const MOCK_TASKS: Task[] = [
+  // {
+  //   id: 'sdo-2024-0001',
+  //   image_url:
+  //     'https://sdo.gsfc.nasa.gov/assets/img/latest/latest_1024_0193.jpg',
+  //   thumbnail_url:
+  //     'https://sdo.gsfc.nasa.gov/assets/img/latest/latest_256_0193.jpg',
+  //   ml_prediction: 'magnetogram',
+  //   ml_confidence: 0.82,
+  //   description:
+  //     'AIA 193 Å image showing extreme ultraviolet emission from the corona. Dark regions may indicate coronal holes where solar wind escapes.',
+  //   observation_date: new Date().toISOString(),
+  //   instrument: 'AIA 193Å',
+  //   annotation_count: 14,
+  //   serial_number: 1,
+  // },
+  // {
+  //   id: 'sdo-2024-0002',
+  //   image_url:
+  //     'https://sdo.gsfc.nasa.gov/assets/img/latest/latest_1024_0304.jpg',
+  //   thumbnail_url:
+  //     'https://sdo.gsfc.nasa.gov/assets/img/latest/latest_256_0304.jpg',
+  //   ml_prediction: 'magnetogram',
+  //   ml_confidence: 0.74,
+  //   description:
+  //     'AIA 304 Å image sensitive to upper chromosphere and transition region. Bright arching structures may be solar prominences or flare ribbons.',
+  //   observation_date: new Date(Date.now() - 86400_000).toISOString(),
+  //   instrument: 'AIA 304Å',
+  //   annotation_count: 7,
+  //   serial_number: 2,
+  // },
+  // {
+  //   id: 'sdo-2024-0003',
+  //   image_url:
+  //     'https://sdo.gsfc.nasa.gov/assets/img/latest/latest_1024_HMII.jpg',
+  //   thumbnail_url:
+  //     'https://sdo.gsfc.nasa.gov/assets/img/latest/latest_256_HMII.jpg',
+  //   ml_prediction: 'sunspot',
+  //   ml_confidence: 0.91,
+  //   description:
+  //     'HMI intensitygram (visible light) showing the solar photosphere. Dark patches with umbra/penumbra structure are sunspot groups.',
+  //   observation_date: new Date(Date.now() - 2 * 86400_000).toISOString(),
+  //   instrument: 'HMI Continuum',
+  //   annotation_count: 23,
+  //   serial_number: 3,
+  // },
+  // {
+  //   id: 'sdo-2024-0004',
+  //   image_url:
+  //     'https://sdo.gsfc.nasa.gov/assets/img/latest/latest_1024_0171.jpg',
+  //   thumbnail_url:
+  //     'https://sdo.gsfc.nasa.gov/assets/img/latest/latest_256_0171.jpg',
+  //   ml_prediction: 'magnetogram',
+  //   ml_confidence: 0.68,
+  //   description:
+  //     'AIA 171 Å image dominated by plasma at ~600,000 K. Bright loops outline active regions; dark filament channels may harbour eruptions.',
+  //   observation_date: new Date(Date.now() - 3 * 86400_000).toISOString(),
+  //   instrument: 'AIA 171Å',
+  //   annotation_count: 11,
+  //   serial_number: 4,
+  // },
+  // {
+  //   id: 'sdo-2024-0005',
+  //   image_url:
+  //     'https://sdo.gsfc.nasa.gov/assets/img/latest/latest_1024_0094.jpg',
+  //   thumbnail_url:
+  //     'https://sdo.gsfc.nasa.gov/assets/img/latest/latest_256_0094.jpg',
+  //   ml_prediction: 'magnetogram',
+  //   ml_confidence: 0.86,
+  //   description:
+  //     'AIA 94 Å image highlights plasma at ~6 million K – characteristic of impulsive flare phases. Bright concentrated emission may indicate an X-ray bright point.',
+  //   observation_date: new Date(Date.now() - 4 * 86400_000).toISOString(),
+  //   instrument: 'AIA 94Å',
+  //   annotation_count: 5,
+  //   serial_number: 5,
 ];
 
 // ---------------------------------------------------------------------------

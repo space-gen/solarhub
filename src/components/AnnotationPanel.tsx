@@ -50,17 +50,71 @@ export const SCIENTIFIC_HELP: Record<TaskType, { scientific: string; plain: stri
     plain: 'Look for clear patches or messy areas. Mark the middle of the patch and use the radius to cover it.',
     uncertainLabel: 'none',
   },
-  solar_flare: { scientific: 'A very bright quick flash on the sun.', plain: 'Find the brightest flash and mark its centre.', uncertainLabel: 'none' },
-  coronal_hole: { scientific: 'A big dark area on the sun.', plain: 'Find the large dark patch and mark its middle. If long, put one or two markers along it.', uncertainLabel: 'none' },
-  prominence: { scientific: 'A bright arch sticking out from the sun edge.', plain: 'Look at the edge of the sun for a bright looping arch and mark the top or a footpoint.', uncertainLabel: 'none' },
-  active_region: { scientific: 'A busy area with lots happening.', plain: 'Find the busy bright area with spots and mark where most activity is.', uncertainLabel: 'none' },
-  cme: { scientific: 'A cloud shooting away from the sun.', plain: 'Find the place the cloud came from and mark it.', uncertainLabel: 'none' },
+  aia_94: {
+    scientific: 'Extreme ultraviolet solar corona at 94 Ångströms.',
+    plain: 'Look for bright active regions and complex structures. Mark significant features.',
+    uncertainLabel: 'none',
+  },
+  aia_131: {
+    scientific: 'Extreme ultraviolet solar corona at 131 Ångströms.',
+    plain: 'Look for hot corona features and loops. Mark main activity areas.',
+    uncertainLabel: 'none',
+  },
+  aia_171: {
+    scientific: 'Extreme ultraviolet solar corona at 171 Ångströms.',
+    plain: 'Look for coronal loops and active regions. Mark significant structures.',
+    uncertainLabel: 'none',
+  },
+  aia_193: {
+    scientific: 'Extreme ultraviolet solar corona at 193 Ångströms.',
+    plain: 'Look for bright corona and active region coronae. Mark main features.',
+    uncertainLabel: 'none',
+  },
+  aia_211: {
+    scientific: 'Extreme ultraviolet solar corona at 211 Ångströms.',
+    plain: 'Look for active region coronae and bright structures. Mark complex areas.',
+    uncertainLabel: 'none',
+  },
+  aia_304: {
+    scientific: 'Extreme ultraviolet solar atmosphere at 304 Ångströms.',
+    plain: 'Look for chromospheric structures and prominence features.',
+    uncertainLabel: 'none',
+  },
+  aia_335: {
+    scientific: 'Extreme ultraviolet solar corona at 335 Ångströms.',
+    plain: 'Look for hot corona and flare structures. Mark bright regions.',
+    uncertainLabel: 'none',
+  },
+  aia_1600: {
+    scientific: 'Far ultraviolet solar chromosphere at 1600 Ångströms.',
+    plain: 'Look for chromospheric structures and sunspot penumbrae.',
+    uncertainLabel: 'none',
+  },
+  aia_1700: {
+    scientific: 'Far ultraviolet solar continuum at 1700 Ångströms.',
+    plain: 'Look for temperature and intensity structures on the solar disk.',
+    uncertainLabel: 'none',
+  },
+  aia_4500: {
+    scientific: 'Visible light continuum at 4500 Ångströms.',
+    plain: 'Look for photosphere structures and sunspot features.',
+    uncertainLabel: 'none',
+  },
 };
 
-const AURORA_ANNOTATE_YML_LABELS: Record<'sunspot' | 'magnetogram', UserLabel[]> = {
-  // Removed explicit 'none' option for classify UI; uncertainty fallback still available in SCIENTIFIC_HELP. 
+const AURORA_ANNOTATE_YML_LABELS: Record<TaskType, UserLabel[]> = {
   sunspot: ['class_a', 'class_b', 'class_c', 'class_d', 'class_e', 'class_f', 'class_h'],
   magnetogram: ['alpha', 'beta', 'gamma', 'beta-gamma', 'delta', 'beta-delta', 'beta-gamma-delta', 'gamma-delta'],
+  aia_94: ['ax', 'ao', 'ai', 'bx', 'bo', 'bi', 'cr', 'cx', 'co', 'd', 'e', 'f'],
+  aia_131: ['ax', 'ao', 'ai', 'bx', 'bo', 'bi', 'cr', 'cx', 'co', 'd', 'e', 'f'],
+  aia_171: ['ax', 'ao', 'ai', 'bx', 'bo', 'bi', 'cr', 'cx', 'co', 'd', 'e', 'f'],
+  aia_193: ['ax', 'ao', 'ai', 'bx', 'bo', 'bi', 'cr', 'cx', 'co', 'd', 'e', 'f'],
+  aia_211: ['ax', 'ao', 'ai', 'bx', 'bo', 'bi', 'cr', 'cx', 'co', 'd', 'e', 'f'],
+  aia_304: ['ax', 'ao', 'ai', 'bx', 'bo', 'bi', 'cr', 'cx', 'co', 'd', 'e', 'f'],
+  aia_335: ['ax', 'ao', 'ai', 'bx', 'bo', 'bi', 'cr', 'cx', 'co', 'd', 'e', 'f'],
+  aia_1600: ['ax', 'ao', 'ai', 'bx', 'bo', 'bi', 'cr', 'cx', 'co', 'd', 'e', 'f'],
+  aia_1700: ['ax', 'ao', 'ai', 'bx', 'bo', 'bi', 'cr', 'cx', 'co', 'd', 'e', 'f'],
+  aia_4500: ['ax', 'ao', 'ai', 'bx', 'bo', 'bi', 'cr', 'cx', 'co', 'd', 'e', 'f'],
 };
 
 const AURORA_LABEL_HINTS: Partial<Record<UserLabel, string>> = {
@@ -79,14 +133,24 @@ const AURORA_LABEL_HINTS: Partial<Record<UserLabel, string>> = {
   'beta-delta': 'A mix of two and messy bits',
   'beta-gamma-delta': 'Very mixed and messy',
   'gamma-delta': 'Mixed messy patches',
+  ax: 'Simple unipolar alpha configuration',
+  ao: 'Anti-parallel polarity alpha pair',
+  ai: 'Intermediate complexity alpha',
+  bx: 'Simple bipolar with clear polarity boundary',
+  bo: 'Bipolar with complex shear',
+  bi: 'Intermediate bipolar complexity',
+  cr: 'Compact region, unipolar',
+  cx: 'Compact region, bipolar',
+  co: 'Compact region, multi-polarity',
+  d: 'Diffuse unipolar region',
+  e: 'Extremely complex multi-polarity',
+  f: 'Filament-supporting region',
   none: 'Not sure or not visible',
 };
 
-function buildAuroraSubLabels(task: 'sunspot' | 'magnetogram', noneLabel: string): SubLabel[] {
-  return AURORA_ANNOTATE_YML_LABELS[task].map(label => {
-    if (label === 'none') {
-      return { value: label, label: noneLabel, hint: AURORA_LABEL_HINTS.none || 'Not sure or not visible' };
-    }
+function buildAuroraSubLabels(task: TaskType): SubLabel[] {
+  const labels = AURORA_ANNOTATE_YML_LABELS[task] || [];
+  return labels.map(label => {
     const humanLabel = label
       .split('-')
       .map(part => part.replace('class_', 'class ').replace(/^./, ch => ch.toUpperCase()))
@@ -94,7 +158,7 @@ function buildAuroraSubLabels(task: 'sunspot' | 'magnetogram', noneLabel: string
     return {
       value: label,
       label: humanLabel,
-      hint: AURORA_LABEL_HINTS[label] || 'Aurora scientific label',
+      hint: AURORA_LABEL_HINTS[label] || 'Solar observation label',
     };
   });
 }
@@ -106,22 +170,7 @@ export const TASK_OPTIONS: TaskOption[] = [
     icon:    '🟤',
     lookFor: 'Dark dots on the bright sun (like freckles).',
     color:   'text-orange-300', bg: 'bg-orange-500/15', border: 'border-orange-500/40',
-    subLabels: buildAuroraSubLabels('sunspot', "I don't know / none"),
-  },
-  {
-    value:   'solar_flare',
-    label:   'Bright Flash',
-    icon:    '🔥',
-    lookFor: "A quick very bright flash — looks like a tiny sun explosion",
-    color:   'text-rose-300', bg: 'bg-rose-500/15', border: 'border-rose-500/40',
-    subLabels: [
-      { value: 'x_class',  label: 'X-class (very large)', hint: 'Very, very bright flash' },
-      { value: 'm_class',  label: 'M-class (large)', hint: 'A big bright flash' },
-      { value: 'c_class',  label: 'C-class (medium)', hint: 'A normal bright burst' },
-      { value: 'b_class',  label: 'B-class (small)', hint: 'A small bright spot' },
-      { value: 'a_class',  label: 'A-class (tiny)', hint: 'A very faint brightening' },
-      { value: 'none',     label: "No flash / none", hint: 'No bright flash seen' },
-    ],
+    subLabels: buildAuroraSubLabels('sunspot'),
   },
   {
     value:   'magnetogram',
@@ -129,62 +178,19 @@ export const TASK_OPTIONS: TaskOption[] = [
     icon:    '🧲',
     lookFor: "A black & white map that looks like stripes or patches",
     color:   'text-nebula-300', bg: 'bg-nebula-500/15', border: 'border-nebula-500/40',
-    subLabels: buildAuroraSubLabels('magnetogram', "I don't know / none"),
+    subLabels: buildAuroraSubLabels('magnetogram'),
   },
-  {
-    value:   'coronal_hole',
-    label:   'Dark Region',
-    icon:    '🕳️',
-    lookFor: 'A big dark area on the sun, like a missing patch',
-    color:   'text-cyan-300', bg: 'bg-cyan-500/15', border: 'border-cyan-500/40',
-    subLabels: [
-      { value: 'polar',        label: 'Top or bottom (near a pole)', hint: 'Dark area near the top or bottom of the sun'       },
-      { value: 'equatorial',   label: 'In the middle band',          hint: 'Dark area near the middle of the sun' },
-      { value: 'mid-latitude', label: 'Somewhere in between',        hint: 'Dark area between top and middle'           },
-      { value: 'none',         label: "I don't see a dark region",   hint: 'I do not see a big dark patch'                         },
-    ],
-  },
-  {
-    value:   'prominence',
-    label:   'Glowing Arch',
-    icon:    '🌊',
-    lookFor: 'A bright arch sticking out from the edge of the sun',
-    color:   'text-sky-300', bg: 'bg-sky-500/15', border: 'border-sky-500/40',
-    subLabels: [
-      { value: 'eruptive',  label: 'Erupting outward into space', hint: 'The arch looks like it is breaking and flying away'      },
-      { value: 'quiescent', label: 'Calm and stable',             hint: 'A calm arch that is not moving much'              },
-      { value: 'active',    label: 'Moving and changing',         hint: 'The arch is wobbling or changing shape'        },
-      { value: 'none',      label: "I don't see an arch",         hint: 'No arch at the sun edge'       },
-    ],
-  },
-  {
-    value:   'active_region',
-    label:   'Active Region',
-    icon:    '⚡',
-    lookFor: 'A busy, bright area with lots going on',
-    color:   'text-yellow-300', bg: 'bg-yellow-500/15', border: 'border-yellow-500/40',
-    subLabels: [
-      { value: 'alpha', label: 'Alpha (simple)', hint: 'A single simple bright area' },
-      { value: 'beta', label: 'Beta (paired)', hint: 'Two bright spots close together' },
-      { value: 'gamma', label: 'Gamma (complex)', hint: 'Many bright bits mixed together' },
-      { value: 'beta-gamma', label: 'Beta-Gamma', hint: 'A mix of two and many bits' },
-      { value: 'beta-gamma-delta', label: 'Beta-Gamma-Delta', hint: 'Very mixed and busy area' },
-      { value: 'none', label: "I don't see an active region", hint: 'No busy area visible' },
-    ],
-  },
-  {
-    value:   'cme',
-    label:   'Solar Storm',
-    icon:    '💥',
-    lookFor: 'A large cloud of gas erupting outward from the sun (often looks like a halo)',
-    color:   'text-red-300', bg: 'bg-red-500/15', border: 'border-red-500/40',
-    subLabels: [
-      { value: 'full_halo',         label: 'Full ring all around the sun', hint: 'The eruption forms a complete ring / halo'         },
-      { value: 'partial_halo', label: 'Partial ring / arc',           hint: 'An arc shape, not a full ring'                     },
-      { value: 'narrow',       label: 'A thin stream or jet',         hint: 'A narrow stream of material in one direction'      },
-      { value: 'none',         label: "I don't see anything erupting", hint: 'No visible cloud or eruption'                    },
-    ],
-  },
+  // AIA wavelengths (dynamically generated)
+  ...(['aia_94', 'aia_131', 'aia_171', 'aia_193', 'aia_211', 'aia_304', 'aia_335', 'aia_1600', 'aia_1700', 'aia_4500'] as TaskType[]).map((type, idx) => ({
+    value:   type,
+    label:   `AIA ${type.replace('aia_', '')}Å`,
+    icon:    '🔭',
+    lookFor: SCIENTIFIC_HELP[type]?.plain || 'Mark significant features.',
+    color:   ['text-violet-300', 'text-purple-300', 'text-indigo-300', 'text-blue-300', 'text-cyan-300', 'text-teal-300', 'text-emerald-300', 'text-green-300', 'text-lime-300', 'text-yellow-300'][idx % 10],
+    bg:      ['bg-violet-500/15', 'bg-purple-500/15', 'bg-indigo-500/15', 'bg-blue-500/15', 'bg-cyan-500/15', 'bg-teal-500/15', 'bg-emerald-500/15', 'bg-green-500/15', 'bg-lime-500/15', 'bg-yellow-500/15'][idx % 10],
+    border:  ['border-violet-500/40', 'border-purple-500/40', 'border-indigo-500/40', 'border-blue-500/40', 'border-cyan-500/40', 'border-teal-500/40', 'border-emerald-500/40', 'border-green-500/40', 'border-lime-500/40', 'border-yellow-500/40'][idx % 10],
+    subLabels: buildAuroraSubLabels(type),
+  })),
 ];
 
 // ---------------------------------------------------------------------------

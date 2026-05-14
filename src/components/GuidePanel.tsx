@@ -1,3 +1,4 @@
+import { useState, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { containerVariants, itemVariants } from '@/animations/pageTransitions';
 import { classifyTaskType } from '@/utils/helpers';
@@ -40,6 +41,31 @@ export default function GuidePanel({
   availability, 
   taskTypes 
 }: GuidePanelProps) {
+  const [isRandomLoading, setIsRandomLoading] = useState(false);
+  
+  const handleRandomClick = useCallback(async () => {
+    if (!onSelect || !taskTypes) return;
+    
+    setIsRandomLoading(true);
+    try {
+      // Import at runtime to avoid circular deps
+      const { getRandomTask: _ } = await import('@/services/parallelTaskLoader');
+      const availableTypes = taskTypes
+        .filter(t => availability?.[t.value] === true)
+        .map(t => t.value as any);
+      
+      if (!availableTypes.length) {
+        setIsRandomLoading(false);
+        return;
+      }
+      
+      // Select random type and load it
+      const randomType = availableTypes[Math.floor(Math.random() * availableTypes.length)];
+      onSelect(randomType);
+    } finally {
+      setIsRandomLoading(false);
+    }
+  }, [onSelect, taskTypes, availability]);
   
   // Selection Mode: If no option is selected, show the type picker grid
   if (!selectedOption && taskTypes && onSelect && availability) {
@@ -90,6 +116,20 @@ export default function GuidePanel({
               </motion.button>
             );
           })}
+        </motion.div>
+
+        {/* Random Mode Button */}
+        <motion.div variants={itemVariants} className="flex justify-center pt-4 border-t border-white/10">
+          <motion.button
+            onClick={handleRandomClick}
+            disabled={isRandomLoading}
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            className="flex items-center gap-2 px-6 py-3 rounded-xl bg-gradient-to-r from-violet-500/20 to-purple-500/20 border border-violet-500/40 hover:border-violet-400 text-violet-300 font-semibold transition-all disabled:opacity-60"
+          >
+            <span className="text-lg">🎲</span>
+            {isRandomLoading ? 'Loading random…' : 'Random for me!'}
+          </motion.button>
         </motion.div>
       </motion.div>
     );
