@@ -19,6 +19,9 @@ const CACHE_TTL = 60 * 60 * 1000; // 1 hour
 const NIGHTLY_PARSER_START_UTC = 23 * 60 + 45; // 23:45 UTC in minutes
 const NIGHTLY_PARSER_END_UTC = 0 * 60 + 15; // 00:15 UTC in minutes (next day)
 
+// Track the next index in the combined pool for sequential serving
+let combinedPoolIndex = 0;
+
 /**
  * Check if we're in the nightly parser window (23:45-00:15 UTC).
  * During this time, caching is disabled to always fetch fresh data.
@@ -72,9 +75,9 @@ export async function loadAllTasksInParallel(
 }
 
 /**
- * Load all task types and combine into a single pool.
- * Then pick a random task from the entire combined dataset.
- * Used by "Random" mode in the UI.
+ * Load all task types and combine into a single pool in ID sequence.
+ * Serve tasks sequentially from the combined pool (following JSONL order).
+ * Used by "Random" mode in the UI - users randomly select mode, but get sequential tasks.
  */
 export async function getRandomTaskFromCombinedPool(
   taskTypes: TaskType[],
@@ -84,22 +87,29 @@ export async function getRandomTaskFromCombinedPool(
   // Load all tasks in parallel
   const allTasksByType = await loadAllTasksInParallel(taskTypes);
   
-  // Combine all tasks from all types into a single pool
+  // Combine all tasks from all types into a single pool (preserving JSONL ID order)
   const combinedPool: Array<{ taskType: TaskType; task: AuroraTask }> = [];
   
-  Object.entries(allTasksByType).forEach(([taskType, tasks]) => {
+  // Add tasks in consistent order: follow taskTypes array order
+  taskTypes.forEach(taskType => {
+    const tasks = allTasksByType[taskType];
     if (tasks && Array.isArray(tasks)) {
       tasks.forEach(task => {
-        combinedPool.push({ taskType: taskType as TaskType, task });
+        combinedPool.push({ taskType, task });
       });
     }
   });
   
   if (!combinedPool.length) return null;
   
-  // Pick random from combined pool
-  const randomIndex = Math.floor(Math.random() * combinedPool.length);
-  return combinedPool[randomIndex];
+  // Serve tasks sequentially from combined pool
+  const currentIndex = combinedPoolIndex % combinedPool.length;
+  const result = combinedPool[currentIndex];
+  
+  // Advance index for next call
+  combinedPoolIndex = (combinedPoolIndex + 1) % combinedPool.length;
+  
+  return result;
 }
 
 /**
