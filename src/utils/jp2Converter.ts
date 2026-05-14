@@ -71,8 +71,37 @@ export async function convertJp2ToJpg(jp2Url: string): Promise<string> {
 
     // Fill the canvas image data with the JP2 image data
     if (jpxImageData && jpxImageData.length > 0) {
-      for (let i = 0; i < jpxImageData.length; i++) {
-        data[i] = jpxImageData[i];
+      // Check if data is grayscale (length = width*height) or multi-channel (length = width*height*channels)
+      const pixelCount = width * height;
+      const channelCount = jpxImageData.length / pixelCount;
+      
+      if (channelCount === 1) {
+        // Grayscale data - replicate to RGB, set A to 255
+        for (let i = 0; i < pixelCount; i++) {
+          const grayValue = jpxImageData[i];
+          data[i * 4] = grayValue;     // R
+          data[i * 4 + 1] = grayValue; // G
+          data[i * 4 + 2] = grayValue; // B
+          data[i * 4 + 3] = 255;       // A (opaque)
+        }
+      } else if (channelCount === 3) {
+        // RGB data - set A to 255 for each pixel
+        for (let i = 0; i < pixelCount; i++) {
+          data[i * 4] = jpxImageData[i * 3];       // R
+          data[i * 4 + 1] = jpxImageData[i * 3 + 1]; // G
+          data[i * 4 + 2] = jpxImageData[i * 3 + 2]; // B
+          data[i * 4 + 3] = 255;                    // A (opaque)
+        }
+      } else if (channelCount === 4) {
+        // RGBA data - copy directly
+        for (let i = 0; i < jpxImageData.length; i++) {
+          data[i] = jpxImageData[i];
+        }
+      } else {
+        // Fallback: copy directly as before
+        for (let i = 0; i < jpxImageData.length; i++) {
+          data[i] = jpxImageData[i];
+        }
       }
     }
 
