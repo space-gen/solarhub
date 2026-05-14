@@ -1,25 +1,24 @@
 /**
  * Utility to convert JP2 (JPEG 2000) images to JPG format for browser compatibility.
  * This is needed because browsers don't have native support for JP2 format.
+ * Uses @cornerstonejs/codec-openjpeg for better browser compatibility.
  */
 
-let JpxImage: any = null;
+let openJpegModule: any = null;
 
-async function initJpx() {
-  if (!JpxImage) {
+async function initOpenJpeg() {
+  if (!openJpegModule) {
     try {
-      // Import jpx.js - it's a UMD module that works with both CommonJS and ES6
-      const jpxModule = await import('jpx.js');
-      // jpx.js exports as default
-      JpxImage = jpxModule.default || jpxModule;
-      
-      console.log('[JP2] jpx.js loaded, type:', typeof JpxImage);
+      // Import the Cornerstone OpenJPEG codec
+      const module = await import('@cornerstonejs/codec-openjpeg');
+      openJpegModule = module;
+      console.log('[JP2] OpenJPEG codec loaded');
     } catch (error) {
-      console.error('Failed to load jpx.js module:', error);
+      console.error('Failed to load OpenJPEG codec:', error);
       throw error;
     }
   }
-  return JpxImage;
+  return openJpegModule;
 }
 
 /**
@@ -36,7 +35,7 @@ export function isJp2Image(url: string): boolean {
  */
 export async function convertJp2ToJpg(jp2Url: string): Promise<string> {
   try {
-    const JpxConstructor = await initJpx();
+    const codec = await initOpenJpeg();
     console.log('[JP2] Starting conversion for:', jp2Url);
 
     // Fetch the JP2 file with CORS
@@ -51,91 +50,79 @@ export async function convertJp2ToJpg(jp2Url: string): Promise<string> {
     }
 
     const arrayBuffer = await response.arrayBuffer();
-    const uint8Array = new Uint8Array(arrayBuffer);
-    console.log('[JP2] Fetched', uint8Array.length, 'bytes');
+    console.log('[JP2] Fetched', arrayBuffer.byteLength, 'bytes');
 
-    // Decode JP2 using jpx.js
-    let jpxImage;
+    // Decode JP2 using Cornerstone OpenJPEG
+    let imageFrame;
     try {
-      jpxImage = new JpxConstructor(uint8Array);
+      // Cornerstone codec expects the data as the only argument
+      const decoder = codec.decode(arrayBuffer);
+      imageFrame = decoder;
     } catch (decodeError) {
       console.error('[JP2] Decoding failed:', decodeError);
       throw new Error(`JP2 decode error: ${decodeError instanceof Error ? decodeError.message : String(decodeError)}`);
     }
     
-    console.log('[JP2] Decoded image dimensions:', jpxImage.width, 'x', jpxImage.height);
-
-    // Get image dimensions
-    const width = jpxImage.width;
-    const height = jpxImage.height;
-
-    if (!width || !height) {
-      throw new Error('Invalid JP2 image dimensions');
-    }
+    console.log('[JP2] Decoded image, size:', {
+      rows: imageFrame.rows,
+      columns: imageFrame.columns,
+      samplesPerPixel: imageFrame.samplesPerPixel,
+      bitsAllocated: imageFrame.bitsAllocated,
+      pixelData: imageFrame.pixelData?.length
+    });
 
     // Create canvas for conversion
     const canvas = document.createElement('canvas');
-    canvas.width = width;
-    canvas.height = height;
+    canvas.width = imageFrame.columns;
+    canvas.height = imageFrame.rows;
 
     const ctx = canvas.getContext('2d');
     if (!ctx) {
       throw new Error('Could not get canvas context');
     }
 
-    // Get image data from jpx
-    const imageData = ctx.createImageData(width, height);
+    // Get image data from frame
+    const imageData = ctx.createImageData(imageFrame.columns, imageFrame.rows);
     const data = imageData.data;
+    const pixelData = imageFrame.pixelData;
 
-    // Get the decoded image data from jpx
-    let jpxImageData;
-    try {
-      jpxImageData = jpxImage.getData({ width, height });
-    } catch (getDataError) {
-      console.error('[JP2] getData failed:', getDataError);
-      throw new Error(`JP2 getData error: ${getDataError instanceof Error ? getDataError.message : String(getDataError)}`);
-    }
-    
-    console.log('[JP2] Image data length:', jpxImageData?.length || 'null');
-
-    // Fill the canvas image data with the JP2 image data
-    if (jpxImageData && jpxImageData.length > 0) {
-      // Check if data is grayscale (length = width*height) or multi-channel (length = width*height*channels)
-      const pixelCount = width * height;
-      const channelCount = jpxImageData.length / pixelCount;
-      console.log('[JP2] Detected channels:', channelCount);
+    // Fill the canvas image data with the pixel data
+    if (pixelData && pixelData.length > 0) {
+      const pixelCount = imageFrame.columns * imageFrame.rows;
+      const channels = pixelData.length / pixelCount;
+      console.log('[JP2] Detected channels:', channels);
       
-      if (channelCount === 1) {
+      if (channels === 1) {
         // Grayscale data - replicate to RGB, set A to 255
         for (let i = 0; i < pixelCount; i++) {
-          const grayValue = jpxImageData[i];
+          const grayValue = pixelData[i];
           data[i * 4] = grayValue;     // R
           data[i * 4 + 1] = grayValue; // G
           data[i * 4 + 2] = grayValue; // B
           data[i * 4 + 3] = 255;       // A (opaque)
         }
-      } else if (channelCount === 3) {
+      } else if (channels === 3) {
         // RGB data - set A to 255 for each pixel
         for (let i = 0; i < pixelCount; i++) {
-          data[i * 4] = jpxImageData[i * 3];       // R
-          data[i * 4 + 1] = jpxImageData[i * 3 + 1]; // G
-          data[i * 4 + 2] = jpxImageData[i * 3 + 2]; // B
+          data[i * 4] = pixelData[i * 3];           // R
+          data[i * 4 + 1] = pixelData[i * 3 + 1];   // G
+          data[i * 4 + 2] = pixelData[i * 3 + 2];   // B
           data[i * 4 + 3] = 255;                    // A (opaque)
         }
-      } else if (channelCount === 4) {
+      } else if (channels === 4) {
         // RGBA data - copy directly
-        for (let i = 0; i < jpxImageData.length; i++) {
-          data[i] = jpxImageData[i];
+        for (let i = 0; i < pixelData.length; i++) {
+          data[i] = pixelData[i];
         }
       } else {
         // Fallback: copy directly as before
-        console.log('[JP2] Using fallback channel handling for', channelCount, 'channels');
-        for (let i = 0; i < Math.min(jpxImageData.length, data.length); i++) {
-          data[i] = jpxImageData[i];
+        console.log('[JP2] Using fallback channel handling for', channels, 'channels');
+        for (let i = 0; i < Math.min(pixelData.length, data.length); i++) {
+          data[i] = pixelData[i];
         }
       }
     } else {
-      throw new Error('No image data returned from JP2 decoder');
+      throw new Error('No pixel data returned from JP2 decoder');
     }
 
     try {
