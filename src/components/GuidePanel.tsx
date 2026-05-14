@@ -49,7 +49,7 @@ export default function GuidePanel({
     setIsRandomLoading(true);
     try {
       // Import at runtime to avoid circular deps
-      const { getRandomTask: _ } = await import('@/services/parallelTaskLoader');
+      const { getRandomTaskFromCombinedPool } = await import('@/services/parallelTaskLoader');
       const availableTypes = taskTypes
         .filter(t => availability?.[t.value] === true)
         .map(t => t.value as any);
@@ -59,9 +59,11 @@ export default function GuidePanel({
         return;
       }
       
-      // Select random type and load it
-      const randomType = availableTypes[Math.floor(Math.random() * availableTypes.length)];
-      onSelect(randomType);
+      // Load all available types and pick random task from combined pool
+      const result = await getRandomTaskFromCombinedPool(availableTypes);
+      if (result) {
+        onSelect(result.taskType);
+      }
     } finally {
       setIsRandomLoading(false);
     }
