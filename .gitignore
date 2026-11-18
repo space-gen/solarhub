@@ -48,3 +48,6 @@ storybook-static/
 # Temporary files
 *.tmp
 *.bak
+
+# Cloudflare Wrangler
+.wrangler/

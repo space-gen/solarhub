@@ -1,0 +1,81 @@
+import assert from 'node:assert/strict';
+import { afterEach, test } from 'node:test';
+import worker from './index.js';
+
+const ORIGIN = 'https://solarhub.skiono.me';
+const env = { GITHUB_CLIENT_ID: 'real-client', GITHUB_SCOPE: 'public_repo' };
+const realFetch = globalThis.fetch;
+afterEach(() => { globalThis.fetch = realFetch; });
+
+function post(path, body = '', origin = ORIGIN) {
+  return new Request(`${ORIGIN}${path}`, {
+    method: 'POST',
+    headers: { Origin: origin, 'Content-Type': 'application/x-www-form-urlencoded' },
+    body,
+  });
+}
+
+function captureUpstream() {
+  const calls = [];
+  globalThis.fetch = async (url, init) => {
+    calls.push({ url, form: new URLSearchParams(init.body) });
+    return Response.json({ ok: true });
+  };
+  return calls;
+}
+
+test('device code request ignores client-supplied app and scope', async () => {
+  const calls = captureUpstream();
+  const res = await worker.fetch(post('/api/github/device/code', 'client_id=evil&scope=repo'), env);
+  assert.equal(res.status, 200);
+  assert.equal(res.headers.get('Cache-Control'), 'no-store');
+  assert.equal(calls[0].url, 'https://github.com/login/device/code');
+  assert.equal(calls[0].form.get('client_id'), 'real-client');
+  assert.equal(calls[0].form.get('scope'), 'public_repo');
+});
+
+test('token request forwards only device_code from the client', async () => {
+  const calls = captureUpstream();
+  await worker.fetch(post('/api/github/access_token', 'device_code=abc&client_id=evil&grant_type=x'), env);
+  assert.equal(calls[0].url, 'https://github.com/login/oauth/access_token');
+  assert.deepEqual(Object.fromEntries(calls[0].form), {
+    client_id: 'real-client',
+    device_code: 'abc',
+    grant_type: 'urn:ietf:params:oauth:grant-type:device_code',
+  });
+});
+
+test('rejects other origins, methods, paths and bad bodies without calling GitHub', async () => {
+  const calls = captureUpstream();
+  const cases = [
+    [post('/api/github/device/code', '', 'https://evil.example'), 403],
+    [new Request(`${ORIGIN}/api/github/device/code`), 405],
+    [post('/api/github/other'), 404],
+    [post('/api/github/access_token', 'grant_type=x'), 400],
+    [post('/api/github/access_token', `device_code=${'a'.repeat(3000)}`), 400],
+  ];
+  for (const [request, status] of cases) {
+    assert.equal((await worker.fetch(request, env)).status, status);
+  }
+  assert.equal(calls.length, 0);
+});
+
+test('serves only known live solar images', async () => {
+  const urls = [];
+  globalThis.fetch = async url => {
+    urls.push(url);
+    return new Response('image', { status: 200, headers: { 'Content-Type': 'text/plain' } });
+  };
+  const ok = await worker.fetch(new Request(`${ORIGIN}/api/sdo/latest/0171.jpg`), env);
+  assert.equal(ok.status, 200);
+  assert.equal(ok.headers.get('Content-Type'), 'image/jpeg');
+  assert.equal(urls[0], 'https://sdo.gsfc.nasa.gov/assets/img/latest/latest_512_0171.jpg');
+  assert.equal((await worker.fetch(new Request(`${ORIGIN}/api/sdo/latest/SECRET.jpg`), env)).status, 404);
+  assert.equal(urls.length, 1);
+});
+
+test('reports 502 when GitHub is unreachable', async () => {
+  globalThis.fetch = async () => { throw new TypeError('network'); };
+  const res = await worker.fetch(post('/api/github/device/code'), env);
+  assert.equal(res.status, 502);
+});

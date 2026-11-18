@@ -1,111 +1,118 @@
-/**
- * src/App.tsx
- *
- * Root application component for SolarHub.
- *
- * Responsibilities:
- *  1. Provides the HashRouter so navigation works correctly on GitHub Pages
- *     without requiring server-side URL rewriting.
- *  2. Declares the application's route tree.
- *  3. Wraps page changes in AnimatePresence so Framer Motion's page transition
- *     variants can play exit animations before the incoming page mounts.
- *  4. Manages the global "points" counter in React state and passes it down.
- *
- * Auth UX is intentionally handled on /connect (not in the header).
- */
-
-import { useState, useEffect } from 'react';
-import { loadDailyProgress } from '@/services/dailyProgressService';
-import { HashRouter, Routes, Route, useLocation } from 'react-router-dom';
-import { AnimatePresence } from 'framer-motion';
-import NavigationBar from '@/components/NavigationBar';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { HashRouter, Route, Routes, useLocation } from 'react-router-dom';
 import Footer from '@/components/Footer';
-import Home from '@/pages/Home';
+import NavigationBar from '@/components/NavigationBar';
 import About from '@/pages/About';
+import Account from '@/pages/Account';
+import Classify from '@/pages/Classify';
 import Contact from '@/pages/Contact';
 import Funding from '@/pages/Funding';
-import Classify from '@/pages/Classify';
-import Account from '@/pages/Account';
+import Home from '@/pages/Home';
+import { getStoredUser } from '@/services/githubAuthService';
+import { loadDailyProgress } from '@/services/dailyProgressService';
+import { initializeFromGitHub } from '@/services/githubSyncService';
+import { flushQueue } from '@/services/submissionQueue';
 
-function AppRoutes({
-  points,
-  onPointsChange,
-  onStreakChange,
-  streak,
-}: {
-  points: number;
-  onPointsChange: (p: number) => void;
-  onStreakChange: (s: number) => void;
-  streak: number;
-}) {
-  const location = useLocation();
+const PAGE_TITLES: Record<string, string> = {
+  '/': 'SolarHub',
+  '/classify': 'Classify solar images',
+  '/about': 'About',
+  '/contact': 'Contact',
+  '/funding': 'Support SolarHub',
+  '/account': 'Sign in',
+};
+
+function Shell() {
+  const { pathname } = useLocation();
+  const mainRef = useRef<HTMLElement>(null);
+  const firstRender = useRef(true);
+  const [points, setPoints] = useState(0);
+  const [streak, setStreak] = useState(0);
+
+  const syncProgress = useCallback(async () => {
+    if (!getStoredUser()) {
+      setPoints(0);
+      setStreak(0);
+      return;
+    }
+    try {
+      await initializeFromGitHub();
+      const progress = await loadDailyProgress();
+      setPoints(progress.points);
+      setStreak(progress.streak);
+    } catch (err) {
+      console.warn('[App] Could not load progress:', err);
+    }
+  }, []);
+
+  useEffect(() => {
+    const onAuthChanged = () => {
+      void syncProgress().then(flushQueue);
+    };
+    const onProgress = (event: Event) => {
+      const { points: nextPoints, streak: nextStreak } = (event as CustomEvent<{ points: number; streak: number }>).detail;
+      setPoints(nextPoints);
+      setStreak(nextStreak);
+    };
+    const retry = () => void flushQueue();
+    onAuthChanged();
+    window.addEventListener('solarhub:github-auth-changed', onAuthChanged);
+    window.addEventListener('solarhub:progress', onProgress);
+    window.addEventListener('online', retry);
+    return () => {
+      window.removeEventListener('solarhub:github-auth-changed', onAuthChanged);
+      window.removeEventListener('solarhub:progress', onProgress);
+      window.removeEventListener('online', retry);
+    };
+  }, [syncProgress]);
+
+  useEffect(() => {
+    const root = `/${pathname.split('/')[1] ?? ''}`;
+    const title = PAGE_TITLES[root] ?? PAGE_TITLES['/'];
+    document.title = title === 'SolarHub' ? title : `${title} | SolarHub`;
+    if (firstRender.current) {
+      firstRender.current = false;
+      return;
+    }
+    window.scrollTo(0, 0);
+    mainRef.current?.focus({ preventScroll: true });
+  }, [pathname]);
 
   return (
-    <AnimatePresence mode="wait">
-      <Routes location={location} key={location.pathname}>
-        <Route path="/" element={<Home />} />
-        <Route path="/about" element={<About />} />
-        <Route path="/contact" element={<Contact />} />
-        <Route path="/funding" element={<Funding />} />
-
-        <Route path="/account" element={<Account />} />
-
-        <Route
-          path="/classify"
-          element={<Classify points={points} onPointsChange={onPointsChange} onStreakChange={onStreakChange} streak={streak} />}
-        />
-        <Route
-          path="/classify/:taskType"
-          element={<Classify points={points} onPointsChange={onPointsChange} onStreakChange={onStreakChange} streak={streak} />}
-        />
-
-        <Route path="*" element={<Home />} />
-      </Routes>
-    </AnimatePresence>
+    <div className="flex min-h-screen flex-col">
+      <a
+        href="#main"
+        onClick={event => {
+          // The router owns the URL hash, so move focus directly.
+          event.preventDefault();
+          mainRef.current?.focus();
+        }}
+        className="btn btn-primary absolute left-4 top-2 z-50 -translate-y-20 focus:translate-y-0"
+      >
+        Skip to main content
+      </a>
+      <NavigationBar points={points} streak={streak} />
+      <main id="main" ref={mainRef} tabIndex={-1} className="flex-1">
+        <Routes>
+          <Route path="/" element={<Home />} />
+          <Route path="/about" element={<About />} />
+          <Route path="/contact" element={<Contact />} />
+          <Route path="/funding" element={<Funding />} />
+          <Route path="/account" element={<Account points={points} streak={streak} />} />
+          <Route path="/classify" element={<Classify />} />
+          <Route path="/classify/:taskType" element={<Classify />} />
+          <Route path="*" element={<Home />} />
+        </Routes>
+      </main>
+      <Footer />
+    </div>
   );
 }
 
 export default function App() {
-  const [points, setPoints] = useState<number>(0);
-  const [streak, setStreak] = useState<number>(0);
-
-  function handlePointsChange(newPoints: number) {
-    setPoints(newPoints);
-  }
-
-  function handleStreakChange(newStreak: number) {
-    setStreak(newStreak);
-  }
-
-  // Sync points on app startup by loading from GitHub/local cache
-  useEffect(() => {
-    const initialize = async () => {
-      // Load daily progress and update points
-      try {
-        const progress = await loadDailyProgress();
-        if (typeof progress.points === 'number' && progress.points !== points) {
-          handlePointsChange(progress.points);
-        }
-        if (typeof progress.streak === 'number' && progress.streak !== streak) {
-          handleStreakChange(progress.streak);
-        }
-      } catch (err) {
-        console.warn('[App] Failed to load daily progress:', err);
-      }
-    };
-
-    void initialize();
-  }, [points, streak]);
-
   return (
     <HashRouter>
-      <div className="dark flex flex-col min-h-screen bg-cosmic-950 text-slate-100 font-sans">
-        <NavigationBar points={points} streak={streak} />
-        <main className="flex-1">
-          <AppRoutes points={points} onPointsChange={handlePointsChange} onStreakChange={handleStreakChange} streak={streak} />
-        </main>
-        <Footer />
-      </div>
+      <Shell />
     </HashRouter>
   );
 }

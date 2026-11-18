@@ -1,405 +1,122 @@
-/*
- * src/styles/globals.css
- *
- * Global stylesheet for SolarHub.
- *
- * Sections:
- *  1. Tailwind directives  – injects base reset, component helpers, utilities
- *  2. CSS custom properties – design tokens (colours, radii, transitions)
- *  3. Base element resets   – dark bg, smooth scrolling, custom scrollbar
- *  4. Glassmorphism helpers – reusable frosted-glass card classes
- *  5. Animated background   – cosmic starfield + gradient behind every page
- *  6. Solar glow effects    – orange halo utilities for interactive elements
- *  7. Typography helpers    – gradient text, solar heading styles
- *  8. Utility animations    – shimmer skeleton, fade-in helpers
- */
-
-/* ─────────────────────────────────────────────────────────────────────────── */
-/* 1. Tailwind directives                                                       */
-/* ─────────────────────────────────────────────────────────────────────────── */
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-/* ─────────────────────────────────────────────────────────────────────────── */
-/* 2. CSS custom properties (design tokens)                                    */
-/* ─────────────────────────────────────────────────────────────────────────── */
-:root {
-  /* Background colours */
-  --bg-primary:   #0b0b0b;   /* charcoal black — primary dark background */
-  --bg-secondary: #0f1113;   /* slightly lighter charcoal */
-  --bg-card:      rgba(255, 255, 255, 0.03);
-
-  /* Brand colours (dark mode focused) */
-  --brand-green-500:  #06b67a; /* primary brand green */
-  --brand-green-400:  #10b981;
-  --brand-green-300:  #34d399;
-  --accent-white:     #ffffff;
-  --muted-white:      #dbe9e2;
-
-  /* Glass / border */
-  --glass-bg:     rgba(255, 255, 255, 0.03);
-  --glass-border: rgba(255, 255, 255, 0.06);
-  --glass-blur:   16px;
-
-  /* Transitions */
-  --transition-fast:   150ms ease;
-  --transition-normal: 300ms ease;
-  --transition-slow:   600ms ease;
-
-  /* Typography */
-  --font-sans: 'Inter', system-ui, sans-serif;
-}
-
-/* ─────────────────────────────────────────────────────────────────────────── */
-/* 3. Base element resets                                                       */
-/* ─────────────────────────────────────────────────────────────────────────── */
 @layer base {
-  /* Dark space background for the whole page */
   html {
-    background-color: var(--bg-primary);
+    background: theme('colors.ink');
     color-scheme: dark;
-    scroll-behavior: smooth;
-    /* Prevent layout shift when scrollbar appears */
-    scrollbar-gutter: stable;
+    scrollbar-color: theme('colors.edge') theme('colors.ink');
   }
 
   body {
-    background-color: var(--bg-primary);
-    color: #f1f5f9;         /* slate-100 – good contrast on dark bg */
-    font-family: var(--font-sans);
-    -webkit-font-smoothing: antialiased;
-    -moz-osx-font-smoothing: grayscale;
     min-height: 100vh;
-    overflow-x: hidden;
+    background: theme('colors.ink');
+    color: theme('colors.limb');
+    font-family: theme('fontFamily.sans');
+    font-size: 1rem;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
   }
 
-  /* ---------------------------------------------------------------------- */
-  /* Custom scrollbar – thin, dark, with solar-orange thumb                  */
-  /* ---------------------------------------------------------------------- */
-  ::-webkit-scrollbar {
-    width: 6px;
-    height: 6px;
+  h1, h2, h3 {
+    line-height: 1.1;
+    text-wrap: balance;
   }
 
-  ::-webkit-scrollbar-track {
-    background: #0d0d2b;
+  a {
+    text-underline-offset: 0.2em;
   }
 
-  ::-webkit-scrollbar-thumb {
-    background: rgba(249, 115, 22, 0.5);   /* solar-500 at 50% opacity */
-    border-radius: 3px;
+  :focus-visible {
+    outline: 3px solid theme('colors.corona');
+    outline-offset: 3px;
   }
 
-  ::-webkit-scrollbar-thumb:hover {
-    background: #f97316;   /* full solar-500 on hover */
-  }
-
-  /* Firefox */
-  * {
-    scrollbar-width: thin;
-    scrollbar-color: rgba(249, 115, 22, 0.5) #0d0d2b;
-  }
-
-  /* Focus ring – replace browser default with solar-themed outline */
-  *:focus-visible {
-    outline: 2px solid #f97316;
-    outline-offset: 2px;
-    border-radius: 4px;
+  main:focus,
+  h1:focus {
+    outline: none;
   }
 }
 
-/* ─────────────────────────────────────────────────────────────────────────── */
-/* 4. Glassmorphism component helpers                                           */
-/* ─────────────────────────────────────────────────────────────────────────── */
 @layer components {
-  /**
-   * .glass
-   * Base frosted-glass card.  Apply to any container that should float above
-   * the background.  Uses a translucent white background + backdrop-blur so
-   * the cosmic gradient shows through softly.
-   */
-  .glass {
-    background: var(--glass-bg);
-    backdrop-filter: blur(var(--glass-blur));
-    -webkit-backdrop-filter: blur(var(--glass-blur));
-    border: 1px solid var(--glass-border);
-    border-radius: 1rem;
+  .gradient-text {
+    background: linear-gradient(135deg, #fb923c 0%, #f97316 40%, #d946ef 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
   }
 
-  /**
-   * .glass-strong
-   * A more opaque variant for elements that need better readability (e.g.
-   * modals, dropdowns).
-   */
-  .glass-strong {
-    background: rgba(255, 255, 255, 0.08);
-    backdrop-filter: blur(24px);
-    -webkit-backdrop-filter: blur(24px);
-    border: 1px solid rgba(255, 255, 255, 0.15);
-    border-radius: 1rem;
+  .page {
+    @apply mx-auto w-full max-w-6xl px-4 py-12 sm:px-6 md:py-20;
   }
 
-  /**
-   * .glass-dark
-   * Even darker glass – used for sidebars and footers.
-   */
-  .glass-dark {
-    background: rgba(10, 10, 26, 0.8);
-    backdrop-filter: blur(20px);
-    -webkit-backdrop-filter: blur(20px);
-    border: 1px solid rgba(255, 255, 255, 0.06);
+  .measure {
+    max-width: 38rem;
   }
 
-  /* ---------------------------------------------------------------------- */
-  /* Solar glow button                                                         */
-  /* ---------------------------------------------------------------------- */
-  .btn-solar {
-    @apply relative inline-flex items-center justify-center px-6 py-3 
-           rounded-xl font-semibold text-white
-           bg-gradient-to-r from-solar-500 to-solar-600
-           shadow-solar transition-all duration-300;
+  .link {
+    @apply text-limb underline decoration-sun decoration-2 hover:text-sun;
   }
 
-  .btn-solar:hover {
-    @apply shadow-solar-lg scale-105;
-    background: linear-gradient(135deg, #fb923c, #f97316);
+  .btn {
+    @apply inline-flex min-h-11 items-center justify-center gap-2 rounded-md border border-edge px-4 py-2
+           text-center font-semibold text-limb transition-colors hover:bg-raised;
   }
 
-  .btn-solar:active {
-    @apply scale-95;
+  .btn-primary {
+    @apply border-sun bg-sun text-ink hover:border-limb hover:bg-limb;
   }
 
-  /**
-   * .btn-ghost
-   * Ghost / outline button with glass backing – used for secondary actions.
-   */
-  .btn-ghost {
-    @apply relative inline-flex items-center justify-center px-6 py-3
-           rounded-xl font-semibold text-solar-400
-           border border-solar-500/40
-           transition-all duration-300;
-    background: rgba(249, 115, 22, 0.05);
+  .btn[disabled] {
+    @apply cursor-not-allowed opacity-60;
   }
 
-  .btn-ghost:hover {
-    background: rgba(249, 115, 22, 0.12);
-    @apply border-solar-500/80 shadow-solar;
+  .field {
+    @apply w-full rounded-md border border-edge bg-ink px-3 py-2 text-limb placeholder:text-haze;
   }
 
-  /**
-   * .btn-secondary
-   * Secondary action button with a lighter glass treatment.
-   */
-  .btn-secondary {
-    @apply relative inline-flex items-center justify-center px-6 py-3
-           rounded-xl font-semibold text-slate-200
-           border border-white/10 transition-all duration-300;
-    background: rgba(255, 255, 255, 0.04);
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
+  .big {
+    @apply min-h-14 px-6 text-lg;
   }
 
-  .btn-secondary:hover {
-    @apply text-white border-white/20;
-    background: rgba(255, 255, 255, 0.08);
+  .choice {
+    @apply flex min-h-[4.5rem] w-full items-center gap-4 rounded-md border border-edge bg-panel p-2 text-left text-lg font-semibold
+           transition-colors hover:border-sun hover:bg-raised;
   }
 }
 
-/* ─────────────────────────────────────────────────────────────────────────── */
-/* 5. Animated cosmic background                                                */
-/* ─────────────────────────────────────────────────────────────────────────── */
-
-/**
- * .cosmic-bg
- * Apply this class to a full-screen wrapper element to give it the
- * animated cosmic starfield + colour gradient background.
- *
- * The gradient slowly shifts so the nebula colours breathe in and out.
- */
-.cosmic-bg {
-  position: relative;
-  background: linear-gradient(135deg, #0a0a1a 0%, #0d0d2b 40%, #1e1b4b 100%);
-  overflow: hidden;
+.brand-rays {
+  animation: brand-spin 20s linear infinite;
 }
 
-/* Subtle rotating nebula colour overlay */
-.cosmic-bg::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background:
-    radial-gradient(ellipse at 20% 20%, rgba(99, 102, 241, 0.08) 0%, transparent 60%),
-    radial-gradient(ellipse at 80% 70%, rgba(0, 0, 0, 0.06) 0%, transparent 60%),
-    radial-gradient(ellipse at 50% 50%, rgba(249, 115, 22, 0.04) 0%, transparent 70%);
-  animation: nebula-shift 20s ease-in-out infinite alternate;
-  pointer-events: none;
-  z-index: 0;
+.brand-core {
+  background: linear-gradient(135deg, #fb923c, #ea580c);
+  animation: brand-glow 2.5s ease-in-out infinite;
 }
 
-@keyframes nebula-shift {
-  0%   { opacity: 0.6; transform: scale(1) rotate(0deg); }
-  50%  { opacity: 1;   transform: scale(1.05) rotate(5deg); }
-  100% { opacity: 0.8; transform: scale(1) rotate(-5deg); }
+@keyframes brand-spin {
+  to { transform: rotate(360deg); }
 }
 
-/* ─────────────────────────────────────────────────────────────────────────── */
-/* 6. Solar glow / halo effects                                                 */
-/* ─────────────────────────────────────────────────────────────────────────── */
-
-/** Soft orange halo – wrap an element with this to give it a solar aura. */
-.solar-halo {
-  box-shadow:
-    0 0 20px rgba(249, 115, 22, 0.3),
-    0 0 60px rgba(249, 115, 22, 0.15),
-    0 0 120px rgba(249, 115, 22, 0.05);
+@keyframes brand-glow {
+  0%, 100% { box-shadow: 0 0 8px rgb(249 115 22 / 0.6); }
+  50% { box-shadow: 0 0 20px rgb(249 115 22 / 0.9); }
 }
 
-.solar-halo:hover {
-  box-shadow:
-    0 0 30px rgba(249, 115, 22, 0.5),
-    0 0 80px rgba(249, 115, 22, 0.25),
-    0 0 160px rgba(249, 115, 22, 0.08);
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
 }
 
-/* ─────────────────────────────────────────────────────────────────────────── */
-/* 7. Typography helpers                                                        */
-/* ─────────────────────────────────────────────────────────────────────────── */
-
-/**
- * .gradient-text
- * Makes text display with the solar→nebula gradient.
- * Must be applied alongside a specific text-size class.
- */
-.gradient-text {
-  background: linear-gradient(135deg, #fb923c 0%, #f97316 40%, #d946ef 100%);
-  -webkit-background-clip: text;
-  background-clip: text;
-  -webkit-text-fill-color: transparent;
+@media (forced-colors: active) {
+  .btn-primary {
+    border-width: 3px;
+  }
 }
-
-.gradient-text-cosmic {
-  background: linear-gradient(135deg, #a3a3ff 0%, #6366f1 50%, #d946ef 100%);
-  -webkit-background-clip: text;
-  background-clip: text;
-  -webkit-text-fill-color: transparent;
-}
-
-/* ─────────────────────────────────────────────────────────────────────────── */
-/* 8. Utility animations                                                        */
-/* ─────────────────────────────────────────────────────────────────────────── */
-
-/** Shimmer skeleton loader */
-.shimmer-skeleton {
-  background: linear-gradient(
-    90deg,
-    rgba(255, 255, 255, 0.03) 0%,
-    rgba(255, 255, 255, 0.08) 50%,
-    rgba(255, 255, 255, 0.03) 100%
-  );
-  background-size: 1000px 100%;
-  animation: shimmer 2s infinite linear;
-}
-
-@keyframes shimmer {
-  0%   { background-position: -1000px 0; }
-  100% { background-position:  1000px 0; }
-}
-
-/** Fade-in helper (for elements that don't use Framer Motion) */
-.fade-in {
-  animation: fadeIn 0.6s ease forwards;
-}
-
-@keyframes fadeIn {
-  from { opacity: 0; transform: translateY(8px); }
-  to   { opacity: 1; transform: translateY(0); }
-}
-
-/* ─────────────────────────────────────────────────────────────────────────── */
-/* 9. Fullscreen image pan sliders                                              */
-/* ─────────────────────────────────────────────────────────────────────────── */
-
-/* Vertical slider (left side) */
-.vertical-slider {
-  -webkit-appearance: none;
-  background: linear-gradient(to bottom, rgba(255,255,255,0.1) 0%, rgba(255,255,255,0.2) 50%, rgba(255,255,255,0.1) 100%);
-  border-radius: 8px;
-  outline: none;
-  backdrop-filter: blur(10px);
-}
-
-.vertical-slider::-webkit-slider-thumb {
-  -webkit-appearance: none;
-  appearance: none;
-  width: 24px;
-  height: 40px;
-  background: rgba(251, 146, 60, 0.9);
-  border: 2px solid rgba(255, 255, 255, 0.3);
-  border-radius: 6px;
-  cursor: grab;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
-}
-
-.vertical-slider::-webkit-slider-thumb:active {
-  cursor: grabbing;
-  background: rgba(251, 146, 60, 1);
-}
-
-.vertical-slider::-moz-range-thumb {
-  width: 24px;
-  height: 40px;
-  background: rgba(251, 146, 60, 0.9);
-  border: 2px solid rgba(255, 255, 255, 0.3);
-  border-radius: 6px;
-  cursor: grab;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
-}
-
-.vertical-slider::-moz-range-thumb:active {
-  cursor: grabbing;
-  background: rgba(251, 146, 60, 1);
-}
-
-/* Horizontal slider (bottom) */
-.horizontal-slider {
-  -webkit-appearance: none;
-  background: linear-gradient(to right, rgba(255,255,255,0.1) 0%, rgba(255,255,255,0.2) 50%, rgba(255,255,255,0.1) 100%);
-  border-radius: 8px;
-  outline: none;
-  backdrop-filter: blur(10px);
-  height: 8px;
-}
-
-.horizontal-slider::-webkit-slider-thumb {
-  -webkit-appearance: none;
-  appearance: none;
-  width: 40px;
-  height: 24px;
-  background: rgba(251, 146, 60, 0.9);
-  border: 2px solid rgba(255, 255, 255, 0.3);
-  border-radius: 6px;
-  cursor: grab;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
-}
-
-.horizontal-slider::-webkit-slider-thumb:active {
-  cursor: grabbing;
-  background: rgba(251, 146, 60, 1);
-}
-
-.horizontal-slider::-moz-range-thumb {
-  width: 40px;
-  height: 24px;
-  background: rgba(251, 146, 60, 0.9);
-  border: 2px solid rgba(255, 255, 255, 0.3);
-  border-radius: 6px;
-  cursor: grab;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
-}
-
-.horizontal-slider::-moz-range-thumb:active {
-  cursor: grabbing;
-  background: rgba(251, 146, 60, 1);
-}
-

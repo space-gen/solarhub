@@ -40,7 +40,7 @@ Design goals (in my words)
 Auth and cloud backup
 ----------------------
 
-We use GitHub OAuth Device Flow for sign-in. For CORS-sensitive exchanges we use a small proxy or Puter.js helpers when available. Annotations are backed up locally first; optional cloud backup uses Puter KV (best-effort).
+We use GitHub OAuth Device Flow for sign-in. GitHub does not allow those requests from browsers, so a small Cloudflare Worker (`worker/index.js`) forwards them from the same origin.
 
 Developer notes
 ---------------
@@ -53,7 +53,7 @@ Developer notes
 Deploy
 ------
 
-The project is a static Vite app. Deploy to GitHub Pages or any static host. CI example (GitHub Actions) builds `dist/` and publishes it.
+The site and sign-in proxy run on Cloudflare Workers at https://solarhub.skiono.me. Pushes to `main` deploy through GitHub Actions, which needs the `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` repository secrets. To deploy by hand, run `npx wrangler@4 login`, then `npm run deploy`.
 
 Contributing
 ------------

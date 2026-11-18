@@ -1,27 +1,19 @@
 /**
  * src/services/githubAuthService.ts
  *
- * GitHub auth for a fully static GitHub Pages site.
+ * GitHub auth for the static site, using the same-origin Worker in worker/index.js.
  *
  * We use GitHub's OAuth **Device Flow** (client-id only):
  *   - No client secret in the frontend bundle
- *   - Static frontend compatible
- *   - Endpoint URLs are configurable for proxy deployments
+ *   - Tokens only travel between the browser, our Worker and GitHub
  */
 
 import { AUTH_CONFIG } from '../config/endpoints';
 
 const CLIENT_ID = AUTH_CONFIG.clientId;
 const SCOPE     = (AUTH_CONFIG.scopes ?? ['public_repo']).join(' ');
-const DEVICE_CODE_URL = AUTH_CONFIG.deviceCodeUrl || 'https://github.com/login/device/code';
-const ACCESS_TOKEN_URL = AUTH_CONFIG.accessTokenUrl || 'https://github.com/login/oauth/access_token';
-const FALLBACK_CORS_PROXY_URLS = [
-  ...(AUTH_CONFIG.fallbackCorsProxyUrls ?? []),
-  ...(AUTH_CONFIG.fallbackCorsProxyUrl ? [AUTH_CONFIG.fallbackCorsProxyUrl] : []),
-].filter((value, index, arr) => Boolean(value) && arr.indexOf(value) === index);
-const RAW_DEVICE_CODE_URL = 'https://github.com/login/device/code';
-const RAW_ACCESS_TOKEN_URL = 'https://github.com/login/oauth/access_token';
-
+const DEVICE_CODE_URL = AUTH_CONFIG.deviceCodeUrl;
+const ACCESS_TOKEN_URL = AUTH_CONFIG.accessTokenUrl;
 const TOKEN_KEY = 'solarhub_gh_token';
 const USER_KEY  = 'solarhub_gh_user';
 
@@ -48,18 +40,6 @@ type DeviceTokenResponse = {
   interval?: number;
 };
 
-function withCorsProxy(proxyBase: string, targetUrl: string): string {
-  const encodedUrl = encodeURIComponent(targetUrl);
-  if (proxyBase.includes('{url}')) {
-    return proxyBase.replace('{url}', encodedUrl);
-  }
-  return `${proxyBase}${encodedUrl}`;
-}
-
-function canUseFallbackProxy(): boolean {
-  return FALLBACK_CORS_PROXY_URLS.length > 0;
-}
-
 async function postFormJson<T>(url: string, form: Record<string, string>, timeoutMs = 8000): Promise<T> {
   const body = new URLSearchParams(form).toString();
   const controller = new AbortController();
@@ -78,12 +58,10 @@ async function postFormJson<T>(url: string, form: Record<string, string>, timeou
     });
   } catch (err) {
     if (err instanceof DOMException && err.name === 'AbortError') {
-      throw new Error('GitHub OAuth request timed out. Check your network or OAuth proxy endpoint settings.');
+      throw new Error('GitHub sign-in timed out. Check your network and try again.');
     }
     if (err instanceof TypeError) {
-      throw new Error(
-        'Could not reach GitHub OAuth endpoint from the browser. Configure AUTH_CONFIG.deviceCodeUrl/accessTokenUrl to your OAuth proxy endpoints.'
-      );
+      throw new Error('Could not reach the SolarHub sign-in service. Check your network and try again.');
     }
     throw err;
   } finally {
@@ -107,52 +85,6 @@ async function postFormJson<T>(url: string, form: Record<string, string>, timeou
   }
 }
 
-async function postFormJsonWithFallback<T>(params: {
-  primaryUrl: string;
-  fallbackTargetUrl: string;
-  form: Record<string, string>;
-  timeoutMs?: number;
-}): Promise<T> {
-  const { primaryUrl, fallbackTargetUrl, form, timeoutMs } = params;
-
-  try {
-    return await postFormJson<T>(primaryUrl, form, timeoutMs);
-  } catch (err) {
-    const message = err instanceof Error ? err.message : '';
-    if (!canUseFallbackProxy()) throw err;
-
-    const shouldFallback =
-      message.includes('Could not reach GitHub OAuth endpoint from the browser') ||
-      message.includes('GitHub OAuth request timed out') ||
-      message.includes('Unexpected non-JSON response from OAuth endpoint') ||
-      /^HTTP 403\s/.test(message) ||
-      /^HTTP 404\s/.test(message) ||
-      /^HTTP 405\s/.test(message) ||
-      /^HTTP 5\d\d\s/.test(message);
-
-    if (!shouldFallback) throw err;
-
-    const fallbackErrors: string[] = [];
-    for (const proxyUrl of FALLBACK_CORS_PROXY_URLS) {
-      const fallbackUrl = withCorsProxy(proxyUrl, fallbackTargetUrl);
-      try {
-        return await postFormJson<T>(fallbackUrl, form, timeoutMs);
-      } catch (fallbackErr) {
-        const fallbackMessage = fallbackErr instanceof Error ? fallbackErr.message : String(fallbackErr);
-        fallbackErrors.push(`${fallbackUrl} -> ${fallbackMessage}`);
-      }
-    }
-
-    throw new Error(
-      [
-        message || 'Primary OAuth endpoint failed.',
-        'Tried fallback proxies:',
-        ...fallbackErrors,
-      ].join('\n')
-    );
-  }
-}
-
 export function isOAuthConfigured(): boolean {
   return Boolean(CLIENT_ID);
 }
@@ -161,27 +93,19 @@ export async function startDeviceFlow(): Promise<DeviceFlowStart> {
   if (!CLIENT_ID) throw new Error('AUTH_CONFIG.clientId is not set.');
 
   // https://docs.github.com/en/apps/oauth-apps/building-oauth-apps/authorizing-oauth-apps#device-flow
-  return postFormJsonWithFallback<DeviceFlowStart>({
-    primaryUrl: DEVICE_CODE_URL,
-    fallbackTargetUrl: RAW_DEVICE_CODE_URL,
-    form: {
-      client_id: CLIENT_ID,
-      scope: SCOPE,
-    },
+  return postFormJson<DeviceFlowStart>(DEVICE_CODE_URL, {
+    client_id: CLIENT_ID,
+    scope: SCOPE,
   });
 }
 
 export async function exchangeDeviceCodeOnce(deviceCode: string): Promise<DeviceTokenResponse> {
   if (!CLIENT_ID) throw new Error('AUTH_CONFIG.clientId is not set.');
 
-  return postFormJsonWithFallback<DeviceTokenResponse>({
-    primaryUrl: ACCESS_TOKEN_URL,
-    fallbackTargetUrl: RAW_ACCESS_TOKEN_URL,
-    form: {
-      client_id: CLIENT_ID,
-      device_code: deviceCode,
-      grant_type: 'urn:ietf:params:oauth:grant-type:device_code',
-    },
+  return postFormJson<DeviceTokenResponse>(ACCESS_TOKEN_URL, {
+    client_id: CLIENT_ID,
+    device_code: deviceCode,
+    grant_type: 'urn:ietf:params:oauth:grant-type:device_code',
   });
 }
 

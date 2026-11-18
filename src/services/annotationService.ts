@@ -23,7 +23,6 @@
  */
 
 import { GITHUB_CONFIG }  from '@/config/endpoints';
-import { generateSessionId } from '@/utils/helpers';
 import { getStoredToken }    from '@/services/githubAuthService';
 
 // ---------------------------------------------------------------------------
@@ -167,7 +166,7 @@ export async function submitAnnotation(
   const annotation: Annotation = {
     ...input,
     id:         `ann_${Date.now().toString(36)}_${Math.random().toString(16).slice(2, 8)}`,
-    session_id: generateSessionId(),
+    session_id: crypto.randomUUID(),
     timestamp:  new Date().toISOString(),
     scientific_command: (() => {
       const coords = input.pixel_coords?.length ? input.pixel_coords.map(c => `${c.x},${c.y}`).join(';') : '';

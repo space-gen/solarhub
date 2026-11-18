@@ -1,0 +1,16 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "solarhub",
+  "main": "worker/index.js",
+  "compatibility_date": "2026-11-01",
+  "workers_dev": false,
+  "routes": [{ "pattern": "solarhub.skiono.me", "custom_domain": true }],
+  "assets": {
+    "directory": "./dist",
+    "run_worker_first": ["/api/*"]
+  },
+  "vars": {
+    "GITHUB_CLIENT_ID": "Ov23lisiMUCpxHrplfOe",
+    "GITHUB_SCOPE": "public_repo"
+  }
+}

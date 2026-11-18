@@ -31,6 +31,15 @@ interface RepoConfig {
 const TASK_TYPES: TaskType[] = [
   'sunspot',
   'magnetogram',
+  'aia_94',
+  'aia_131',
+  'aia_171',
+  'aia_193',
+  'aia_211',
+  'aia_304',
+  'aia_335',
+  'aia_1600',
+  'aia_1700',
 ];
 
 function createEmptyLastCompletedIdsByType(): Record<TaskType, string | null> {
@@ -87,9 +96,8 @@ written here by the app.
 - \`points\`: integer — total points you've earned
 - \`streak\`: integer — consecutive-day contribution streak
 - \`lastActiveDate\`: string|null — ISO date of last activity
-- \`lastCompletedIdsByType\`: object — per-task-type cursor (only \`sunspot\` and \`magnetogram\`)
+- \`lastCompletedIdsByType\`: object — per-task-type cursor
 
-SolarHub only recognizes two task types at the moment: \`sunspot\` and \`magnetogram\`.
 The \`lastCompletedIdsByType\` object stores the last completed ID for each type so
 the app can resume on the next image.
 
@@ -111,7 +119,7 @@ IMPORTANT: Do NOT delete this repository. SolarHub depends on this public reposi
 
 ## Project site
 
-- Website: https://space-gen.github.io/solarhub
+- Website: https://solarhub.skiono.me
 - SolarHub repository: https://github.com/space-gen/solarhub
 
 ## What this repo contains
@@ -126,7 +134,7 @@ SolarHub uses this public repo only to persist a tiny JSON file that tracks whic
 - \`points\`: integer — total points you've earned
 - \`streak\`: integer — consecutive-day contribution streak
 - \`lastActiveDate\`: string|null — ISO date of last activity
-- \`lastCompletedIdsByType\`: object — per-task-type cursor (only \`sunspot\` and \`magnetogram\`)
+- \`lastCompletedIdsByType\`: object — per-task-type cursor
 
 The \`lastCompletedIdsByType\` object stores the last completed ID for each type so the app can resume on the next image.
 
@@ -146,7 +154,7 @@ If you find SolarHub useful, you can support development:
 
 ## Meta / Description
 
-Site meta: space-gen.github.io/solarhub — SolarHub is a lightweight citizen-science web app for annotating solar imagery and collecting labels for scientific use.
+Site meta: solarhub.skiono.me — SolarHub is a lightweight citizen-science web app for annotating solar imagery and collecting labels for scientific use.
 
 ## Privacy & Safety
 
@@ -507,14 +515,14 @@ export async function initializeFromGitHub(): Promise<void> {
 
   if (remote) {
     // Ensure the fetched document is normalized to only include the
-    // supported task types (currently `sunspot` and `magnetogram`).
+    // supported task types.
     const normalized = normalizeProgress(remote.progress);
     cachedProgress = normalized;
     cachedSha = remote.sha;
 
     // If the remote contained extra/legacy task-type keys, overwrite the
     // remote progress.json with the normalized version so the repo is
-    // migrated in-place to the two-type model.
+    // migrated in-place.
     const remoteTypes = Object.keys((remote.progress as any).lastCompletedIdsByType || {});
     const allowedTypes = new Set(TASK_TYPES);
     const hasExtra = remoteTypes.some(t => !allowedTypes.has(t as TaskType));
