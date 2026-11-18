@@ -34,6 +34,7 @@ const FEATURES: Record<string, Pick<ViewAnswer, 'text' | 'look'>> = {
   plage: { text: 'A bright patchy web', look: 'A cluster of pale, net-like patches.' },
   flare_ribbon: { text: 'A very bright flash', look: 'Small white streaks much brighter than everything nearby.' },
   sunspot: { text: 'A small dark spot', look: 'A compact dark dot beside the bright web.' },
+  part_of_larger: { text: 'Only part of something bigger', look: 'In the wider view, the ring cuts through a larger shape.' },
 };
 
 function aia(
@@ -53,7 +54,7 @@ function aia(
   return {
     kind: `aia_${wavelength}` as MarkKind,
     code, name, detail, learn, accent, prompt, none, thing, radius, closeup,
-    answers: labels.map(label => ({ label, ...FEATURES[label], image: `/images/aia-examples/${code}-${label}.jpg` })),
+    answers: [...labels, 'part_of_larger'].map(label => ({ label, ...FEATURES[label], image: `/images/aia-examples/${code}-${label}.jpg` })),
   };
 }
 

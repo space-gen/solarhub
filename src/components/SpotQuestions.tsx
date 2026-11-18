@@ -52,6 +52,32 @@ function Choice({ picture, accent, label, onClick }: { picture: SunspotPicture |
   );
 }
 
+function SunCrop({ src, mark, size, label, className = '' }: { src: string; mark: Mark; size: number; label: string; className?: string }) {
+  const span = IMAGE_SIZE - size;
+  const left = span > 0 ? Math.max(0, Math.min(span, mark.x - size / 2)) : 0;
+  const top = span > 0 ? Math.max(0, Math.min(span, mark.y - size / 2)) : 0;
+  return (
+    <figure className={className}>
+      <div
+        role="img"
+        aria-label={`${label} of the circled area`}
+        className="relative aspect-square w-full overflow-hidden rounded-md bg-black bg-no-repeat"
+        style={{
+          backgroundImage: `url("${src}")`,
+          backgroundSize: `${(IMAGE_SIZE / size) * 100}%`,
+          backgroundPosition: span > 0 ? `${(left / span) * 100}% ${(top / span) * 100}%` : '0 0',
+        }}
+      >
+        <svg viewBox={`${left} ${top} ${size} ${size}`} aria-hidden="true" className="absolute inset-0 h-full w-full">
+          <circle cx={mark.x} cy={mark.y} r={mark.r} fill="none" stroke="#140e22" strokeWidth={5} vectorEffect="non-scaling-stroke" />
+          <circle cx={mark.x} cy={mark.y} r={mark.r} fill="none" stroke="#56e6d4" strokeWidth={2.5} vectorEffect="non-scaling-stroke" />
+        </svg>
+      </div>
+      <figcaption className="mt-1 text-center text-xs text-haze">{label}</figcaption>
+    </figure>
+  );
+}
+
 interface SpotQuestionsProps {
   view: SolarView;
   src: string;
@@ -64,12 +90,13 @@ interface SpotQuestionsProps {
   checking?: boolean;
   onHelp?: () => void;
   onSkip?: () => void;
+  onFinish?: () => void;
 }
 
-export default function SpotQuestions({ view, src, mark, position, total, onResize, onAnswer, onBack, checking, onHelp, onSkip }: SpotQuestionsProps) {
+export default function SpotQuestions({ view, src, mark, position, total, onResize, onAnswer, onBack, checking, onHelp, onSkip, onFinish }: SpotQuestionsProps) {
   const [count, setCount] = useState<SpotCount | null>(null);
   const sunspot = view.kind === 'sunspot';
-  const [windowSize] = useState(() => Math.min(480, Math.max(view.closeup, Math.ceil(mark.r * 3))));
+  const [windowSize] = useState(() => Math.min(480, Math.max(checking ? 180 : view.closeup, Math.ceil(mark.r * (checking ? 2.5 : 3)))));
   const maxRadius = windowSize / 2 - 6;
   const left = Math.max(0, Math.min(IMAGE_SIZE - windowSize, mark.x - windowSize / 2));
   const top = Math.max(0, Math.min(IMAGE_SIZE - windowSize, mark.y - windowSize / 2));
@@ -82,7 +109,13 @@ export default function SpotQuestions({ view, src, mark, position, total, onResi
 
   return (
     <div className="grid gap-5 md:grid-cols-[minmax(0,1fr)_23rem] md:items-start">
-      <div>
+      {checking ? (
+        <div className="mx-auto grid w-full grid-cols-3 gap-2 md:max-w-[min(100%,calc((100svh-15rem)*1.5))]">
+          <SunCrop src={src} mark={mark} size={windowSize} label="Up close" className="md:col-span-2 md:row-span-2" />
+          <SunCrop src={src} mark={mark} size={Math.min(IMAGE_SIZE, windowSize * 2)} label="Around it" />
+          <SunCrop src={src} mark={mark} size={IMAGE_SIZE} label="Whole Sun" />
+        </div>
+      ) : <div>
         <div
           role="img"
           aria-label={`Close-up of area ${position}, with an adjustable ring around it`}
@@ -98,24 +131,16 @@ export default function SpotQuestions({ view, src, mark, position, total, onResi
             <circle cx={mark.x} cy={mark.y} r={mark.r} fill="none" stroke="#56e6d4" strokeWidth={2.5} vectorEffect="non-scaling-stroke" />
           </svg>
         </div>
-        {checking && (
-          <div className="relative mx-auto mt-2 hidden h-28 w-28 overflow-hidden rounded-md md:block">
-            <img src={src} alt="" className="h-full w-full" />
-            <svg viewBox={`0 0 ${IMAGE_SIZE} ${IMAGE_SIZE}`} aria-hidden="true" className="absolute inset-0 h-full w-full">
-              <circle cx={mark.x} cy={mark.y} r={Math.max(mark.r, 36)} fill="none" stroke="#56e6d4" strokeWidth={24} />
-            </svg>
-          </div>
-        )}
         {(!sunspot || !count) && (
           <div className="mx-auto mt-3 flex max-w-md items-center gap-2">
             <button type="button" className="btn flex-1" disabled={mark.r <= MIN_RADIUS} onClick={() => onResize(Math.max(MIN_RADIUS, mark.r - 5))}>Smaller ring</button>
             <button type="button" className="btn flex-1" disabled={mark.r >= maxRadius} onClick={() => onResize(Math.min(maxRadius, mark.r + 5))}>Bigger ring</button>
           </div>
         )}
-      </div>
+      </div>}
 
       <div className="flex flex-col gap-3">
-        {total > 1 && <p className="text-haze">Spot {position} of {total}</p>}
+        {total > 1 && <p className="text-haze">{checking ? 'Feature' : 'Spot'} {position} of {total}</p>}
         <h2 className="text-2xl font-bold" tabIndex={-1}>{question}</h2>
         <div className="flex flex-col gap-2">
           {!sunspot && view.answers.map(answer => (
@@ -145,10 +170,12 @@ export default function SpotQuestions({ view, src, mark, position, total, onResi
           {(count || onBack) && <button type="button" className="btn flex-1" onClick={() => (count ? setCount(null) : onBack?.())}>Back</button>}
           <button type="button" className="btn flex-1" onClick={() => onAnswer('none')}>{checking ? 'None of these' : 'Not sure'}</button>
         </div>
-        {(onHelp || onSkip) && (
+        {(onHelp || onSkip || onFinish) && (
           <div className="flex gap-2">
             {onHelp && <button type="button" className="btn flex-1" onClick={onHelp}>Show guide</button>}
-            {onSkip && <button type="button" className="btn flex-1" onClick={onSkip}>Skip picture</button>}
+            {onFinish
+              ? <button type="button" className="btn flex-1" onClick={onFinish}>Finish picture</button>
+              : onSkip && <button type="button" className="btn flex-1" onClick={onSkip}>Skip picture</button>}
           </div>
         )}
       </div>

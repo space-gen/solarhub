@@ -66,6 +66,17 @@ export function spreadOrder<T>(items: T[]): T[] {
     .map(entry => entry.item);
 }
 
+/** Gives each person a small, repeatable share so many people cover and cross-check an image. */
+export function pickForContributor<T>(items: T[], contributor: string, taskId: string, count = 4): T[] {
+  if (items.length <= count) return items;
+  let hash = 2166136261;
+  for (const character of `${contributor}:${taskId}`) {
+    hash = Math.imul(hash ^ character.charCodeAt(0), 16777619);
+  }
+  const start = (hash >>> 0) % items.length;
+  return Array.from({ length: count }, (_, index) => items[(start + index) % items.length]);
+}
+
 export function remainingAfter<T extends { id: string }>(ordered: T[], lastId: string | null, doneIds: Set<string>): T[] {
   const start = lastId ? ordered.findIndex(task => task.id === lastId) + 1 : 0;
   return ordered.slice(start).filter(task => !doneIds.has(task.id));

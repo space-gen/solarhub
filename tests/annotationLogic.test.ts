@@ -6,6 +6,7 @@ import {
   groupLengthDegrees,
   isOnSun,
   magnetLabel,
+  pickForContributor,
   remainingAfter,
   spreadOrder,
   sunspotLabel,
@@ -44,6 +45,16 @@ test('taps must land on the Sun and can find an existing mark', () => {
 test('unsure answers lower confidence', () => {
   assert.equal(confidenceFor([{ x: 1, y: 1, r: 8, label: 'class_a' }]), 80);
   assert.equal(confidenceFor([{ x: 1, y: 1, r: 8, label: 'none' }]), 40);
+});
+
+test('contributors get a small repeatable share of features', () => {
+  const items = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
+  const first = pickForContributor(items, 'alice', 'aia171-1');
+  assert.equal(first.length, 4);
+  assert.deepEqual(pickForContributor(items, 'alice', 'aia171-1'), first);
+  assert.equal(new Set(first).size, 4);
+  const seen = new Set(['alice', 'bob', 'cara', 'dev', 'eli', 'fay', 'gus', 'hana'].flatMap(name => pickForContributor(items, name, 'aia171-1')));
+  assert.ok(seen.size > 6);
 });
 
 test('spread order keeps every image and separates neighbours', () => {

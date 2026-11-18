@@ -12,6 +12,7 @@ import {
   confidenceFor,
   findMarkAt,
   isOnSun,
+  pickForContributor,
   remainingAfter,
   spreadOrder,
   type Mark,
@@ -50,6 +51,18 @@ function guideSeen(kind: MarkKind) {
     return localStorage.getItem(`solarhub_guide_${kind}`) === '1';
   } catch {
     return false;
+  }
+}
+
+function contributorId() {
+  try {
+    const saved = localStorage.getItem('solarhub_contributor');
+    if (saved) return saved;
+    const created = crypto.randomUUID();
+    localStorage.setItem('solarhub_contributor', created);
+    return created;
+  } catch {
+    return 'guest';
   }
 }
 
@@ -100,7 +113,9 @@ function ImageTask({ task, view, onDone, onSkip, onHelp }: { task: AuroraTask; v
   const kind = view.kind;
   const copy = view;
   const checking = Boolean(view.learn && task.candidates?.length);
-  const [marks, setMarks] = useState<Mark[]>(() => (checking ? task.candidates!.map(mark => ({ ...mark, label: null })) : []));
+  const [marks, setMarks] = useState<Mark[]>(() => (
+    checking ? pickForContributor(task.candidates!, contributorId(), task.id).map(mark => ({ ...mark, label: null })) : []
+  ));
   const [message, setMessage] = useState('');
   const [describing, setDescribing] = useState<number | null>(checking ? 0 : null);
   const [failed, setFailed] = useState(false);
@@ -114,7 +129,8 @@ function ImageTask({ task, view, onDone, onSkip, onHelp }: { task: AuroraTask; v
       image_url: task.url,
       task_type: kind,
       user_label: (labelled?.label ?? 'none') as never,
-      confidence: confidenceFor(finalMarks),
+      // In checking mode, "None of these" is a real answer rather than uncertainty.
+      confidence: checking ? 80 : confidenceFor(finalMarks),
       comments: '',
       pixel_coords: finalMarks.map(mark => ({ x: Math.round(mark.x), y: Math.round(mark.y) })),
       pixel_labels: finalMarks.map(mark => mark.label as never),
@@ -137,6 +153,8 @@ function ImageTask({ task, view, onDone, onSkip, onHelp }: { task: AuroraTask; v
     setMarks([...marks, { x, y, r: copy.radius, label: null }]);
     setMessage(`Ring ${marks.length + 1} added. Tap it again to remove it.`);
   };
+
+  const answered = marks.filter(mark => mark.label !== null);
 
   if (failed) {
     return (
@@ -161,10 +179,12 @@ function ImageTask({ task, view, onDone, onSkip, onHelp }: { task: AuroraTask; v
         checking={checking}
         onHelp={onHelp}
         onSkip={checking ? onSkip : undefined}
+        onFinish={checking && answered.length ? () => finish(answered) : undefined}
         onAnswer={label => {
           const next = marks.map((mark, index) => (index === describing ? { ...mark, label } : mark));
           setMarks(next);
-          if (describing + 1 < next.length) setDescribing(describing + 1);
+          const remaining = next.findIndex(mark => mark.label === null);
+          if (remaining >= 0) setDescribing(remaining);
           else finish(next);
         }}
       />
@@ -194,7 +214,6 @@ function ImageTask({ task, view, onDone, onSkip, onHelp }: { task: AuroraTask; v
         <button type="button" className="btn big" onClick={() => finish([])}>{copy.none}</button>
       )}
       <button type="button" className="btn" onClick={onSkip}>Show another picture</button>
-      {onHelp && <button type="button" className="btn" onClick={onHelp}>Show guide</button>}
     </Workspace>
   );
 }
@@ -223,11 +242,12 @@ function Flow({ view }: { view: SolarView }) {
       // Older AIA tasks are JP2 files that browsers cannot load from JSOC.
       const usable = (tasks ?? []).filter(task => /\.jpe?g$/i.test(task.url));
       const checkable = usable.filter(task => task.candidates?.length);
-      const ordered = spreadOrder(checkable.length ? checkable : usable);
+      // AIA images contain too many look-alikes for free marking, so only circled tasks are shown.
+      const ordered = spreadOrder(view.learn ? checkable : usable);
       setQueue(remainingAfter(ordered, progress?.lastCompletedIdsByType[kind] ?? null, doneIds()));
     });
     return () => { active = false; };
-  }, [kind]);
+  }, [kind, view.learn]);
 
   const nextImage = useCallback((rotate: boolean) => {
     setQueue(current => {
