@@ -31,6 +31,8 @@ export interface AuroraTask {
   source: string;
   /** 1-based position in the dataset — used as the aurora serial_number */
   serialNumber: number;
+  /** Features found by Aurora for contributors to check one at a time. */
+  candidates?: Array<{ x: number; y: number; r: number }>;
 }
 
 /** Raw shape of a single record in aurora's data JSON files. */
@@ -43,6 +45,7 @@ interface RawAuroraRecord {
     source?: string;
     date?: string;
     captured_at?: string;
+    candidates?: Array<{ x: number; y: number; r: number }>;
   };
 }
 
@@ -194,6 +197,7 @@ export async function fetchAuroraTasksByType(
           date:         record.metadata?.captured_at ?? record.metadata?.date ?? '',
           source:       record.metadata?.source ?? 'NASA SDO',
           serialNumber: record.serial_number ?? index + 1,
+          candidates:   record.metadata?.candidates,
         } as AuroraTask;
       });
   } catch (err) {

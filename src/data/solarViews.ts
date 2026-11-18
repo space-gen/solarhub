@@ -1,12 +1,13 @@
 import type { MarkKind } from '@/utils/annotationLogic';
 
-export type AnswerPicture =
-  | 'single' | 'pair' | 'mixed' | 'patch' | 'loops' | 'hole' | 'thread' | 'flame' | 'web' | 'flash' | 'spot';
+export type AnswerPicture = 'single' | 'pair' | 'mixed';
 
 export interface ViewAnswer {
   label: string;
   text: string;
-  picture: AnswerPicture;
+  look?: string;
+  picture?: AnswerPicture;
+  image?: string;
 }
 
 export interface SolarView {
@@ -14,6 +15,7 @@ export interface SolarView {
   code: string;
   name: string;
   detail: string;
+  learn?: string;
   prompt: string;
   none: string;
   thing: string;
@@ -23,39 +25,40 @@ export interface SolarView {
   answers: ViewAnswer[];
 }
 
-const hotAnswers: ViewAnswer[] = [
-  { label: 'bright_region', text: 'A bright glowing patch', picture: 'patch' },
-  { label: 'coronal_loops', text: 'Bright curved loops', picture: 'loops' },
-];
-const darkAnswers: ViewAnswer[] = [
-  { label: 'coronal_hole', text: 'A big dark area', picture: 'hole' },
-  { label: 'filament', text: 'A thin dark line', picture: 'thread' },
-];
-const webAnswers: ViewAnswer[] = [
-  { label: 'plage', text: 'A bright patchy web', picture: 'web' },
-  { label: 'flare_ribbon', text: 'A very bright flash', picture: 'flash' },
-  { label: 'sunspot', text: 'A small dark spot', picture: 'spot' },
-];
+const FEATURES: Record<string, Pick<ViewAnswer, 'text' | 'look'>> = {
+  bright_region: { text: 'A bright glowing patch', look: 'A soft, bright cloud with no clear curved lines.' },
+  coronal_loops: { text: 'Bright curved loops', look: 'Thin arches you could trace with your finger.' },
+  coronal_hole: { text: 'A big dark area', look: 'A wide black region with few bright details inside.' },
+  filament: { text: 'A thin dark line', look: 'A narrow dark thread, like a crack across the Sun.' },
+  prominence: { text: 'A flame at the edge', look: 'A bright shape rising from the edge into black space.' },
+  plage: { text: 'A bright patchy web', look: 'A cluster of pale, net-like patches.' },
+  flare_ribbon: { text: 'A very bright flash', look: 'Small white streaks much brighter than everything nearby.' },
+  sunspot: { text: 'A small dark spot', look: 'A compact dark dot beside the bright web.' },
+};
 
 function aia(
   wavelength: number,
   name: string,
   detail: string,
+  learn: string,
   accent: string,
   prompt: string,
   none: string,
   thing: string,
-  answers: ViewAnswer[],
+  labels: string[],
   radius = 60,
   closeup = 320,
 ): SolarView {
+  const code = String(wavelength).padStart(4, '0');
   return {
     kind: `aia_${wavelength}` as MarkKind,
-    code: String(wavelength).padStart(4, '0'),
-    name, detail, accent, prompt, none, thing, answers, radius, closeup,
+    code, name, detail, learn, accent, prompt, none, thing, radius, closeup,
+    answers: labels.map(label => ({ label, ...FEATURES[label], image: `/images/aia-examples/${code}-${label}.jpg` })),
   };
 }
 
+const HOT = ['bright_region', 'coronal_loops'];
+const DARK = ['coronal_hole', 'filament'];
 const glowPrompt = 'Tap each bright glowing patch';
 const noGlow = 'I see no bright patches';
 const darkPrompt = 'Tap each very dark area';
@@ -77,19 +80,15 @@ export const SOLAR_VIEWS: SolarView[] = [
       { label: 'beta-gamma', text: 'Black and white all mixed up', picture: 'mixed' },
     ],
   },
-  aia(171, 'Gold', 'AIA 171 Å, quiet corona', '#e8b02e', 'Tap each bright area with loops', 'I see no bright loops', 'bright area', hotAnswers),
-  aia(193, 'Bronze', 'AIA 193 Å, corona', '#c98b52', darkPrompt, noDark, 'dark area', darkAnswers, 90, 480),
-  aia(211, 'Purple', 'AIA 211 Å, active corona', '#c47bb5', darkPrompt, noDark, 'dark area', darkAnswers, 90, 480),
-  aia(304, 'Red', 'AIA 304 Å, lower atmosphere', '#f0523d', 'Tap each dark thread or flame on the edge', 'I see no threads or flames', 'thread or flame', [
-    { label: 'filament', text: 'A dark thread', picture: 'thread' },
-    { label: 'prominence', text: 'A flame at the edge', picture: 'flame' },
-    { label: 'bright_region', text: 'A bright patch', picture: 'patch' },
-  ]),
-  aia(94, 'Green', 'AIA 94 Å, flare heat', '#6fd13f', glowPrompt, noGlow, 'bright patch', hotAnswers),
-  aia(131, 'Teal', 'AIA 131 Å, flare heat', '#2fc7c7', glowPrompt, noGlow, 'bright patch', hotAnswers),
-  aia(335, 'Blue', 'AIA 335 Å, active regions', '#5f9df0', glowPrompt, noGlow, 'bright patch', hotAnswers),
-  aia(1600, 'Olive', 'AIA 1600 Å, upper surface', '#c4c25a', webPrompt, noWeb, 'bright web', webAnswers),
-  aia(1700, 'Rose', 'AIA 1700 Å, surface glow', '#d99a9a', webPrompt, noWeb, 'bright web', webAnswers),
+  aia(171, 'Gold', 'AIA 171 Å, quiet corona', 'Gold shows gas near 600,000 °C. It is the best view for seeing magnetic loops.', '#e8b02e', 'Tap each bright area with loops', 'I see no bright loops', 'bright area', HOT),
+  aia(193, 'Bronze', 'AIA 193 Å, corona', 'Bronze shows gas near 1 million °C. Very dark regions often mean this hot gas is missing.', '#c98b52', darkPrompt, noDark, 'dark area', DARK, 90, 480),
+  aia(211, 'Purple', 'AIA 211 Å, active corona', 'Purple shows gas near 2 million °C. Look past the soft swirls for the darkest shapes.', '#c47bb5', darkPrompt, noDark, 'dark area', DARK, 90, 480),
+  aia(304, 'Red', 'AIA 304 Å, lower atmosphere', 'Red shows cooler gas near 50,000 °C, close to the Sun’s surface.', '#f0523d', 'Tap each dark thread or flame on the edge', 'I see no threads or flames', 'thread or flame', ['filament', 'prominence', 'bright_region']),
+  aia(94, 'Green', 'AIA 94 Å, flare heat', 'Green highlights very hot gas near 6 million °C.', '#6fd13f', glowPrompt, noGlow, 'bright patch', HOT),
+  aia(131, 'Teal', 'AIA 131 Å, flare heat', 'Teal can reveal the hottest flare gas, near 10 million °C.', '#2fc7c7', glowPrompt, noGlow, 'bright patch', HOT),
+  aia(335, 'Blue', 'AIA 335 Å, active regions', 'Blue shows active regions near 2.5 million °C.', '#5f9df0', glowPrompt, noGlow, 'bright patch', HOT),
+  aia(1600, 'Olive', 'AIA 1600 Å, upper surface', 'Olive shows the layer just above the surface. The whole Sun looks grainy, so focus on what is inside the ring.', '#c4c25a', webPrompt, noWeb, 'bright web', ['plage', 'flare_ribbon', 'sunspot']),
+  aia(1700, 'Rose', 'AIA 1700 Å, surface glow', 'Rose shows the Sun’s lower atmosphere. Bright webs often surround dark sunspots.', '#d99a9a', webPrompt, noWeb, 'bright web', ['plage', 'sunspot']),
 ];
 
 export const liveImage = (code: string) => `/api/sdo/latest/${code}.jpg`;

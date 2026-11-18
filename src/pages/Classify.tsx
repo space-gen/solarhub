@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, Navigate, NavLink, useParams } from 'react-router-dom';
+import ChannelGuide from '@/components/ChannelGuide';
 import SpotQuestions from '@/components/SpotQuestions';
 import { liveImage, SOLAR_VIEWS, viewFor, type SolarView } from '@/data/solarViews';
 import TapStage from '@/components/TapStage';
@@ -41,6 +42,14 @@ function practiceDone(kind: MarkKind) {
     return localStorage.getItem(`solarhub_practice_${kind}`) === '1';
   } catch {
     return true;
+  }
+}
+
+function guideSeen(kind: MarkKind) {
+  try {
+    return localStorage.getItem(`solarhub_guide_${kind}`) === '1';
+  } catch {
+    return false;
   }
 }
 
@@ -87,12 +96,13 @@ function Workspace({ stage, children }: { stage: React.ReactNode; children: Reac
   );
 }
 
-function ImageTask({ task, view, onDone, onSkip }: { task: AuroraTask; view: SolarView; onDone: () => void; onSkip: () => void }) {
+function ImageTask({ task, view, onDone, onSkip, onHelp }: { task: AuroraTask; view: SolarView; onDone: () => void; onSkip: () => void; onHelp?: () => void }) {
   const kind = view.kind;
   const copy = view;
-  const [marks, setMarks] = useState<Mark[]>([]);
+  const checking = Boolean(view.learn && task.candidates?.length);
+  const [marks, setMarks] = useState<Mark[]>(() => (checking ? task.candidates!.map(mark => ({ ...mark, label: null })) : []));
   const [message, setMessage] = useState('');
-  const [describing, setDescribing] = useState<number | null>(null);
+  const [describing, setDescribing] = useState<number | null>(checking ? 0 : null);
   const [failed, setFailed] = useState(false);
   const date = getCorrectDateFromUrl(task.url) || task.date;
 
@@ -147,7 +157,10 @@ function ImageTask({ task, view, onDone, onSkip }: { task: AuroraTask; view: Sol
         position={describing + 1}
         total={marks.length}
         onResize={r => setMarks(marks.map((mark, index) => (index === describing ? { ...mark, r } : mark)))}
-        onBack={() => setDescribing(describing > 0 ? describing - 1 : null)}
+        onBack={checking && describing === 0 ? undefined : () => setDescribing(describing > 0 ? describing - 1 : null)}
+        checking={checking}
+        onHelp={onHelp}
+        onSkip={checking ? onSkip : undefined}
         onAnswer={label => {
           const next = marks.map((mark, index) => (index === describing ? { ...mark, label } : mark));
           setMarks(next);
@@ -181,6 +194,7 @@ function ImageTask({ task, view, onDone, onSkip }: { task: AuroraTask; view: Sol
         <button type="button" className="btn big" onClick={() => finish([])}>{copy.none}</button>
       )}
       <button type="button" className="btn" onClick={onSkip}>Show another picture</button>
+      {onHelp && <button type="button" className="btn" onClick={onHelp}>Show guide</button>}
     </Workspace>
   );
 }
@@ -191,6 +205,7 @@ function Flow({ view }: { view: SolarView }) {
   const topRef = useRef<HTMLDivElement>(null);
   const [queue, setQueue] = useState<AuroraTask[] | null>(null);
   const [practising, setPractising] = useState(() => !practiceDone(kind));
+  const [showGuide, setShowGuide] = useState(() => Boolean(view.learn) && !guideSeen(kind));
   const [saved, setSaved] = useState('');
   const [pending, setPending] = useState(pendingCount);
   const [today, setToday] = useState(doneToday);
@@ -206,7 +221,9 @@ function Flow({ view }: { view: SolarView }) {
     void Promise.all([fetchAuroraTasksByType(kind), loadProgressFromGitHub().catch(() => null)]).then(([tasks, progress]) => {
       if (!active) return;
       // Older AIA tasks are JP2 files that browsers cannot load from JSOC.
-      const ordered = spreadOrder((tasks ?? []).filter(task => /\.jpe?g$/i.test(task.url)));
+      const usable = (tasks ?? []).filter(task => /\.jpe?g$/i.test(task.url));
+      const checkable = usable.filter(task => task.candidates?.length);
+      const ordered = spreadOrder(checkable.length ? checkable : usable);
       setQueue(remainingAfter(ordered, progress?.lastCompletedIdsByType[kind] ?? null, doneIds()));
     });
     return () => { active = false; };
@@ -258,6 +275,14 @@ function Flow({ view }: { view: SolarView }) {
             setPractising(false);
           }}
         />
+      ) : showGuide ? (
+        <ChannelGuide
+          view={view}
+          onDone={() => {
+            try { localStorage.setItem(`solarhub_guide_${kind}`, '1'); } catch { /* storage may be blocked */ }
+            setShowGuide(false);
+          }}
+        />
       ) : queue === null ? (
         <p role="status" className="py-16 text-lg">Finding pictures…</p>
       ) : task ? (
@@ -267,6 +292,7 @@ function Flow({ view }: { view: SolarView }) {
           view={view}
           onDone={() => { setSaved('Saved. Thank you!'); nextImage(false); }}
           onSkip={() => { setSaved(''); nextImage(true); }}
+          onHelp={view.learn ? () => setShowGuide(true) : undefined}
         />
       ) : (
         <div className="measure py-12">
