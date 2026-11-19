@@ -9,8 +9,8 @@ import type { TaskType } from '@/services/annotationService';
 export const ARCHIVE_START = '2026-11-20';
 export const ARCHIVE_END = '2016-10-01';
 export const ANSWERS_WANTED = 3;
-// Every eighth frame, about 15 a day: neighbouring frames are near copies of each other.
-const FRAME_STEP = 8;
+// Every frame, so each feature can be tracked as it evolves.
+const FRAME_STEP = 1;
 // Stop looking after this many empty days in one go, so a long archive gap cannot hang the page.
 const MAX_DAYS_PER_BATCH = 60;
 const BROWSE = 'https://sdo.gsfc.nasa.gov/assets/img/browse';
