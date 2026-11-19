@@ -129,6 +129,8 @@ export function pickSection<T extends Pick<Mark, 'x' | 'y' | 'r'>>(items: T[], c
     items: items.filter(item => isInsideSection(section, item.x, item.y, item.r)
       || (!SECTIONS.some(other => isInsideSection(other, item.x, item.y, item.r)) && nearestSection(item) === section)),
   })).filter(entry => entry.items.length);
+  // With nothing proposed, people still review a part and draw what they see.
+  if (!filled.length) return { section: SECTIONS[contributorHash(contributor, taskId) % SECTIONS.length], items: [] as T[] };
   const chosen = filled[contributorHash(contributor, taskId) % filled.length];
   // Items arrive strongest first. One rotating place still gets weaker finds checked.
   const shown = chosen.items.length <= count

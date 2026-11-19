@@ -29,6 +29,7 @@ const MASK_SIZE = 1024;
 const MAX_POINTS = 48;
 const MIN_EDGE_CONTRAST = 0.8;
 const EDGE_SMOOTHING = 3;
+const MIN_THIN_SHARE = 0.02;
 export const JOIN_SHARE = 0.3;
 // When one shape mostly contains the other, the drawing is a new edge rather than an extension.
 const REPLACE_SHARE = 0.7;
@@ -253,8 +254,11 @@ export function outlineFromMask(text: string): Point[] | undefined {
   return edge.length >= 3 ? simplifyOutline(edge) : undefined;
 }
 
-/** Pulls a rough drawing onto the nearest real edge, or keeps the drawing if no clear edge exists. */
-export function snapOutline(rough: Point[], image: Raster): Point[] {
+/**
+ * Pulls a rough drawing onto the nearest real edge, or keeps the drawing if no clear edge exists.
+ * `polarity` says whether the feature is darker or brighter than its surroundings, when the view knows.
+ */
+export function snapOutline(rough: Point[], image: Raster, polarity?: 'dark' | 'bright'): Point[] {
   const fallback = simplifyOutline(rough);
   const { width, height } = image;
   const inside = maskOf(rough, image);
@@ -278,15 +282,22 @@ export function snapOutline(rough: Point[], image: Raster): Point[] {
   const mean = (inSum + outSum) / within.length;
   const spread = Math.sqrt(within.reduce((sum, value) => sum + (value - mean) ** 2, 0) / within.length);
   // Quiet Sun has no real edge, so following its texture would only make a jagged line.
-  if (Math.abs(inMean - outMean) < spread * MIN_EDGE_CONTRAST) return fallback;
-  const bright = inMean >= outMean;
-  const threshold = otsu(within);
+  if (!polarity && Math.abs(inMean - outMean) < spread * MIN_EDGE_CONTRAST) return fallback;
+  // A thin dark thread drawn over bright patches would otherwise snap to the patches.
+  const bright = polarity ? polarity === 'bright' : inMean >= outMean;
+  const sorted = [...within].sort((a, b) => a - b);
+  const median = sorted[Math.floor(sorted.length / 2)];
+  const typical = 1.4826 * [...within].map(value => Math.abs(value - median)).sort((a, b) => a - b)[Math.floor(within.length / 2)];
+  // With a known polarity, keep only values clearly beyond the typical background, not the brighter or darker half.
+  const margin = Math.max(1.5 * typical, 1);
+  const threshold = polarity ? (bright ? Math.max(otsu(within), median + margin) : Math.min(otsu(within), median - margin)) : otsu(within);
   const feature = Uint8Array.from(smooth, (value, index) => (band[index] > 0 && (bright ? value >= threshold : value <= threshold) ? 1 : 0));
   const found = fillHoles(bestComponent(feature, width, inside), width, height);
   const rounded = boxMean(found, width, height, EDGE_SMOOTHING);
   const shape = bestComponent(Uint8Array.from(rounded, value => (value >= 0.5 ? 1 : 0)), width, inside);
   const size = shape.reduce((sum, value) => sum + value, 0);
-  if (size < area * 0.3 || size > area * 3) return fallback;
+  // Filaments are thin, so a much smaller shape than the drawing is expected when the polarity is known.
+  if (size < area * (polarity ? MIN_THIN_SHARE : 0.3) || size > area * 3) return fallback;
   const edge = traceEdge(shape, image);
   return edge.length >= 3 ? simplifyOutline(edge) : fallback;
 }

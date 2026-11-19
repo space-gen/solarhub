@@ -27,6 +27,19 @@ test('a rough drawing also snaps to a dark feature', () => {
   assert.ok(Math.max(...snapped.map(point => point[0])) >= 225);
 });
 
+test('a drawing around a dark thread next to a bright patch follows the thread when told to look for dark', () => {
+  const patch = (x: number, y: number) => (x - 175) ** 2 + (y - 200) ** 2 <= 22 ** 2;
+  const thread = (x: number, y: number) => Math.abs(y - 200) <= 2 && x >= 200 && x <= 240;
+  const data = Uint8Array.from({ length: SIZE * SIZE }, (_, index) => {
+    const x = (index % SIZE) + 100;
+    const y = Math.floor(index / SIZE) + 100;
+    return patch(x, y) ? 240 : thread(x, y) ? 10 : 110;
+  });
+  const image = { x: 100, y: 100, width: SIZE, height: SIZE, data };
+  const snapped = snapOutline(circlePolygon(205, 200, 45), image, 'dark');
+  assert.ok(overlapShare(snapped, circlePolygon(175, 200, 22)) < 0.5, 'does not wrap the bright patch');
+});
+
 test('a drawing on empty sky stays as drawn', () => {
   const rough = circlePolygon(190, 200, 30);
   assert.equal(overlapShare(snapOutline(rough, imageWith(() => false)), rough) > 0.9, true);

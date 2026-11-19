@@ -29,6 +29,16 @@ import { getCorrectDateFromUrl } from '@/utils/jsocDateExtractor';
 import { addOutline, circlePolygon, outlineFromMask, reshapeMark, simplifyOutline, snapOutline, type Point, type Raster } from '@/utils/outline';
 
 const TAP_OUTLINE_RADIUS = 30;
+const AIA_LIMB = 404;
+
+/** Dark features are wanted on the disk; in 304, bright prominences are wanted above the limb. */
+function snapPolarity(kind: MarkKind, points: Point[]): 'dark' | 'bright' | undefined {
+  if (kind === 'aia_193' || kind === 'aia_211') return 'dark';
+  if (kind !== 'aia_304') return undefined;
+  const x = points.reduce((sum, point) => sum + point[0], 0) / points.length;
+  const y = points.reduce((sum, point) => sum + point[1], 0) / points.length;
+  return Math.hypot(x - IMAGE_SIZE / 2, y - IMAGE_SIZE / 2) > AIA_LIMB ? 'bright' : 'dark';
+}
 
 const browseImage = (url: string) => url.replace('https://sdo.gsfc.nasa.gov/assets/img/browse/', '/api/sdo/browse/');
 
@@ -151,7 +161,7 @@ function Workspace({ stage, children }: { stage: React.ReactNode; children: Reac
 function ImageTask({ task, view, onDone, onSkip, onHelp }: { task: AuroraTask; view: SolarView; onDone: () => void; onSkip: () => void; onHelp?: () => void }) {
   const kind = view.kind;
   const copy = view;
-  const checking = Boolean(view.learn && task.candidates?.length);
+  const checking = Boolean(view.learn && Array.isArray(task.candidates));
   const [assignment] = useState(() => (checking ? pickSection(task.candidates!, contributorId(), task.id) : null));
   const section = assignment?.section;
   const [marks, setMarks] = useState<Mark[]>(() => assignment?.items.map(({ mask, ...mark }) => {
@@ -161,7 +171,7 @@ function ImageTask({ task, view, onDone, onSkip, onHelp }: { task: AuroraTask; v
   const [history, setHistory] = useState<Mark[][]>([]);
   const [raster, setRaster] = useState<Raster | null>(null);
   const [message, setMessage] = useState('');
-  const [describing, setDescribing] = useState<number | null>(checking ? 0 : null);
+  const [describing, setDescribing] = useState<number | null>(checking && marks.length ? 0 : null);
   const [reshaping, setReshaping] = useState<{ index: number; whole: boolean } | null>(null);
   const [failed, setFailed] = useState(false);
   const date = getCorrectDateFromUrl(task.url) || task.date;
@@ -215,7 +225,7 @@ function ImageTask({ task, view, onDone, onSkip, onHelp }: { task: AuroraTask; v
   };
 
   const applyDrawing = (points: Point[]) => {
-    const outline = raster ? snapOutline(points, raster) : simplifyOutline(points);
+    const outline = raster ? snapOutline(points, raster, snapPolarity(kind, points)) : simplifyOutline(points);
     const result = addOutline(marks, outline);
     setHistory([...history, marks]);
     setMarks(result.marks);
@@ -245,7 +255,7 @@ function ImageTask({ task, view, onDone, onSkip, onHelp }: { task: AuroraTask; v
 
   const applyReshape = (points: Point[]) => {
     if (!reshaping) return;
-    const outline = raster ? snapOutline(points, raster) : simplifyOutline(points);
+    const outline = raster ? snapOutline(points, raster, snapPolarity(kind, points)) : simplifyOutline(points);
     const next = reshapeMark(marks, reshaping.index, outline, reshaping.whole);
     if (!next) {
       setMessage('Your line must touch the highlighted feature.');
@@ -329,7 +339,7 @@ function ImageTask({ task, view, onDone, onSkip, onHelp }: { task: AuroraTask; v
   }
 
   if (section) {
-    const prompt = 'Did we miss anything here?';
+    const prompt = view.missed ?? 'Did we miss anything here?';
     return (
       <Workspace stage={<SectionEditor src={editorImage} section={section} marks={marks} label={prompt} onDraw={applyDrawing} onTap={handleEditorTap} />}>
         <p className="text-haze">Part {section.index + 1} of {SECTION_COUNT}</p>
@@ -395,7 +405,7 @@ function Flow({ view }: { view: SolarView }) {
       if (!active) return;
       // Older AIA tasks are JP2 files that browsers cannot load from JSOC.
       const usable = (tasks ?? []).filter(task => /\.jpe?g$/i.test(task.url));
-      const checkable = usable.filter(task => task.candidates?.length);
+      const checkable = usable.filter(task => Array.isArray(task.candidates));
       // AIA images contain too many look-alikes for free marking, so only circled tasks are shown.
       const ordered = spreadOrder(view.learn ? checkable : usable);
       setQueue(remainingAfter(ordered, progress?.lastCompletedIdsByType[kind] ?? null, doneIds()));
@@ -478,7 +488,7 @@ function Flow({ view }: { view: SolarView }) {
       ) : (
         <div className="measure py-12">
           <h1 className="text-4xl font-bold" tabIndex={-1}>{kind === 'flare_source' ? 'No unassigned flares right now' : kind.startsWith('aia_') ? 'New pictures are on the way' : 'You finished every picture here'}</h1>
-          <p className="mt-4 text-lg text-haze">Try another color of the Sun above while this one updates.</p>
+          <p className="mt-4 text-lg text-haze">Try another view above while this one updates.</p>
         </div>
       )}
     </div>
@@ -488,6 +498,6 @@ function Flow({ view }: { view: SolarView }) {
 export default function Classify() {
   const { taskType } = useParams<{ taskType?: string }>();
   const view = viewFor(taskType);
-  if (!view) return <Navigate to="/classify/sunspot" replace />;
+  if (!view) return <Navigate to="/classify/aia_193" replace />;
   return <Flow key={view.kind} view={view} />;
 }

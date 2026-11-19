@@ -36,6 +36,9 @@ export interface AuroraTask {
   /** Flare tasks: the frame before the flare and the GOES flare details. */
   beforeUrl?: string;
   flare?: { goes_class: string; peak: string };
+  /** Where the automatic check saw the flare brighten, and the close-up to show. */
+  flash?: { x: number; y: number };
+  view?: { x: number; y: number; size: number };
 }
 
 /** Raw shape of a single record in aurora's data JSON files. */
@@ -51,6 +54,8 @@ interface RawAuroraRecord {
     candidates?: Array<{ x: number; y: number; r: number; mask?: string; noaa?: number }>;
     before_url?: string;
     flare?: { goes_class: string; peak: string };
+    flash?: { x: number; y: number };
+    view?: { x: number; y: number; size: number };
   };
 }
 
@@ -205,6 +210,8 @@ export async function fetchAuroraTasksByType(
           candidates:   record.metadata?.candidates,
           beforeUrl:    record.metadata?.before_url,
           flare:        record.metadata?.flare,
+          flash:        record.metadata?.flash,
+          view:         record.metadata?.view,
         } as AuroraTask;
       });
   } catch (err) {
