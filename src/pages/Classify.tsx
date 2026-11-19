@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, Navigate, NavLink, useParams } from 'react-router-dom';
 import ChannelGuide from '@/components/ChannelGuide';
+import FlareTask from '@/components/FlareTask';
+import SectionEditor from '@/components/SectionEditor';
 import SpotQuestions from '@/components/SpotQuestions';
 import { liveImage, SOLAR_VIEWS, viewFor, type SolarView } from '@/data/solarViews';
 import TapStage from '@/components/TapStage';
@@ -9,16 +11,53 @@ import { fetchAuroraTasksByType, type AuroraTask } from '@/services/auroraServic
 import { loadProgressFromGitHub } from '@/services/githubSyncService';
 import { doneIds, doneToday, pendingCount, saveAnnotation } from '@/services/submissionQueue';
 import {
+  buildReview,
   confidenceFor,
   findMarkAt,
+  IMAGE_SIZE,
   isOnSun,
-  pickForContributor,
+  pickSection,
   remainingAfter,
+  SECTION_COUNT,
   spreadOrder,
+  viewAround,
   type Mark,
   type MarkKind,
+  type Section,
 } from '@/utils/annotationLogic';
 import { getCorrectDateFromUrl } from '@/utils/jsocDateExtractor';
+import { addOutline, circlePolygon, outlineFromMask, reshapeMark, simplifyOutline, snapOutline, type Point, type Raster } from '@/utils/outline';
+
+const TAP_OUTLINE_RADIUS = 30;
+
+const browseImage = (url: string) => url.replace('https://sdo.gsfc.nasa.gov/assets/img/browse/', '/api/sdo/browse/');
+
+/** Reads one part of the Sun so drawings can snap; drawing still works if this fails. */
+function loadRaster(src: string, section: Section): Promise<Raster | null> {
+  return new Promise(resolve => {
+    const image = new Image();
+    image.onerror = () => resolve(null);
+    image.onload = () => {
+      try {
+        const canvas = document.createElement('canvas');
+        canvas.width = section.size;
+        canvas.height = section.size;
+        const context = canvas.getContext('2d', { willReadFrequently: true })!;
+        const scale = image.naturalWidth / IMAGE_SIZE;
+        context.drawImage(image, section.x * scale, section.y * scale, section.size * scale, section.size * scale, 0, 0, section.size, section.size);
+        const rgba = context.getImageData(0, 0, section.size, section.size).data;
+        const data = new Uint8Array(section.size * section.size);
+        for (let index = 0; index < data.length; index++) {
+          data[index] = 0.299 * rgba[index * 4] + 0.587 * rgba[index * 4 + 1] + 0.114 * rgba[index * 4 + 2];
+        }
+        resolve({ x: section.x, y: section.y, width: section.size, height: section.size, data });
+      } catch {
+        resolve(null);
+      }
+    };
+    image.src = src;
+  });
+}
 
 const PRACTICE_FOUND: Partial<Record<MarkKind, string>> = {
   sunspot: 'You found both spots.',
@@ -113,17 +152,38 @@ function ImageTask({ task, view, onDone, onSkip, onHelp }: { task: AuroraTask; v
   const kind = view.kind;
   const copy = view;
   const checking = Boolean(view.learn && task.candidates?.length);
-  const [marks, setMarks] = useState<Mark[]>(() => (
-    checking ? pickForContributor(task.candidates!, contributorId(), task.id).map(mark => ({ ...mark, label: null })) : []
-  ));
+  const [assignment] = useState(() => (checking ? pickSection(task.candidates!, contributorId(), task.id) : null));
+  const section = assignment?.section;
+  const [marks, setMarks] = useState<Mark[]>(() => assignment?.items.map(({ mask, ...mark }) => {
+    const outline = mask ? outlineFromMask(mask) : undefined;
+    return { ...mark, label: null, finder: { x: mark.x, y: mark.y, r: mark.r }, ...(outline ? { outline } : {}) };
+  }) ?? []);
+  const [history, setHistory] = useState<Mark[][]>([]);
+  const [raster, setRaster] = useState<Raster | null>(null);
   const [message, setMessage] = useState('');
   const [describing, setDescribing] = useState<number | null>(checking ? 0 : null);
+  const [reshaping, setReshaping] = useState<{ index: number; whole: boolean } | null>(null);
   const [failed, setFailed] = useState(false);
   const date = getCorrectDateFromUrl(task.url) || task.date;
+  const editorImage = browseImage(task.url);
+  const area = section && reshaping ? viewAround(marks[reshaping.index], section) : section;
+  const areaX = area?.x;
+  const areaY = area?.y;
+  const areaSize = area?.size;
 
-  const finish = (finalMarks: Mark[]) => {
+  useEffect(() => {
+    if (areaX === undefined || areaY === undefined || !areaSize) return;
+    let active = true;
+    setRaster(null);
+    void loadRaster(editorImage, { index: 0, x: areaX, y: areaY, size: areaSize }).then(result => { if (active) setRaster(result); });
+    return () => { active = false; };
+  }, [editorImage, areaX, areaY, areaSize]);
+
+  const finish = (allMarks: Mark[]) => {
+    const finalMarks = allMarks.filter(mark => !mark.deleted && !mark.merged);
     const labelled = finalMarks.find(mark => mark.label && mark.label !== 'none');
     saveAnnotation({
+      ...(section ? { review: buildReview(allMarks, section) } : {}),
       task_id: task.id,
       serial_number: task.serialNumber,
       image_url: task.url,
@@ -154,7 +214,57 @@ function ImageTask({ task, view, onDone, onSkip, onHelp }: { task: AuroraTask; v
     setMessage(`Ring ${marks.length + 1} added. Tap it again to remove it.`);
   };
 
+  const applyDrawing = (points: Point[]) => {
+    const outline = raster ? snapOutline(points, raster) : simplifyOutline(points);
+    const result = addOutline(marks, outline);
+    setHistory([...history, marks]);
+    setMarks(result.marks);
+    setMessage(result.joined === null ? 'New outline added.' : `Shape of feature ${result.joined + 1} updated.`);
+  };
+
+  const handleEditorTap = (x: number, y: number) => {
+    const existing = marks.findIndex(mark => !mark.deleted && !mark.merged && Math.hypot(mark.x - x, mark.y - y) <= Math.max(mark.r, 20));
+    if (existing >= 0 && marks[existing].added) {
+      setHistory([...history, marks]);
+      setMarks(marks.filter((_, index) => index !== existing));
+      setMessage('New outline removed.');
+    } else if (existing >= 0) {
+      setMessage('Draw around this feature to reshape it.');
+    } else {
+      applyDrawing(circlePolygon(x, y, TAP_OUTLINE_RADIUS));
+    }
+  };
+
+  const advance = (next: Mark[]) => {
+    setMarks(next);
+    const remaining = next.findIndex(mark => mark.label === null);
+    if (remaining >= 0) setDescribing(remaining);
+    else if (checking) setDescribing(null);
+    else finish(next);
+  };
+
+  const applyReshape = (points: Point[]) => {
+    if (!reshaping) return;
+    const outline = raster ? snapOutline(points, raster) : simplifyOutline(points);
+    const next = reshapeMark(marks, reshaping.index, outline, reshaping.whole);
+    if (!next) {
+      setMessage('Your line must touch the highlighted feature.');
+      return;
+    }
+    setHistory([...history, marks]);
+    setMarks(next);
+    setMessage('');
+    setDescribing(reshaping.index);
+    setReshaping(null);
+  };
+
+  const previousMark = (index: number) => {
+    for (let at = index - 1; at >= 0; at--) if (!marks[at].merged) return at;
+    return null;
+  };
+
   const answered = marks.filter(mark => mark.label !== null);
+  const unanswered = marks.findIndex(mark => mark.label === null);
 
   if (failed) {
     return (
@@ -162,6 +272,24 @@ function ImageTask({ task, view, onDone, onSkip, onHelp }: { task: AuroraTask; v
         <h1 className="text-3xl font-bold">This picture did not load</h1>
         <button type="button" className="btn btn-primary big mt-5" onClick={onSkip}>Show another picture</button>
       </div>
+    );
+  }
+
+  if (reshaping && area) {
+    const { index, whole } = reshaping;
+    const prompt = whole ? 'Draw around the whole thing' : 'Draw the correct edge';
+    return (
+      <Workspace stage={<SectionEditor src={editorImage} section={area} marks={marks} active={index} label={prompt} onDraw={applyReshape} onTap={() => setMessage('Draw a line around it.')} />}>
+        <p className="text-haze">Feature {index + 1} is highlighted</p>
+        <h1 className="text-4xl font-bold" tabIndex={-1}>{prompt}</h1>
+        <p role="status" className="min-h-7 text-lg text-haze">{message || (whole ? 'Start on the highlighted piece. Marks inside your line join it.' : 'A rough line is fine. It will snap to the edge.')}</p>
+        {whole && (
+          <button type="button" className="btn big" onClick={() => { setReshaping(null); advance(marks.map((mark, position) => (position === index ? { ...mark, label: 'part_of_larger', partOfLarger: true } : mark))); }}>
+            I can't see where it ends
+          </button>
+        )}
+        <button type="button" className="btn" onClick={() => { setMessage(''); setReshaping(null); setDescribing(index); }}>Back</button>
+      </Workspace>
     );
   }
 
@@ -175,19 +303,45 @@ function ImageTask({ task, view, onDone, onSkip, onHelp }: { task: AuroraTask; v
         position={describing + 1}
         total={marks.length}
         onResize={r => setMarks(marks.map((mark, index) => (index === describing ? { ...mark, r } : mark)))}
-        onBack={checking && describing === 0 ? undefined : () => setDescribing(describing > 0 ? describing - 1 : null)}
+        onEdit={checking ? next => setMarks(marks.map((mark, index) => (index === describing ? { ...next, edited: !mark.added } : mark))) : undefined}
+        onDelete={checking ? () => advance(
+          marks[describing].added
+            ? marks.filter((_, index) => index !== describing)
+            : marks.map((mark, index) => (index === describing ? { ...mark, label: 'none', deleted: true } : mark)),
+        ) : undefined}
+        onRedraw={checking ? () => { setReshaping({ index: describing, whole: false }); setDescribing(null); } : undefined}
+        onBack={checking && previousMark(describing) === null ? undefined : () => setDescribing(previousMark(describing))}
         checking={checking}
+        section={section}
         onHelp={onHelp}
         onSkip={checking ? onSkip : undefined}
         onFinish={checking && answered.length ? () => finish(answered) : undefined}
         onAnswer={label => {
-          const next = marks.map((mark, index) => (index === describing ? { ...mark, label } : mark));
-          setMarks(next);
-          const remaining = next.findIndex(mark => mark.label === null);
-          if (remaining >= 0) setDescribing(remaining);
-          else finish(next);
+          if (checking && label === 'part_of_larger') {
+            setReshaping({ index: describing, whole: true });
+            setDescribing(null);
+          } else {
+            advance(marks.map((mark, index) => (index === describing ? { ...mark, label } : mark)));
+          }
         }}
       />
+    );
+  }
+
+  if (section) {
+    const prompt = 'Did we miss anything here?';
+    return (
+      <Workspace stage={<SectionEditor src={editorImage} section={section} marks={marks} label={prompt} onDraw={applyDrawing} onTap={handleEditorTap} />}>
+        <p className="text-haze">Part {section.index + 1} of {SECTION_COUNT}</p>
+        <h1 className="text-4xl font-bold" tabIndex={-1}>{prompt}</h1>
+        <p role="status" className="min-h-7 text-lg text-haze">{message || 'Roughly draw around a feature. The line will snap to its edge.'}</p>
+        {unanswered >= 0
+          ? <button type="button" className="btn btn-primary big" onClick={() => setDescribing(unanswered)}>Describe the new outline</button>
+          : <button type="button" className="btn btn-primary big" onClick={() => finish(marks)}>Nothing else, finish</button>}
+        {history.length > 0 && (
+          <button type="button" className="btn" onClick={() => { setMarks(history[history.length - 1]); setHistory(history.slice(0, -1)); setMessage('Last change undone.'); }}>Undo</button>
+        )}
+      </Workspace>
     );
   }
 
@@ -305,6 +459,13 @@ function Flow({ view }: { view: SolarView }) {
         />
       ) : queue === null ? (
         <p role="status" className="py-16 text-lg">Finding pictures…</p>
+      ) : task && kind === 'flare_source' ? (
+        <FlareTask
+          key={task.id}
+          task={task}
+          onDone={() => { setSaved('Saved. Thank you!'); nextImage(false); }}
+          onSkip={() => { setSaved(''); nextImage(true); }}
+        />
       ) : task ? (
         <ImageTask
           key={task.id}
@@ -316,7 +477,7 @@ function Flow({ view }: { view: SolarView }) {
         />
       ) : (
         <div className="measure py-12">
-          <h1 className="text-4xl font-bold" tabIndex={-1}>{kind.startsWith('aia_') ? 'New pictures are on the way' : 'You finished every picture here'}</h1>
+          <h1 className="text-4xl font-bold" tabIndex={-1}>{kind === 'flare_source' ? 'No unassigned flares right now' : kind.startsWith('aia_') ? 'New pictures are on the way' : 'You finished every picture here'}</h1>
           <p className="mt-4 text-lg text-haze">Try another color of the Sun above while this one updates.</p>
         </div>
       )}

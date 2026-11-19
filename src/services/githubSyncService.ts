@@ -40,6 +40,7 @@ const TASK_TYPES: TaskType[] = [
   'aia_335',
   'aia_1600',
   'aia_1700',
+  'flare_source',
 ];
 
 function createEmptyLastCompletedIdsByType(): Record<TaskType, string | null> {

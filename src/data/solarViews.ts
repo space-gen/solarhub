@@ -34,7 +34,7 @@ const FEATURES: Record<string, Pick<ViewAnswer, 'text' | 'look'>> = {
   plage: { text: 'A bright patchy web', look: 'A cluster of pale, net-like patches.' },
   flare_ribbon: { text: 'A very bright flash', look: 'Small white streaks much brighter than everything nearby.' },
   sunspot: { text: 'A small dark spot', look: 'A compact dark dot beside the bright web.' },
-  part_of_larger: { text: 'Only part of something bigger', look: 'In the wider view, the ring cuts through a larger shape.' },
+  part_of_larger: { text: 'Only part of something bigger', look: 'The mark covers only a piece. You will trace the whole thing next.' },
 };
 
 function aia(
@@ -90,6 +90,10 @@ export const SOLAR_VIEWS: SolarView[] = [
   aia(335, 'Blue', 'AIA 335 Å, active regions', 'Blue shows active regions near 2.5 million °C.', '#5f9df0', glowPrompt, noGlow, 'bright patch', HOT),
   aia(1600, 'Olive', 'AIA 1600 Å, upper surface', 'Olive shows the layer just above the surface. The whole Sun looks grainy, so focus on what is inside the ring.', '#c4c25a', webPrompt, noWeb, 'bright web', ['plage', 'flare_ribbon', 'sunspot']),
   aia(1700, 'Rose', 'AIA 1700 Å, surface glow', 'Rose shows the Sun’s lower atmosphere. Bright webs often surround dark sunspots.', '#d99a9a', webPrompt, noWeb, 'bright web', ['plage', 'sunspot']),
+  {
+    kind: 'flare_source', code: '0131', name: 'Flares', detail: 'Which region flared?', accent: '#ff6b3d',
+    prompt: 'Find the region that flared', none: "I can't see a flare", thing: 'flare', radius: 40, closeup: 320, answers: [],
+  },
 ];
 
 export const liveImage = (code: string) => `/api/sdo/latest/${code}.jpg`;

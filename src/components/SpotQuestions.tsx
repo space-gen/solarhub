@@ -1,13 +1,18 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import type { AnswerPicture as PictureName, SolarView, ViewAnswer } from '@/data/solarViews';
 import {
+  adjustedMark,
   IMAGE_SIZE,
   MIN_RADIUS,
+  SECTION_COUNT,
   sunspotLabel,
   type Mark,
+  type Section,
   type SpotCount,
   type SpotEdge,
 } from '@/utils/annotationLogic';
+
+const RING_STEP = 8;
 
 type SunspotPicture = 'one' | 'many' | 'plain' | 'halo' | 'plain-group' | 'side' | 'both';
 
@@ -52,16 +57,40 @@ function Choice({ picture, accent, label, onClick }: { picture: SunspotPicture |
   );
 }
 
-function SunCrop({ src, mark, size, label, className = '' }: { src: string; mark: Mark; size: number; label: string; className?: string }) {
+interface SunCropProps {
+  src: string;
+  mark: Mark;
+  center: Pick<Mark, 'x' | 'y'>;
+  size: number;
+  label: string;
+  className?: string;
+  area?: Section;
+  onDrag?: (dx: number, dy: number) => void;
+}
+
+function SunCrop({ src, mark, center, size, label, className = '', area, onDrag }: SunCropProps) {
   const span = IMAGE_SIZE - size;
-  const left = span > 0 ? Math.max(0, Math.min(span, mark.x - size / 2)) : 0;
-  const top = span > 0 ? Math.max(0, Math.min(span, mark.y - size / 2)) : 0;
+  const left = span > 0 ? Math.max(0, Math.min(span, center.x - size / 2)) : 0;
+  const top = span > 0 ? Math.max(0, Math.min(span, center.y - size / 2)) : 0;
+  const dragFrom = useRef<{ x: number; y: number } | null>(null);
   return (
     <figure className={className}>
       <div
         role="img"
-        aria-label={`${label} of the circled area`}
-        className="relative aspect-square w-full overflow-hidden rounded-md bg-black bg-no-repeat"
+        aria-label={`${label} of the marked area`}
+        className={`relative aspect-square w-full overflow-hidden rounded-md bg-black bg-no-repeat ${onDrag ? 'cursor-move touch-none' : ''}`}
+        onPointerDown={onDrag && (event => {
+          event.currentTarget.setPointerCapture(event.pointerId);
+          dragFrom.current = { x: event.clientX, y: event.clientY };
+        })}
+        onPointerMove={onDrag && (event => {
+          if (!dragFrom.current) return;
+          const scale = size / event.currentTarget.getBoundingClientRect().width;
+          onDrag((event.clientX - dragFrom.current.x) * scale, (event.clientY - dragFrom.current.y) * scale);
+          dragFrom.current = { x: event.clientX, y: event.clientY };
+        })}
+        onPointerUp={() => { dragFrom.current = null; }}
+        onPointerCancel={() => { dragFrom.current = null; }}
         style={{
           backgroundImage: `url("${src}")`,
           backgroundSize: `${(IMAGE_SIZE / size) * 100}%`,
@@ -69,8 +98,18 @@ function SunCrop({ src, mark, size, label, className = '' }: { src: string; mark
         }}
       >
         <svg viewBox={`${left} ${top} ${size} ${size}`} aria-hidden="true" className="absolute inset-0 h-full w-full">
-          <circle cx={mark.x} cy={mark.y} r={mark.r} fill="none" stroke="#140e22" strokeWidth={5} vectorEffect="non-scaling-stroke" />
-          <circle cx={mark.x} cy={mark.y} r={mark.r} fill="none" stroke="#56e6d4" strokeWidth={2.5} vectorEffect="non-scaling-stroke" />
+          {area && <rect x={area.x} y={area.y} width={area.size} height={area.size} fill="none" stroke="#ffc45e" strokeWidth={2} strokeDasharray="6 4" vectorEffect="non-scaling-stroke" />}
+          {mark.outline ? (
+            <>
+              <polygon points={mark.outline.join(' ')} fill="none" stroke="#140e22" strokeWidth={5} vectorEffect="non-scaling-stroke" />
+              <polygon points={mark.outline.join(' ')} fill="none" stroke="#56e6d4" strokeWidth={2.5} vectorEffect="non-scaling-stroke" />
+            </>
+          ) : (
+            <>
+              <circle cx={mark.x} cy={mark.y} r={mark.r} fill="none" stroke="#140e22" strokeWidth={5} vectorEffect="non-scaling-stroke" />
+              <circle cx={mark.x} cy={mark.y} r={mark.r} fill="none" stroke="#56e6d4" strokeWidth={2.5} vectorEffect="non-scaling-stroke" />
+            </>
+          )}
         </svg>
       </div>
       <figcaption className="mt-1 text-center text-xs text-haze">{label}</figcaption>
@@ -85,35 +124,73 @@ interface SpotQuestionsProps {
   position: number;
   total: number;
   onResize: (radius: number) => void;
+  onEdit?: (next: Mark) => void;
+  onDelete?: () => void;
+  onRedraw?: () => void;
   onAnswer: (label: string) => void;
   onBack?: () => void;
   checking?: boolean;
+  section?: Section;
   onHelp?: () => void;
   onSkip?: () => void;
   onFinish?: () => void;
 }
 
-export default function SpotQuestions({ view, src, mark, position, total, onResize, onAnswer, onBack, checking, onHelp, onSkip, onFinish }: SpotQuestionsProps) {
+export default function SpotQuestions({ view, src, mark, position, total, onResize, onEdit, onDelete, onRedraw, onAnswer, onBack, checking, section, onHelp, onSkip, onFinish }: SpotQuestionsProps) {
   const [count, setCount] = useState<SpotCount | null>(null);
+  const [fixing, setFixing] = useState(false);
+  const [origin] = useState({ x: mark.x, y: mark.y });
   const sunspot = view.kind === 'sunspot';
+  const shapeName = mark.outline ? 'outline' : 'ring';
   const [windowSize] = useState(() => Math.min(480, Math.max(checking ? 180 : view.closeup, Math.ceil(mark.r * (checking ? 2.5 : 3)))));
   const maxRadius = windowSize / 2 - 6;
-  const left = Math.max(0, Math.min(IMAGE_SIZE - windowSize, mark.x - windowSize / 2));
-  const top = Math.max(0, Math.min(IMAGE_SIZE - windowSize, mark.y - windowSize / 2));
+  const left = Math.max(0, Math.min(IMAGE_SIZE - windowSize, origin.x - windowSize / 2));
+  const top = Math.max(0, Math.min(IMAGE_SIZE - windowSize, origin.y - windowSize / 2));
   const span = IMAGE_SIZE - windowSize;
+  const edit = (change: Partial<Pick<Mark, 'x' | 'y' | 'r'>>) => onEdit?.(adjustedMark(mark, change, { x: left, y: top, size: windowSize }));
+  const nudges: Array<[string, number, number]> = [['Left', -RING_STEP, 0], ['Up', 0, -RING_STEP], ['Down', 0, RING_STEP], ['Right', RING_STEP, 0]];
   const finishSpot = (edge: SpotEdge) => onAnswer(sunspotLabel(count!, edge, mark));
   const question = !sunspot
-    ? 'What is inside the ring?'
+    ? `What is inside the ${shapeName}?`
     : !count ? 'How many dark dots are in the ring?'
     : count === 'one' ? 'Is there a fuzzy orange edge around it?' : 'Where is the fuzzy orange edge?';
 
   return (
     <div className="grid gap-5 md:grid-cols-[minmax(0,1fr)_23rem] md:items-start">
       {checking ? (
-        <div className="mx-auto grid w-full grid-cols-3 gap-2 md:max-w-[min(100%,calc((100svh-15rem)*1.5))]">
-          <SunCrop src={src} mark={mark} size={windowSize} label="Up close" className="md:col-span-2 md:row-span-2" />
-          <SunCrop src={src} mark={mark} size={Math.min(IMAGE_SIZE, windowSize * 2)} label="Around it" />
-          <SunCrop src={src} mark={mark} size={IMAGE_SIZE} label="Whole Sun" />
+        <div className="mx-auto w-full md:max-w-[min(100%,calc((100svh-15rem)*1.5))]">
+          <div className={`grid gap-2 ${fixing ? 'grid-cols-2' : 'grid-cols-3'}`}>
+            <SunCrop
+              src={src}
+              mark={mark}
+              center={origin}
+              size={windowSize}
+              label="Up close"
+              className={fixing ? 'col-span-2 md:row-span-2' : 'md:col-span-2 md:row-span-2'}
+              onDrag={fixing ? (dx, dy) => edit({ x: mark.x + dx, y: mark.y + dy }) : undefined}
+            />
+            {section
+              ? <SunCrop src={src} mark={mark} center={{ x: section.x + section.size / 2, y: section.y + section.size / 2 }} size={section.size} label={`Your part (${section.index + 1} of ${SECTION_COUNT})`} />
+              : <SunCrop src={src} mark={mark} center={origin} size={Math.min(IMAGE_SIZE, windowSize * 2)} label="Around it" />}
+            <SunCrop src={src} mark={mark} center={origin} size={IMAGE_SIZE} label="Whole Sun" area={section} />
+          </div>
+          {onEdit && (
+            <div className="mt-2">
+              <button type="button" className="btn w-full" aria-expanded={fixing} onClick={() => setFixing(!fixing)}>
+                {fixing ? `Done fixing the ${shapeName}` : `Fix the ${shapeName}`}
+              </button>
+              {fixing && (
+                <div className="mt-2 grid grid-cols-3 gap-2 sm:grid-cols-6">
+                  {onRedraw && <button type="button" className="btn col-span-3 sm:col-span-6" onClick={onRedraw}>Redraw the edge</button>}
+                  {nudges.map(([name, dx, dy]) => (
+                    <button key={name} type="button" className="btn" aria-label={`Move ${shapeName} ${name.toLowerCase()}`} onClick={() => edit({ x: mark.x + dx, y: mark.y + dy })}>{name}</button>
+                  ))}
+                  <button type="button" className="btn" disabled={mark.r <= MIN_RADIUS} onClick={() => edit({ r: mark.r - RING_STEP })}>Smaller</button>
+                  <button type="button" className="btn" disabled={mark.r >= maxRadius} onClick={() => edit({ r: mark.r + RING_STEP })}>Bigger</button>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       ) : <div>
         <div
@@ -170,6 +247,7 @@ export default function SpotQuestions({ view, src, mark, position, total, onResi
           {(count || onBack) && <button type="button" className="btn flex-1" onClick={() => (count ? setCount(null) : onBack?.())}>Back</button>}
           <button type="button" className="btn flex-1" onClick={() => onAnswer('none')}>{checking ? 'None of these' : 'Not sure'}</button>
         </div>
+        {onDelete && <button type="button" className="btn" onClick={onDelete}>Delete wrong {shapeName}</button>}
         {(onHelp || onSkip || onFinish) && (
           <div className="flex gap-2">
             {onHelp && <button type="button" className="btn flex-1" onClick={onHelp}>Show guide</button>}

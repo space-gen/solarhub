@@ -17,6 +17,12 @@ export default defineConfig({
         secure: true,
         rewrite: requestPath => requestPath.replace(/^\/api\/sdo\/latest\/(.+)\.jpg$/, '/assets/img/latest/latest_512_$1.jpg'),
       },
+      '^/api/sdo/browse/.*': {
+        target: 'https://sdo.gsfc.nasa.gov',
+        changeOrigin: true,
+        secure: true,
+        rewrite: requestPath => requestPath.replace(/^\/api\/sdo\/browse\//, '/assets/img/browse/'),
+      },
       '/api/github/device/code': {
         target: 'https://github.com',
         changeOrigin: true,

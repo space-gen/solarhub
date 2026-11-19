@@ -11,7 +11,7 @@ export default function ChannelGuide({ view, onDone }: { view: SolarView; onDone
         </div>
       </div>
       <p className="measure mt-4 text-lg">{view.learn}</p>
-      <p className="mt-2 text-haze">We circle one thing at a time. Check the close-up, wider view and whole Sun, then pick the closest real example.</p>
+      <p className="mt-2 text-haze">You get one part of the Sun. Check each ring, fix or delete it if needed, then draw around anything we missed.</p>
       <ul className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {view.answers.map(answer => (
           <li key={answer.label} className="overflow-hidden rounded-md border border-hairline bg-panel">

@@ -1,13 +1,18 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
+  adjustedMark,
   confidenceFor,
   findMarkAt,
   groupLengthDegrees,
+  isInsideSection,
   isOnSun,
   magnetLabel,
   pickForContributor,
+  pickSection,
   remainingAfter,
+  SECTION_COUNT,
+  SECTIONS,
   spreadOrder,
   sunspotLabel,
 } from '../src/utils/annotationLogic.ts';
@@ -55,6 +60,30 @@ test('contributors get a small repeatable share of features', () => {
   assert.equal(new Set(first).size, 4);
   const seen = new Set(['alice', 'bob', 'cara', 'dev', 'eli', 'fay', 'gus', 'hana'].flatMap(name => pickForContributor(items, name, 'aia171-1')));
   assert.ok(seen.size > 6);
+});
+
+test('overlapping parts keep a feature whole when it crosses a part edge', () => {
+  assert.equal(SECTIONS.length, SECTION_COUNT);
+  const onEdge = { x: 512, y: 300, r: 60 };
+  assert.equal(isInsideSection(SECTIONS[0], onEdge.x, onEdge.y, onEdge.r), false);
+  assert.ok(SECTIONS.some(section => isInsideSection(section, onEdge.x, onEdge.y, onEdge.r)));
+});
+
+test('each person gets rings from one repeatable part', () => {
+  const rings = [{ x: 200, y: 200, r: 30 }, { x: 800, y: 800, r: 30 }, { x: 512, y: 512, r: 190 }];
+  const first = pickSection(rings, 'alice', 'aia171-1');
+  assert.deepEqual(pickSection(rings, 'alice', 'aia171-1'), first);
+  assert.ok(first.items.length > 0);
+  const ranked = Array.from({ length: 8 }, (_, index) => ({ x: 250 + index, y: 250, r: 20 }));
+  assert.deepEqual(pickSection(ranked, 'alice', 'aia171-1').items.slice(0, 3), ranked.slice(0, 3));
+  const huge = pickSection([rings[2]], 'alice', 'aia171-1');
+  assert.deepEqual(huge.items, [rings[2]]);
+});
+
+test('fixing a ring keeps it inside the close-up', () => {
+  const box = { x: 100, y: 100, size: 200 };
+  const moved = adjustedMark({ x: 150, y: 150, r: 40, label: null }, { x: 900, r: 500 }, box);
+  assert.deepEqual([moved.x, moved.y, moved.r], [300, 150, 94]);
 });
 
 test('spread order keeps every image and separates neighbours', () => {

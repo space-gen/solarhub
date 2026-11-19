@@ -74,6 +74,22 @@ test('serves only known live solar images', async () => {
   assert.equal(urls.length, 1);
 });
 
+test('serves only matching dated solar frames', async () => {
+  const urls = [];
+  globalThis.fetch = async url => {
+    urls.push(url);
+    return new Response('image', { status: 200 });
+  };
+  const name = '20261117_115558_1024_0171.jpg';
+  const ok = await worker.fetch(new Request(`${ORIGIN}/api/sdo/browse/2026/11/17/${name}`), env);
+  assert.equal(ok.status, 200);
+  assert.equal(urls[0], `https://sdo.gsfc.nasa.gov/assets/img/browse/2026/11/17/${name}`);
+  for (const path of [`2026/11/18/${name}`, '2026/11/17/20261117_115558_1024_HMIB.jpg', `2026/11/17/..%2F${name}`]) {
+    assert.equal((await worker.fetch(new Request(`${ORIGIN}/api/sdo/browse/${path}`), env)).status, 404);
+  }
+  assert.equal(urls.length, 1);
+});
+
 test('reports 502 when GitHub is unreachable', async () => {
   globalThis.fetch = async () => { throw new TypeError('network'); };
   const res = await worker.fetch(post('/api/github/device/code'), env);

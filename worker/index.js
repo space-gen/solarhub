@@ -5,6 +5,8 @@ const GRANT_TYPE = 'urn:ietf:params:oauth:grant-type:device_code';
 const MAX_BODY_CHARS = 2048;
 const SDO_IMAGES = new Set(['HMIIC', 'HMIB', '0094', '0131', '0171', '0193', '0211', '0304', '0335', '1600', '1700']);
 const SDO_CACHE_SECONDS = 1800;
+const BROWSE_CACHE_SECONDS = 604800;
+const BROWSE_PATH = /^\/api\/sdo\/browse\/(\d{4})\/(\d{2})\/(\d{2})\/((\d{8})_\d{6}_1024_(?:0094|0131|0171|0193|0211|0304|0335|1600|1700)\.jpg)$/;
 
 function json(status, body) {
   return new Response(JSON.stringify(body), {
@@ -24,6 +26,25 @@ async function latestSolarImage(code, method) {
     if (!response.ok) return json(502, { error: 'image_unavailable' });
     return new Response(method === 'HEAD' ? null : response.body, {
       headers: { 'Content-Type': 'image/jpeg', 'Cache-Control': `public, max-age=${SDO_CACHE_SECONDS}` },
+    });
+  } catch {
+    return json(502, { error: 'image_unavailable' });
+  }
+}
+
+// Same-origin copies let the browser read pixels, so drawn outlines can snap to features.
+async function browseSolarImage(match, method) {
+  const [, year, month, day, name, date] = match;
+  if (date !== `${year}${month}${day}`) return json(404, { error: 'not_found' });
+  if (method !== 'GET' && method !== 'HEAD') return json(405, { error: 'method_not_allowed' });
+  try {
+    const response = await fetch(`https://sdo.gsfc.nasa.gov/assets/img/browse/${year}/${month}/${day}/${name}`, {
+      headers: { 'User-Agent': 'solarhub-image-proxy' },
+      cf: { cacheEverything: true, cacheTtl: BROWSE_CACHE_SECONDS },
+    });
+    if (!response.ok) return json(502, { error: 'image_unavailable' });
+    return new Response(method === 'HEAD' ? null : response.body, {
+      headers: { 'Content-Type': 'image/jpeg', 'Cache-Control': `public, max-age=${BROWSE_CACHE_SECONDS}` },
     });
   } catch {
     return json(502, { error: 'image_unavailable' });
@@ -53,6 +74,8 @@ export default {
     const { pathname, origin } = new URL(request.url);
     const image = pathname.match(/^\/api\/sdo\/latest\/([0-9A-Z]+)\.jpg$/);
     if (image) return latestSolarImage(image[1], request.method);
+    const browse = pathname.match(BROWSE_PATH);
+    if (browse) return browseSolarImage(browse, request.method);
 
     if (pathname !== '/api/github/device/code' && pathname !== '/api/github/access_token') {
       return json(404, { error: 'not_found' });

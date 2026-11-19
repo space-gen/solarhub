@@ -42,6 +42,7 @@ export type TaskType =
   | 'aia_335'
   | 'aia_1600'
   | 'aia_1700'
+  | 'flare_source'
   | 'aia_4500'
   | 'random';
 
@@ -74,6 +75,8 @@ export interface AnnotationInput {
   // Per-spot radii in canonical pixels (parallel to pixel_coords). Optional.
   pixel_radii?: Array<number>;
   region_radius?: number; // legacy single radius; prefer pixel_radii
+  // What the finder proposed and what the contributor changed.
+  review?: object;
 }
 
 /** Full annotation record (AnnotationInput + generated fields). */
@@ -138,7 +141,10 @@ ${formattedLabel}
 
 ### Confidence Score (0-100)
 ${annotation.confidence}
-
+${annotation.review ? `
+### Finder Review
+${JSON.stringify(annotation.review)}
+` : ''}
 ### Notes (optional)
 ${annotation.comments.trim() || '_No response_'}
 `;
