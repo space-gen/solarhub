@@ -8,6 +8,11 @@ const SDO_CACHE_SECONDS = 1800;
 const BROWSE_CACHE_SECONDS = 604800;
 const BROWSE_PATH = /^\/api\/sdo\/browse\/(\d{4})\/(\d{2})\/(\d{2})\/((\d{8})_\d{6}_1024_(?:0094|0131|0171|0193|0211|0304|0335|1600|1700)\.jpg)$/;
 
+const LIST_PATH = /^\/api\/sdo\/list\/(\d{4})\/(\d{2})\/(\d{2})\/(0193|0211|0304)\.json$/;
+// Contributors walk back from a fixed date; nothing outside this range is offered or accepted.
+const ARCHIVE_FIRST = '20161001';
+const ARCHIVE_LAST = '20261120';
+
 function json(status, body) {
   return new Response(JSON.stringify(body), {
     status,
@@ -51,6 +56,34 @@ async function browseSolarImage(match, method) {
   }
 }
 
+// Lists one day's browse frames for one channel, so the browser can work out image addresses.
+async function listSolarDay(match, method) {
+  const [, year, month, day, code] = match;
+  const date = `${year}${month}${day}`;
+  const real = new Date(`${year}-${month}-${day}T00:00:00Z`);
+  if (Number.isNaN(real.getTime()) || real.toISOString().slice(0, 10).replaceAll('-', '') !== date) return json(404, { error: 'not_found' });
+  if (date < ARCHIVE_FIRST || date > ARCHIVE_LAST) return json(404, { error: 'not_found' });
+  if (method !== 'GET') return json(405, { error: 'method_not_allowed' });
+  try {
+    const response = await fetch(`https://sdo.gsfc.nasa.gov/assets/img/browse/${year}/${month}/${day}/`, {
+      headers: { 'User-Agent': 'solarhub-image-proxy' },
+      cf: { cacheEverything: true, cacheTtl: BROWSE_CACHE_SECONDS },
+    });
+    if (response.status === 404) return listing([]);
+    if (!response.ok) return json(502, { error: 'listing_unavailable' });
+    const names = new Set((await response.text()).match(new RegExp(`${date}_\\d{6}_1024_${code}\\.jpg`, 'g')) ?? []);
+    return listing([...names].sort());
+  } catch {
+    return json(502, { error: 'listing_unavailable' });
+  }
+}
+
+function listing(names) {
+  return new Response(JSON.stringify(names), {
+    headers: { 'Content-Type': 'application/json', 'Cache-Control': `public, max-age=${BROWSE_CACHE_SECONDS}` },
+  });
+}
+
 async function buildUpstream(pathname, request, env) {
   if (pathname === '/api/github/device/code') {
     return {
@@ -76,6 +109,8 @@ export default {
     if (image) return latestSolarImage(image[1], request.method);
     const browse = pathname.match(BROWSE_PATH);
     if (browse) return browseSolarImage(browse, request.method);
+    const day = pathname.match(LIST_PATH);
+    if (day) return listSolarDay(day, request.method);
 
     if (pathname !== '/api/github/device/code' && pathname !== '/api/github/access_token') {
       return json(404, { error: 'not_found' });

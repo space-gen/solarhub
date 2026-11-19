@@ -8,6 +8,8 @@ import { liveImage, SOLAR_VIEWS, viewFor, type SolarView } from '@/data/solarVie
 import TapStage from '@/components/TapStage';
 import { useStoredUser } from '@/hooks/useStoredUser';
 import { fetchAuroraTasksByType, type AuroraTask } from '@/services/auroraService';
+import { ANSWERS_WANTED, ARCHIVE_CODES, answerCounts, nextArchiveTasks } from '@/services/archiveTasks';
+import { findCandidates, SIZE as FINDER_SIZE } from '@/utils/finder';
 import { loadProgressFromGitHub } from '@/services/githubSyncService';
 import { doneIds, doneToday, pendingCount, saveAnnotation } from '@/services/submissionQueue';
 import {
@@ -41,6 +43,33 @@ function snapPolarity(kind: MarkKind, points: Point[]): 'dark' | 'bright' | unde
 }
 
 const browseImage = (url: string) => url.replace('https://sdo.gsfc.nasa.gov/assets/img/browse/', '/api/sdo/browse/');
+
+/** The whole picture as grey levels, converted the way Aurora's Python finder (Pillow "L") does. */
+function loadGray(src: string): Promise<Float32Array | null> {
+  return new Promise(resolve => {
+    const image = new Image();
+    image.onerror = () => resolve(null);
+    image.onload = () => {
+      try {
+        const canvas = document.createElement('canvas');
+        canvas.width = FINDER_SIZE;
+        canvas.height = FINDER_SIZE;
+        const context = canvas.getContext('2d', { willReadFrequently: true })!;
+        context.drawImage(image, 0, 0, FINDER_SIZE, FINDER_SIZE);
+        const rgba = context.getImageData(0, 0, FINDER_SIZE, FINDER_SIZE).data;
+        const gray = new Float32Array(FINDER_SIZE * FINDER_SIZE);
+        for (let i = 0; i < gray.length; i++) gray[i] = (rgba[i * 4] * 19595 + rgba[i * 4 + 1] * 38470 + rgba[i * 4 + 2] * 7471 + 0x8000) >> 16;
+        resolve(gray);
+      } catch {
+        resolve(null);
+      }
+    };
+    image.src = src;
+  });
+}
+
+const REFILL_BELOW = 3;
+const BATCH = 10;
 
 /** Reads one part of the Sun so drawings can snap; drawing still works if this fails. */
 function loadRaster(src: string, section: Section): Promise<Raster | null> {
@@ -399,7 +428,67 @@ function Flow({ view }: { view: SolarView }) {
     return () => window.removeEventListener('solarhub:queue-changed', sync);
   }, []);
 
+  const archive = Boolean(ARCHIVE_CODES[kind]);
+  const walk = useRef<{ lastId: string | null; finished: boolean; busy: boolean; skip: (id: string) => boolean }>({ lastId: null, finished: false, busy: false, skip: () => false });
+
+  // Research pictures are worked out from NASA's archive, walking back from the fixed start date.
+  const refill = useCallback(async () => {
+    const state = walk.current;
+    if (state.busy || state.finished) return;
+    state.busy = true;
+    try {
+      const { tasks, finished, cursor } = await nextArchiveTasks(kind, state.lastId, state.skip, BATCH);
+      state.finished = finished;
+      state.lastId = cursor;
+      setQueue(current => [...(current ?? []), ...tasks]);
+    } catch {
+      // NASA or the network failed; stop here rather than retrying in a loop, and show the empty message.
+      state.finished = true;
+      setQueue(current => [...(current ?? [])]);
+    } finally {
+      state.busy = false;
+    }
+  }, [kind]);
+
   useEffect(() => {
+    if (!archive) return;
+    let active = true;
+    void Promise.all([answerCounts(kind), loadProgressFromGitHub().catch(() => null)]).then(([counts, progress]) => {
+      if (!active) return;
+      const done = doneIds();
+      walk.current = {
+        // Carry on from the last picture this person finished, saved in their solarhub-data repo.
+        lastId: progress?.lastCompletedIdsByType[kind] ?? null,
+        finished: false,
+        busy: false,
+        skip: id => done.has(id) || (counts[id] ?? 0) >= ANSWERS_WANTED,
+      };
+      void refill();
+    });
+    return () => { active = false; };
+  }, [archive, kind, refill]);
+
+  const head = queue?.[0];
+  useEffect(() => {
+    if (archive && queue && queue.length < REFILL_BELOW) void refill();
+  }, [archive, queue, refill]);
+
+  // Each picture gets the finder's suggestions before it is shown; a picture that will not load is dropped.
+  useEffect(() => {
+    if (!archive || !head || head.candidates) return;
+    let active = true;
+    void loadGray(browseImage(head.url)).then(gray => {
+      if (!active) return;
+      setQueue(current => {
+        if (!current?.length || current[0].id !== head.id) return current;
+        return gray ? [{ ...current[0], candidates: findCandidates(gray, kind) }, ...current.slice(1)] : current.slice(1);
+      });
+    });
+    return () => { active = false; };
+  }, [archive, head, kind]);
+
+  useEffect(() => {
+    if (archive) return;
     let active = true;
     void Promise.all([fetchAuroraTasksByType(kind), loadProgressFromGitHub().catch(() => null)]).then(([tasks, progress]) => {
       if (!active) return;
@@ -411,7 +500,7 @@ function Flow({ view }: { view: SolarView }) {
       setQueue(remainingAfter(ordered, progress?.lastCompletedIdsByType[kind] ?? null, doneIds()));
     });
     return () => { active = false; };
-  }, [kind, view.learn]);
+  }, [archive, kind, view.learn]);
 
   const nextImage = useCallback((rotate: boolean) => {
     setQueue(current => {
@@ -422,7 +511,9 @@ function Flow({ view }: { view: SolarView }) {
     requestAnimationFrame(() => topRef.current?.querySelector<HTMLElement>('h1')?.focus({ preventScroll: true }));
   }, []);
 
-  const task = queue?.[0];
+  // Not ready until the finder has run, so nobody sees a picture without its suggestions.
+  const task = archive && head && !head.candidates ? undefined : head;
+  const preparing = archive && (queue === null || (head && !head.candidates) || (!head && !walk.current.finished));
 
   return (
     <div ref={topRef} className="mx-auto max-w-6xl px-4 py-4 sm:px-6">
@@ -467,7 +558,7 @@ function Flow({ view }: { view: SolarView }) {
             setShowGuide(false);
           }}
         />
-      ) : queue === null ? (
+      ) : queue === null || preparing ? (
         <p role="status" className="py-16 text-lg">Finding pictures…</p>
       ) : task && kind === 'flare_source' ? (
         <FlareTask
@@ -487,7 +578,7 @@ function Flow({ view }: { view: SolarView }) {
         />
       ) : (
         <div className="measure py-12">
-          <h1 className="text-4xl font-bold" tabIndex={-1}>{kind === 'flare_source' ? 'No unassigned flares right now' : kind.startsWith('aia_') ? 'New pictures are on the way' : 'You finished every picture here'}</h1>
+          <h1 className="text-4xl font-bold" tabIndex={-1}>{kind === 'flare_source' ? 'No unassigned flares right now' : archive ? 'No more pictures in this view right now' : 'You finished every picture here'}</h1>
           <p className="mt-4 text-lg text-haze">Try another view above while this one updates.</p>
         </div>
       )}

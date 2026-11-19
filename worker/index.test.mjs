@@ -95,3 +95,20 @@ test('reports 502 when GitHub is unreachable', async () => {
   const res = await worker.fetch(post('/api/github/device/code'), env);
   assert.equal(res.status, 502);
 });
+
+test('day listing returns only that day and channel, sorted and unique', async () => {
+  globalThis.fetch = async url => {
+    assert.equal(url, 'https://sdo.gsfc.nasa.gov/assets/img/browse/2020/03/04/');
+    return new Response('<a href="20200304_001205_1024_0193.jpg">x</a> 20200304_000005_1024_0193.jpg 20200304_000005_1024_0193.jpg 20200304_000005_1024_0211.jpg 20200304_000005_512_0193.jpg');
+  };
+  const res = await worker.fetch(new Request(`${ORIGIN}/api/sdo/list/2020/03/04/0193.json`), env);
+  assert.deepEqual(await res.json(), ['20200304_000005_1024_0193.jpg', '20200304_001205_1024_0193.jpg']);
+});
+
+test('day listing refuses dates outside the archive range and impossible dates', async () => {
+  globalThis.fetch = async () => assert.fail('must not fetch');
+  for (const path of ['2016/09/30', '2026/11/21', '2020/02/31']) {
+    const res = await worker.fetch(new Request(`${ORIGIN}/api/sdo/list/${path}/0193.json`), env);
+    assert.equal(res.status, 404, path);
+  }
+});
