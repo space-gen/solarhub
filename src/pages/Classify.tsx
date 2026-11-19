@@ -16,7 +16,6 @@ import {
   buildReview,
   confidenceFor,
   findMarkAt,
-  IMAGE_SIZE,
   isOnSun,
   pickSection,
   remainingAfter,
@@ -25,22 +24,11 @@ import {
   viewAround,
   type Mark,
   type MarkKind,
-  type Section,
 } from '@/utils/annotationLogic';
 import { getCorrectDateFromUrl } from '@/utils/jsocDateExtractor';
-import { addOutline, circlePolygon, outlineFromMask, reshapeMark, simplifyOutline, snapOutline, type Point, type Raster } from '@/utils/outline';
+import { addOutline, circlePolygon, outlineFromMask, reshapeMark, simplifyOutline, type Point } from '@/utils/outline';
 
 const TAP_OUTLINE_RADIUS = 30;
-const AIA_LIMB = 404;
-
-/** Dark features are wanted on the disk; in 304, bright prominences are wanted above the limb. */
-function snapPolarity(kind: MarkKind, points: Point[]): 'dark' | 'bright' | undefined {
-  if (kind === 'aia_193' || kind === 'aia_211') return 'dark';
-  if (kind !== 'aia_304') return undefined;
-  const x = points.reduce((sum, point) => sum + point[0], 0) / points.length;
-  const y = points.reduce((sum, point) => sum + point[1], 0) / points.length;
-  return Math.hypot(x - IMAGE_SIZE / 2, y - IMAGE_SIZE / 2) > AIA_LIMB ? 'bright' : 'dark';
-}
 
 const browseImage = (url: string) => url.replace('https://sdo.gsfc.nasa.gov/assets/img/browse/', '/api/sdo/browse/');
 
@@ -71,32 +59,6 @@ function loadGray(src: string): Promise<Float32Array | null> {
 const REFILL_BELOW = 3;
 const BATCH = 10;
 
-/** Reads one part of the Sun so drawings can snap; drawing still works if this fails. */
-function loadRaster(src: string, section: Section): Promise<Raster | null> {
-  return new Promise(resolve => {
-    const image = new Image();
-    image.onerror = () => resolve(null);
-    image.onload = () => {
-      try {
-        const canvas = document.createElement('canvas');
-        canvas.width = section.size;
-        canvas.height = section.size;
-        const context = canvas.getContext('2d', { willReadFrequently: true })!;
-        const scale = image.naturalWidth / IMAGE_SIZE;
-        context.drawImage(image, section.x * scale, section.y * scale, section.size * scale, section.size * scale, 0, 0, section.size, section.size);
-        const rgba = context.getImageData(0, 0, section.size, section.size).data;
-        const data = new Uint8Array(section.size * section.size);
-        for (let index = 0; index < data.length; index++) {
-          data[index] = 0.299 * rgba[index * 4] + 0.587 * rgba[index * 4 + 1] + 0.114 * rgba[index * 4 + 2];
-        }
-        resolve({ x: section.x, y: section.y, width: section.size, height: section.size, data });
-      } catch {
-        resolve(null);
-      }
-    };
-    image.src = src;
-  });
-}
 
 const PRACTICE_FOUND: Partial<Record<MarkKind, string>> = {
   sunspot: 'You found both spots.',
@@ -198,7 +160,6 @@ function ImageTask({ task, view, onDone, onSkip, onHelp }: { task: AuroraTask; v
     return { ...mark, label: null, finder: { x: mark.x, y: mark.y, r: mark.r }, ...(outline ? { outline } : {}) };
   }) ?? []);
   const [history, setHistory] = useState<Mark[][]>([]);
-  const [raster, setRaster] = useState<Raster | null>(null);
   const [message, setMessage] = useState('');
   const [describing, setDescribing] = useState<number | null>(checking && marks.length ? 0 : null);
   const [reshaping, setReshaping] = useState<{ index: number; whole: boolean } | null>(null);
@@ -206,17 +167,7 @@ function ImageTask({ task, view, onDone, onSkip, onHelp }: { task: AuroraTask; v
   const date = getCorrectDateFromUrl(task.url) || task.date;
   const editorImage = browseImage(task.url);
   const area = section && reshaping ? viewAround(marks[reshaping.index], section) : section;
-  const areaX = area?.x;
-  const areaY = area?.y;
-  const areaSize = area?.size;
 
-  useEffect(() => {
-    if (areaX === undefined || areaY === undefined || !areaSize) return;
-    let active = true;
-    setRaster(null);
-    void loadRaster(editorImage, { index: 0, x: areaX, y: areaY, size: areaSize }).then(result => { if (active) setRaster(result); });
-    return () => { active = false; };
-  }, [editorImage, areaX, areaY, areaSize]);
 
   const finish = (allMarks: Mark[]) => {
     const finalMarks = allMarks.filter(mark => !mark.deleted && !mark.merged);
@@ -254,7 +205,8 @@ function ImageTask({ task, view, onDone, onSkip, onHelp }: { task: AuroraTask; v
   };
 
   const applyDrawing = (points: Point[]) => {
-    const outline = raster ? snapOutline(points, raster, snapPolarity(kind, points)) : simplifyOutline(points);
+    // Kept as drawn: snapping to the darkest blob replaced people's outlines with the wrong shape.
+    const outline = simplifyOutline(points);
     const result = addOutline(marks, outline);
     setHistory([...history, marks]);
     setMarks(result.marks);
@@ -284,7 +236,8 @@ function ImageTask({ task, view, onDone, onSkip, onHelp }: { task: AuroraTask; v
 
   const applyReshape = (points: Point[]) => {
     if (!reshaping) return;
-    const outline = raster ? snapOutline(points, raster, snapPolarity(kind, points)) : simplifyOutline(points);
+    // Kept as drawn: snapping to the darkest blob replaced people's outlines with the wrong shape.
+    const outline = simplifyOutline(points);
     const next = reshapeMark(marks, reshaping.index, outline, reshaping.whole);
     if (!next) {
       setMessage('Your line must touch the highlighted feature.');

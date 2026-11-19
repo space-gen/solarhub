@@ -7,10 +7,6 @@ interface Box {
   height: number;
 }
 
-export interface Raster extends Box {
-  data: ArrayLike<number>;
-}
-
 interface Outlined {
   x: number;
   y: number;
@@ -27,9 +23,6 @@ interface Outlined {
 
 const MASK_SIZE = 1024;
 const MAX_POINTS = 48;
-const MIN_EDGE_CONTRAST = 0.8;
-const EDGE_SMOOTHING = 3;
-const MIN_THIN_SHARE = 0.02;
 export const JOIN_SHARE = 0.3;
 // When one shape mostly contains the other, the drawing is a new edge rather than an extension.
 const REPLACE_SHARE = 0.7;
@@ -60,51 +53,6 @@ function maskOf(polygon: Point[], box: Box): Uint8Array {
     }
   }
   return mask;
-}
-
-function boxMean(data: ArrayLike<number>, width: number, height: number, radius: number): Float32Array {
-  const sums = new Float64Array((width + 1) * (height + 1));
-  for (let y = 0; y < height; y++) {
-    for (let x = 0; x < width; x++) {
-      sums[(y + 1) * (width + 1) + x + 1] = data[y * width + x] + sums[y * (width + 1) + x + 1] + sums[(y + 1) * (width + 1) + x] - sums[y * (width + 1) + x];
-    }
-  }
-  const out = new Float32Array(width * height);
-  for (let y = 0; y < height; y++) {
-    const top = Math.max(0, y - radius);
-    const bottom = Math.min(height, y + radius + 1);
-    for (let x = 0; x < width; x++) {
-      const left = Math.max(0, x - radius);
-      const right = Math.min(width, x + radius + 1);
-      const total = sums[bottom * (width + 1) + right] - sums[top * (width + 1) + right] - sums[bottom * (width + 1) + left] + sums[top * (width + 1) + left];
-      out[y * width + x] = total / ((bottom - top) * (right - left));
-    }
-  }
-  return out;
-}
-
-function otsu(values: number[]): number {
-  const bins = new Array<number>(256).fill(0);
-  values.forEach(value => { bins[Math.max(0, Math.min(255, Math.round(value)))]++; });
-  const total = values.length;
-  const sum = bins.reduce((acc, count, index) => acc + count * index, 0);
-  let below = 0;
-  let belowSum = 0;
-  let best = 0;
-  let threshold = 127;
-  for (let index = 0; index < 256; index++) {
-    below += bins[index];
-    belowSum += index * bins[index];
-    const above = total - below;
-    if (!below || !above) continue;
-    const gap = belowSum / below - (sum - belowSum) / above;
-    const score = below * above * gap * gap;
-    if (score > best) {
-      best = score;
-      threshold = index + 0.5;
-    }
-  }
-  return threshold;
 }
 
 function bestComponent(mask: Uint8Array, width: number, weight?: Uint8Array): Uint8Array {
@@ -252,54 +200,6 @@ export function outlineFromMask(text: string): Point[] | undefined {
   pixels.forEach(([px, py]) => { mask[(py - y) * box.width + px - x] = 1; });
   const edge = traceEdge(mask, box);
   return edge.length >= 3 ? simplifyOutline(edge) : undefined;
-}
-
-/**
- * Pulls a rough drawing onto the nearest real edge, or keeps the drawing if no clear edge exists.
- * `polarity` says whether the feature is darker or brighter than its surroundings, when the view knows.
- */
-export function snapOutline(rough: Point[], image: Raster, polarity?: 'dark' | 'bright'): Point[] {
-  const fallback = simplifyOutline(rough);
-  const { width, height } = image;
-  const inside = maskOf(rough, image);
-  const area = inside.reduce((sum, value) => sum + value, 0);
-  if (area < 20) return fallback;
-  const band = boxMean(inside, width, height, Math.max(8, Math.round(Math.sqrt(area) * 0.3)));
-  const smooth = boxMean(image.data, width, height, Math.max(2, Math.round(Math.sqrt(area) * 0.05)));
-  const within: number[] = [];
-  let inSum = 0;
-  let outSum = 0;
-  smooth.forEach((value, index) => {
-    if (band[index] <= 0) return;
-    within.push(value);
-    if (inside[index]) inSum += value;
-    else outSum += value;
-  });
-  const outside = within.length - area;
-  if (!outside) return fallback;
-  const inMean = inSum / area;
-  const outMean = outSum / outside;
-  const mean = (inSum + outSum) / within.length;
-  const spread = Math.sqrt(within.reduce((sum, value) => sum + (value - mean) ** 2, 0) / within.length);
-  // Quiet Sun has no real edge, so following its texture would only make a jagged line.
-  if (!polarity && Math.abs(inMean - outMean) < spread * MIN_EDGE_CONTRAST) return fallback;
-  // A thin dark thread drawn over bright patches would otherwise snap to the patches.
-  const bright = polarity ? polarity === 'bright' : inMean >= outMean;
-  const sorted = [...within].sort((a, b) => a - b);
-  const median = sorted[Math.floor(sorted.length / 2)];
-  const typical = 1.4826 * [...within].map(value => Math.abs(value - median)).sort((a, b) => a - b)[Math.floor(within.length / 2)];
-  // With a known polarity, keep only values clearly beyond the typical background, not the brighter or darker half.
-  const margin = Math.max(1.5 * typical, 1);
-  const threshold = polarity ? (bright ? Math.max(otsu(within), median + margin) : Math.min(otsu(within), median - margin)) : otsu(within);
-  const feature = Uint8Array.from(smooth, (value, index) => (band[index] > 0 && (bright ? value >= threshold : value <= threshold) ? 1 : 0));
-  const found = fillHoles(bestComponent(feature, width, inside), width, height);
-  const rounded = boxMean(found, width, height, EDGE_SMOOTHING);
-  const shape = bestComponent(Uint8Array.from(rounded, value => (value >= 0.5 ? 1 : 0)), width, inside);
-  const size = shape.reduce((sum, value) => sum + value, 0);
-  // Filaments are thin, so a much smaller shape than the drawing is expected when the polarity is known.
-  if (size < area * (polarity ? MIN_THIN_SHARE : 0.3) || size > area * 3) return fallback;
-  const edge = traceEdge(shape, image);
-  return edge.length >= 3 ? simplifyOutline(edge) : fallback;
 }
 
 function unionBox(a: Point[], b: Point[]): Box {

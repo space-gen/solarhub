@@ -1,56 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { addOutline, circleAround, circlePolygon, outlineFromMask, overlapShare, reshapeMark, simplifyOutline, snapOutline, type Point } from '../src/utils/outline.ts';
+import { addOutline, circleAround, circlePolygon, outlineFromMask, overlapShare, reshapeMark, simplifyOutline, type Point } from '../src/utils/outline.ts';
 import { buildReview, SECTIONS, type Mark } from '../src/utils/annotationLogic.ts';
-
-const SIZE = 200;
-
-function imageWith(inside: (x: number, y: number) => boolean, value = 230, background = 40) {
-  const data = new Uint8Array(SIZE * SIZE);
-  for (let y = 0; y < SIZE; y++) for (let x = 0; x < SIZE; x++) data[y * SIZE + x] = inside(x, y) ? value : background;
-  return { x: 100, y: 100, width: SIZE, height: SIZE, data };
-}
-
-const lopsided = (x: number, y: number) => (x - 90) ** 2 / 1600 + (y - 100) ** 2 / 400 <= 1;
-
-test('a rough drawing snaps to an uneven bright feature', () => {
-  const snapped = snapOutline(circlePolygon(190, 200, 34), imageWith(lopsided));
-  const xs = snapped.map(point => point[0]);
-  assert.ok(Math.min(...xs) <= 155 && Math.max(...xs) >= 225, 'reaches both ends');
-  const ys = snapped.map(point => point[1]);
-  assert.ok(Math.max(...ys) - Math.min(...ys) < 56, 'does not stay round');
-  assert.ok(snapped.length <= 48);
-});
-
-test('a rough drawing also snaps to a dark feature', () => {
-  const snapped = snapOutline(circlePolygon(190, 200, 34), imageWith(lopsided, 10, 180));
-  assert.ok(Math.max(...snapped.map(point => point[0])) >= 225);
-});
-
-test('a drawing around a dark thread next to a bright patch follows the thread when told to look for dark', () => {
-  const patch = (x: number, y: number) => (x - 175) ** 2 + (y - 200) ** 2 <= 22 ** 2;
-  const thread = (x: number, y: number) => Math.abs(y - 200) <= 2 && x >= 200 && x <= 240;
-  const data = Uint8Array.from({ length: SIZE * SIZE }, (_, index) => {
-    const x = (index % SIZE) + 100;
-    const y = Math.floor(index / SIZE) + 100;
-    return patch(x, y) ? 240 : thread(x, y) ? 10 : 110;
-  });
-  const image = { x: 100, y: 100, width: SIZE, height: SIZE, data };
-  const snapped = snapOutline(circlePolygon(205, 200, 45), image, 'dark');
-  assert.ok(overlapShare(snapped, circlePolygon(175, 200, 22)) < 0.5, 'does not wrap the bright patch');
-});
-
-test('a drawing on empty sky stays as drawn', () => {
-  const rough = circlePolygon(190, 200, 30);
-  assert.equal(overlapShare(snapOutline(rough, imageWith(() => false)), rough) > 0.9, true);
-});
-
-test('grainy quiet Sun keeps the drawing instead of a jagged trace', () => {
-  const image = imageWith(() => false);
-  const grainy = Uint8Array.from(image.data, (_, index) => 90 + ((index * 7919) % 41));
-  const rough = circlePolygon(190, 200, 30);
-  assert.deepEqual(snapOutline(rough, { ...image, data: grainy }), simplifyOutline(rough));
-});
 
 test('a new drawing is added, and an overlapping one joins the existing ring', () => {
   const marks: Mark[] = [{ x: 200, y: 200, r: 40, label: 'plage', finder: { x: 200, y: 200, r: 40 } }];
