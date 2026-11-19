@@ -8,7 +8,7 @@ import { liveImage, SOLAR_VIEWS, viewFor, type SolarView } from '@/data/solarVie
 import TapStage from '@/components/TapStage';
 import { useStoredUser } from '@/hooks/useStoredUser';
 import { fetchAuroraTasksByType, type AuroraTask } from '@/services/auroraService';
-import { ANSWERS_WANTED, ARCHIVE_CODES, answerCounts, nextArchiveTasks } from '@/services/archiveTasks';
+import { ARCHIVE_CODES, directionFor, nextArchiveTasks, type Direction } from '@/services/archiveTasks';
 import { findCandidates, SIZE as FINDER_SIZE } from '@/utils/finder';
 import { loadProgressFromGitHub } from '@/services/githubSyncService';
 import { doneIds, doneToday, pendingCount, saveAnnotation } from '@/services/submissionQueue';
@@ -429,7 +429,7 @@ function Flow({ view }: { view: SolarView }) {
   }, []);
 
   const archive = Boolean(ARCHIVE_CODES[kind]);
-  const walk = useRef<{ lastId: string | null; finished: boolean; busy: boolean; skip: (id: string) => boolean }>({ lastId: null, finished: false, busy: false, skip: () => false });
+  const walk = useRef<{ lastId: string | null; finished: boolean; busy: boolean; skip: (id: string) => boolean; direction: Direction }>({ lastId: null, finished: false, busy: false, skip: () => false, direction: 'back' });
 
   // Research pictures are worked out from NASA's archive, walking back from the fixed start date.
   const refill = useCallback(async () => {
@@ -437,7 +437,7 @@ function Flow({ view }: { view: SolarView }) {
     if (state.busy || state.finished) return;
     state.busy = true;
     try {
-      const { tasks, finished, cursor } = await nextArchiveTasks(kind, state.lastId, state.skip, BATCH);
+      const { tasks, finished, cursor } = await nextArchiveTasks(kind, state.lastId, state.skip, BATCH, state.direction);
       state.finished = finished;
       state.lastId = cursor;
       setQueue(current => [...(current ?? []), ...tasks]);
@@ -453,7 +453,7 @@ function Flow({ view }: { view: SolarView }) {
   useEffect(() => {
     if (!archive) return;
     let active = true;
-    void Promise.all([answerCounts(kind), loadProgressFromGitHub().catch(() => null)]).then(([counts, progress]) => {
+    void loadProgressFromGitHub().catch(() => null).then(progress => {
       if (!active) return;
       const done = doneIds();
       walk.current = {
@@ -461,12 +461,14 @@ function Flow({ view }: { view: SolarView }) {
         lastId: progress?.lastCompletedIdsByType[kind] ?? null,
         finished: false,
         busy: false,
-        skip: id => done.has(id) || (counts[id] ?? 0) >= ANSWERS_WANTED,
+        skip: id => done.has(id),
+        // Signed-in people get the same direction on every device; guests get one per browser.
+        direction: directionFor(user?.login ?? contributorId()),
       };
       void refill();
     });
     return () => { active = false; };
-  }, [archive, kind, refill]);
+  }, [archive, kind, refill, user?.login]);
 
   const head = queue?.[0];
   useEffect(() => {

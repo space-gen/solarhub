@@ -1,6 +1,6 @@
 /**
  * Works out research pictures from NASA's SDO browse archive, newest first, walking back in time.
- * Everyone starts on ARCHIVE_START and goes back to ARCHIVE_END. Aurora re-checks every answer,
+ * Each contributor walks back from ARCHIVE_START or forward from ARCHIVE_END. Aurora re-checks every answer,
  * so nothing here is trusted; it only decides what to show next.
  */
 import type { AuroraTask } from '@/services/auroraService';
@@ -8,13 +8,11 @@ import type { TaskType } from '@/services/annotationService';
 
 export const ARCHIVE_START = '2026-11-20';
 export const ARCHIVE_END = '2016-10-01';
-export const ANSWERS_WANTED = 3;
 // Every frame, so each feature can be tracked as it evolves.
 const FRAME_STEP = 1;
 // Stop looking after this many empty days in one go, so a long archive gap cannot hang the page.
 const MAX_DAYS_PER_BATCH = 60;
 const BROWSE = 'https://sdo.gsfc.nasa.gov/assets/img/browse';
-const COUNTS = 'https://raw.githubusercontent.com/space-gen/aurora/data/data/answered';
 
 export const ARCHIVE_CODES: Partial<Record<TaskType, string>> = { aia_193: '0193', aia_211: '0211', aia_304: '0304' };
 
@@ -70,53 +68,63 @@ export const listDay: DayLister = async (date, code) => {
   return Array.isArray(names) ? names.filter((name): name is string => typeof name === 'string') : [];
 };
 
-/** How many answers Aurora has accepted for each picture; empty if the list cannot be read. */
-export async function answerCounts(kind: TaskType): Promise<Record<string, number>> {
-  try {
-    const response = await fetch(`${COUNTS}/${kind}.json`, { cache: 'no-store' });
-    if (!response.ok) return {};
-    const counts: unknown = await response.json();
-    return counts && typeof counts === 'object' ? (counts as Record<string, number>) : {};
-  } catch {
-    return {};
-  }
+export type Direction = 'back' | 'forward';
+
+/**
+ * A fair coin toss fixed by who is asking: half of contributors walk back from ARCHIVE_START,
+ * half walk forward from ARCHIVE_END, and the two groups meet somewhere in between.
+ */
+export function directionFor(who: string): Direction {
+  let hash = 0x811c9dc5;
+  for (let i = 0; i < who.length; i++) hash = Math.imul(hash ^ who.toLowerCase().charCodeAt(i), 0x01000193);
+  return (hash >>> 0) % 2 === 0 ? 'back' : 'forward';
+}
+
+function dayAfter(date: string): string {
+  const moment = new Date(`${date}T00:00:00Z`);
+  moment.setUTCDate(moment.getUTCDate() + 1);
+  return moment.toISOString().slice(0, 10);
 }
 
 /**
- * The next pictures strictly older than `afterId` (or from the start), skipping any `skip` says no to.
- * Returns fewer than `want` only when the archive end is reached or too many days were empty.
+ * The next pictures past `afterId` in `direction` (or from that direction's starting date),
+ * skipping any `skip` says no to. Returns fewer than `want` only at the far end or after many empty days.
  */
 export async function nextArchiveTasks(
   kind: TaskType,
   afterId: string | null,
   skip: (id: string) => boolean,
   want: number,
+  direction: Direction = 'back',
   list: DayLister = listDay,
 ): Promise<{ tasks: AuroraTask[]; finished: boolean; cursor: string | null }> {
   const code = ARCHIVE_CODES[kind];
   if (!code) return { tasks: [], finished: true, cursor: afterId };
+  const back = direction === 'back';
   const cursor = afterId && ID.test(afterId) && afterId.startsWith(`aia${Number(code)}-`) ? afterId : null;
-  let date = cursor ? dateOfId(cursor)! : ARCHIVE_START;
+  let date = cursor ? dateOfId(cursor)! : back ? ARCHIVE_START : ARCHIVE_END;
   if (date > ARCHIVE_START) date = ARCHIVE_START;
+  if (date < ARCHIVE_END) date = ARCHIVE_END;
   const tasks: AuroraTask[] = [];
   let scanned: string | null = null;
-  for (let days = 0; days < MAX_DAYS_PER_BATCH && tasks.length < want; days++, date = dayBefore(date)) {
-    if (date < ARCHIVE_END) return { tasks, finished: true, cursor: null };
+  for (let days = 0; days < MAX_DAYS_PER_BATCH && tasks.length < want; days++, date = back ? dayBefore(date) : dayAfter(date)) {
+    if (date < ARCHIVE_END || date > ARCHIVE_START) return { tasks, finished: true, cursor: null };
     scanned = date;
     const names = await list(date, code);
     const ids = names
       .filter((_, index) => index % FRAME_STEP === 0)
       .map(name => archiveId(code, name))
-      .filter((id): id is string => id !== null)
-      .reverse();
+      .filter((id): id is string => id !== null);
+    if (back) ids.reverse();
     for (const id of ids) {
-      // Ids sort by time, so "older than the cursor" is a plain string comparison.
-      if (cursor && id >= cursor) continue;
+      // Ids sort by time, so "past the cursor" is a plain string comparison.
+      if (cursor && (back ? id >= cursor : id <= cursor)) continue;
       if (!skip(id)) tasks.push(task(kind, id));
       if (tasks.length === want) break;
     }
   }
-  // With nothing new found, the next batch starts before the last day looked at, not back at the same days.
-  const next = tasks.length === want ? tasks[tasks.length - 1].id : scanned ? `aia${Number(code)}-${scanned.replace(/-/g, '')}000000` : afterId;
+  // With nothing new found, the next batch starts past the last day looked at, not on the same days again.
+  const edge = back ? '000000' : '235959';
+  const next = tasks.length === want ? tasks[tasks.length - 1].id : scanned ? `aia${Number(code)}-${scanned.replace(/-/g, '')}${edge}` : afterId;
   return { tasks, finished: false, cursor: next };
 }

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { ARCHIVE_END, archiveId, nextArchiveTasks, urlFromId, type DayLister } from '../src/services/archiveTasks.ts';
+import { ARCHIVE_END, archiveId, directionFor, nextArchiveTasks, urlFromId, type DayLister } from '../src/services/archiveTasks.ts';
 
 // Frames every two hours: 000000, 020000, 040000 ...
 const frames = (date: string, count: number) =>
@@ -16,7 +16,7 @@ test('ids and urls round-trip', () => {
 test('walks back from the start date, newest first, every frame', async () => {
   const asked: string[] = [];
   const list: DayLister = async date => { asked.push(date); return frames(date, 2); };
-  const { tasks } = await nextArchiveTasks('aia_193', null, () => false, 3, list);
+  const { tasks } = await nextArchiveTasks('aia_193', null, () => false, 3, 'back', list);
   assert.deepEqual(asked.slice(0, 2), ['2026-11-20', '2026-11-19']);
   assert.deepEqual(tasks.map(t => t.id), ['aia193-20261120020000', 'aia193-20261120000000', 'aia193-20261119020000']);
 });
@@ -24,19 +24,19 @@ test('walks back from the start date, newest first, every frame', async () => {
 test('resumes strictly before the saved picture and skips full or done ones', async () => {
   const list: DayLister = async date => frames(date, 3);
   const after = 'aia193-20261119020000';
-  const { tasks } = await nextArchiveTasks('aia_193', after, id => id === 'aia193-20261119000000', 2, list);
+  const { tasks } = await nextArchiveTasks('aia_193', after, id => id === 'aia193-20261119000000', 2, 'back', list);
   assert.deepEqual(tasks.map(t => t.id), ['aia193-20261118040000', 'aia193-20261118020000']);
 });
 
 test('a saved place from another channel is ignored', async () => {
   const list: DayLister = async date => frames(date, 1);
-  const { tasks } = await nextArchiveTasks('aia_193', 'aia211-20200101000000', () => false, 1, list);
+  const { tasks } = await nextArchiveTasks('aia_193', 'aia211-20200101000000', () => false, 1, 'back', list);
   assert.equal(tasks[0].id, 'aia193-20261120000000');
 });
 
 test('stops at the archive end', async () => {
   const list: DayLister = async date => frames(date, 1);
-  const { tasks, finished } = await nextArchiveTasks('aia_193', 'aia193-20161002000000', () => false, 5, list);
+  const { tasks, finished } = await nextArchiveTasks('aia_193', 'aia193-20161002000000', () => false, 5, 'back', list);
   assert.deepEqual(tasks.map(t => t.date), ['2016-10-01']);
   assert.equal(finished, true);
   assert.equal(ARCHIVE_END, '2016-10-01');
@@ -44,7 +44,21 @@ test('stops at the archive end', async () => {
 
 test('a batch of empty days still moves the saved place back', async () => {
   const list: DayLister = async () => [];
-  const { tasks, cursor } = await nextArchiveTasks('aia_193', null, () => false, 5, list);
+  const { tasks, cursor } = await nextArchiveTasks('aia_193', null, () => false, 5, 'back', list);
   assert.equal(tasks.length, 0);
   assert.ok(cursor && cursor < 'aia193-20261001000000', cursor ?? '');
+});
+
+test('walking forward starts at the archive end and resumes after the saved picture', async () => {
+  const list: DayLister = async date => frames(date, 2);
+  const first = await nextArchiveTasks('aia_193', null, () => false, 3, 'forward', list);
+  assert.deepEqual(first.tasks.map(t => t.id), ['aia193-20161001000000', 'aia193-20161001020000', 'aia193-20161002000000']);
+  const next = await nextArchiveTasks('aia_193', first.cursor, () => false, 1, 'forward', list);
+  assert.equal(next.tasks[0].id, 'aia193-20161002020000');
+});
+
+test('the coin toss is stable per person and splits people about evenly', () => {
+  assert.equal(directionFor('Ana'), directionFor('ana'));
+  const back = Array.from({ length: 1000 }, (_, i) => directionFor(`user${i}`)).filter(d => d === 'back').length;
+  assert.ok(back > 430 && back < 570, String(back));
 });
