@@ -5,6 +5,7 @@ import { useStoredUser } from '@/hooks/useStoredUser';
 const NAV_ITEMS = [
   { label: 'Home', to: '/' },
   { label: 'Classify', to: '/classify' },
+  { label: 'Data', to: '/data' },
   { label: 'About', to: '/about' },
   { label: 'Contact', to: '/contact' },
 ];

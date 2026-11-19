@@ -7,7 +7,6 @@ const LINKS = [
   ['Twitter', 'https://twitter.com/soumyadip_k'],
   ['Instagram', 'https://instagram.com/soumyadip_karforma'],
   ['GitHub', 'https://github.com/space-gen/solarhub'],
-  ['Datasets', 'https://huggingface.co/SpaceGen'],
 ];
 
 export default function Footer() {
@@ -21,6 +20,7 @@ export default function Footer() {
         </p>
         <nav aria-label="Footer" className="flex flex-wrap gap-x-5 gap-y-2">
           <Link className="link" to="/funding">Fund this project</Link>
+          <Link className="link" to="/data">Datasets</Link>
           {LINKS.map(([label, href]) => <a key={href} className="link" href={href} target="_blank" rel="noopener noreferrer">{label}</a>)}
           <a className="link" href="mailto:soumyadipkarforma02@gmail.com">Email</a>
         </nav>

@@ -2,7 +2,7 @@ const LINKS = [
   ['Email', 'soumyadipkarforma02@gmail.com', 'mailto:soumyadipkarforma02@gmail.com'],
   ['App code', 'space-gen/solarhub', 'https://github.com/space-gen/solarhub'],
   ['Data pipeline', 'space-gen/aurora', 'https://github.com/space-gen/aurora'],
-  ['Datasets', 'huggingface.co/SpaceGen', 'https://huggingface.co/SpaceGen'],
+  ['Datasets', 'Request access', '#/data'],
   ['Organization', 'space-gen.github.io', 'https://space-gen.github.io'],
 ];
 

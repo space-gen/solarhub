@@ -6,6 +6,7 @@ import About from '@/pages/About';
 import Account from '@/pages/Account';
 import Classify from '@/pages/Classify';
 import Contact from '@/pages/Contact';
+import Data from '@/pages/Data';
 import Funding from '@/pages/Funding';
 import Home from '@/pages/Home';
 import { getStoredUser } from '@/services/githubAuthService';
@@ -18,6 +19,7 @@ const PAGE_TITLES: Record<string, string> = {
   '/classify': 'Classify solar images',
   '/about': 'About',
   '/contact': 'Contact',
+  '/data': 'Data for research',
   '/funding': 'Support SolarHub',
   '/account': 'Sign in',
 };
@@ -97,6 +99,7 @@ function Shell() {
           <Route path="/" element={<Home />} />
           <Route path="/about" element={<About />} />
           <Route path="/contact" element={<Contact />} />
+          <Route path="/data" element={<Data />} />
           <Route path="/funding" element={<Funding />} />
           <Route path="/account" element={<Account points={points} streak={streak} />} />
           <Route path="/classify" element={<Classify />} />
