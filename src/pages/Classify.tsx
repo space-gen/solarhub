@@ -337,7 +337,7 @@ function ImageTask({ task, view, onDone, onSkip, onHelp }: { task: AuroraTask; v
       <SpotQuestions
         key={describing}
         view={view}
-        src={task.url}
+        src={editorImage}
         mark={marks[describing]}
         position={describing + 1}
         total={marks.length}
@@ -388,7 +388,7 @@ function ImageTask({ task, view, onDone, onSkip, onHelp }: { task: AuroraTask; v
     <Workspace
       stage={
         <TapStage
-          src={task.url}
+          src={editorImage}
           alt={`The whole Sun photographed by NASA's Solar Dynamics Observatory${date ? ` on ${date}` : ''}`}
           instruction={copy.prompt}
           marks={marks}
