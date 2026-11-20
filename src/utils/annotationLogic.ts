@@ -20,6 +20,8 @@ export interface Mark {
   partOfLarger?: boolean;
   outline?: Point[];
   finder?: { x: number; y: number; r: number };
+  /** Set when the suggestion came from a published catalogue such as SPoCA rather than Aurora's finder. */
+  catalogue?: string;
 }
 
 export const IMAGE_SIZE = 1024;
@@ -180,8 +182,9 @@ export function buildReview(marks: Mark[], section: Section) {
       label: mark.deleted ? null : mark.label,
       finder: mark.finder ? [mark.finder.x, mark.finder.y, mark.finder.r] : null,
       ring: [Math.round(mark.x), Math.round(mark.y), Math.round(mark.r)],
-      // An untouched finder shape is already stored by Aurora.
-      ...(mark.outline && (mark.added || mark.edited) ? { outline: mark.outline } : {}),
+      // An untouched finder shape is already stored by Aurora; catalogue shapes are not, so they are always sent.
+      ...(mark.outline && (mark.added || mark.edited || mark.catalogue) ? { outline: mark.outline } : {}),
+      ...(mark.catalogue ? { catalogue: mark.catalogue } : {}),
       ...(mark.partOfLarger ? { part_of_larger: true } : {}),
     })),
   };

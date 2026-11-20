@@ -3,13 +3,14 @@ import { Link, Navigate, NavLink, useParams } from 'react-router-dom';
 import ChannelGuide from '@/components/ChannelGuide';
 import FlareTask from '@/components/FlareTask';
 import SectionEditor from '@/components/SectionEditor';
-import SpotQuestions from '@/components/SpotQuestions';
+import FeatureCheck from '@/components/FeatureCheck';
 import { liveImage, SOLAR_VIEWS, viewFor, type SolarView } from '@/data/solarViews';
 import TapStage from '@/components/TapStage';
 import { useStoredUser } from '@/hooks/useStoredUser';
 import { fetchAuroraTasksByType, type AuroraTask } from '@/services/auroraService';
-import { ARCHIVE_CODES, directionFor, nextArchiveTasks, type Direction } from '@/services/archiveTasks';
+import { ARCHIVE_CODES, directionFor, nearestFrameUrl, nextArchiveTasks, type Direction } from '@/services/archiveTasks';
 import { findCandidates, SIZE as FINDER_SIZE } from '@/utils/finder';
+import { fetchCatalogue } from '@/services/catalogue';
 import { loadProgressFromGitHub } from '@/services/githubSyncService';
 import { doneIds, doneToday, pendingCount, saveAnnotation } from '@/services/submissionQueue';
 import {
@@ -19,7 +20,6 @@ import {
   isOnSun,
   pickSection,
   remainingAfter,
-  SECTION_COUNT,
   spreadOrder,
   viewAround,
   type Mark,
@@ -155,14 +155,14 @@ function ImageTask({ task, view, onDone, onSkip, onHelp }: { task: AuroraTask; v
   const checking = Boolean(view.learn && Array.isArray(task.candidates));
   const [assignment] = useState(() => (checking ? pickSection(task.candidates!, contributorId(), task.id) : null));
   const section = assignment?.section;
-  const [marks, setMarks] = useState<Mark[]>(() => assignment?.items.map(({ mask, ...mark }) => {
-    const outline = mask ? outlineFromMask(mask) : undefined;
-    return { ...mark, label: null, finder: { x: mark.x, y: mark.y, r: mark.r }, ...(outline ? { outline } : {}) };
+  const [marks, setMarks] = useState<Mark[]>(() => assignment?.items.map(({ mask, outline: given, catalogue, noaa: _noaa, ...mark }) => {
+    const outline = given ?? (mask ? outlineFromMask(mask) : undefined);
+    return { ...mark, label: null, finder: { x: mark.x, y: mark.y, r: mark.r }, ...(outline ? { outline } : {}), ...(catalogue ? { catalogue } : {}) };
   }) ?? []);
   const [history, setHistory] = useState<Mark[][]>([]);
   const [message, setMessage] = useState('');
   const [describing, setDescribing] = useState<number | null>(checking && marks.length ? 0 : null);
-  const [reshaping, setReshaping] = useState<{ index: number; whole: boolean } | null>(null);
+  const [reshaping, setReshaping] = useState<{ index: number; whole: boolean; label: string } | null>(null);
   const [failed, setFailed] = useState(false);
   const date = getCorrectDateFromUrl(task.url) || task.date;
   const editorImage = browseImage(task.url);
@@ -244,10 +244,10 @@ function ImageTask({ task, view, onDone, onSkip, onHelp }: { task: AuroraTask; v
       return;
     }
     setHistory([...history, marks]);
-    setMarks(next);
     setMessage('');
-    setDescribing(reshaping.index);
     setReshaping(null);
+    // The person already said what it is; the new shape keeps that answer.
+    advance(next.map((mark, position) => (position === reshaping.index ? { ...mark, label: reshaping.label } : mark)));
   };
 
   const previousMark = (index: number) => {
@@ -268,15 +268,15 @@ function ImageTask({ task, view, onDone, onSkip, onHelp }: { task: AuroraTask; v
   }
 
   if (reshaping && area) {
-    const { index, whole } = reshaping;
+    const { index, whole, label } = reshaping;
     const prompt = whole ? 'Draw around the whole thing' : 'Draw the correct edge';
     return (
       <Workspace stage={<SectionEditor src={editorImage} section={area} marks={marks} active={index} label={prompt} onDraw={applyReshape} onTap={() => setMessage('Draw a line around it.')} />}>
-        <p className="text-haze">Feature {index + 1} is highlighted</p>
+        <p className="text-haze">Outline {index + 1} is highlighted</p>
         <h1 className="text-4xl font-bold" tabIndex={-1}>{prompt}</h1>
-        <p role="status" className="min-h-7 text-lg text-haze">{message || (whole ? 'Start on the highlighted piece. Marks inside your line join it.' : 'A rough line is fine. It will snap to the edge.')}</p>
+        <p role="status" className="min-h-7 text-lg text-haze">{message || (whole ? 'Start on the highlighted piece and go all the way round. Your line is kept as you draw it.' : 'Draw the whole edge again. Your line is kept as you draw it.')}</p>
         {whole && (
-          <button type="button" className="btn big" onClick={() => { setReshaping(null); advance(marks.map((mark, position) => (position === index ? { ...mark, label: 'part_of_larger', partOfLarger: true } : mark))); }}>
+          <button type="button" className="btn big" onClick={() => { setReshaping(null); advance(marks.map((mark, position) => (position === index ? { ...mark, label, partOfLarger: true } : mark))); }}>
             I can't see where it ends
           </button>
         )}
@@ -287,35 +287,25 @@ function ImageTask({ task, view, onDone, onSkip, onHelp }: { task: AuroraTask; v
 
   if (describing !== null) {
     return (
-      <SpotQuestions
+      <FeatureCheck
         key={describing}
-        view={view}
+        kind={kind}
         src={editorImage}
+        compareSrc={task.compareUrl ? browseImage(task.compareUrl) : undefined}
         mark={marks[describing]}
         position={describing + 1}
         total={marks.length}
-        onResize={r => setMarks(marks.map((mark, index) => (index === describing ? { ...mark, r } : mark)))}
-        onEdit={checking ? next => setMarks(marks.map((mark, index) => (index === describing ? { ...next, edited: !mark.added } : mark))) : undefined}
-        onDelete={checking ? () => advance(
-          marks[describing].added
-            ? marks.filter((_, index) => index !== describing)
-            : marks.map((mark, index) => (index === describing ? { ...mark, label: 'none', deleted: true } : mark)),
-        ) : undefined}
-        onRedraw={checking ? () => { setReshaping({ index: describing, whole: false }); setDescribing(null); } : undefined}
-        onBack={checking && previousMark(describing) === null ? undefined : () => setDescribing(previousMark(describing))}
-        checking={checking}
-        section={section}
+        onBack={previousMark(describing) === null ? undefined : () => setDescribing(previousMark(describing))}
         onHelp={onHelp}
-        onSkip={checking ? onSkip : undefined}
-        onFinish={checking && answered.length ? () => finish(answered) : undefined}
-        onAnswer={label => {
-          if (checking && label === 'part_of_larger') {
-            setReshaping({ index: describing, whole: true });
-            setDescribing(null);
-          } else {
-            advance(marks.map((mark, index) => (index === describing ? { ...mark, label } : mark)));
-          }
-        }}
+        onSkip={onSkip}
+        onFinish={answered.length ? () => finish(answered) : undefined}
+        onReshape={(whole, label) => { setReshaping({ index: describing, whole, label }); setDescribing(null); }}
+        onAnswer={label => advance(
+          // A person's own drawing that turns out to be nothing is simply removed.
+          label === 'none' && marks[describing].added
+            ? marks.filter((_, index) => index !== describing)
+            : marks.map((mark, index) => (index === describing ? { ...mark, label } : mark)),
+        )}
       />
     );
   }
@@ -324,9 +314,8 @@ function ImageTask({ task, view, onDone, onSkip, onHelp }: { task: AuroraTask; v
     const prompt = view.missed ?? 'Did we miss anything here?';
     return (
       <Workspace stage={<SectionEditor src={editorImage} section={section} marks={marks} label={prompt} onDraw={applyDrawing} onTap={handleEditorTap} />}>
-        <p className="text-haze">Part {section.index + 1} of {SECTION_COUNT}</p>
         <h1 className="text-4xl font-bold" tabIndex={-1}>{prompt}</h1>
-        <p role="status" className="min-h-7 text-lg text-haze">{message || 'Roughly draw around a feature. The line will snap to its edge.'}</p>
+        <p role="status" className="min-h-7 text-lg text-haze">{message || 'Draw all the way round it. Your line is kept as you draw it.'}</p>
         {unanswered >= 0
           ? <button type="button" className="btn btn-primary big" onClick={() => setDescribing(unanswered)}>Describe the new outline</button>
           : <button type="button" className="btn btn-primary big" onClick={() => finish(marks)}>Nothing else, finish</button>}
@@ -369,6 +358,7 @@ function Flow({ view }: { view: SolarView }) {
   const user = useStoredUser();
   const topRef = useRef<HTMLDivElement>(null);
   const [queue, setQueue] = useState<AuroraTask[] | null>(null);
+  const [loadFailed, setLoadFailed] = useState(false);
   const [practising, setPractising] = useState(() => !practiceDone(kind));
   const [showGuide, setShowGuide] = useState(() => Boolean(view.learn) && !guideSeen(kind));
   const [saved, setSaved] = useState('');
@@ -391,12 +381,15 @@ function Flow({ view }: { view: SolarView }) {
     state.busy = true;
     try {
       const { tasks, finished, cursor } = await nextArchiveTasks(kind, state.lastId, state.skip, BATCH, state.direction);
+      // Signing in or out restarts the walk; drop results from the old one.
+      if (walk.current !== state) return;
       state.finished = finished;
       state.lastId = cursor;
       setQueue(current => [...(current ?? []), ...tasks]);
     } catch {
-      // NASA or the network failed; stop here rather than retrying in a loop, and show the empty message.
+      // NASA or the network failed even after retries; say so and let the person try again.
       state.finished = true;
+      setLoadFailed(true);
       setQueue(current => [...(current ?? [])]);
     } finally {
       state.busy = false;
@@ -409,6 +402,7 @@ function Flow({ view }: { view: SolarView }) {
     void loadProgressFromGitHub().catch(() => null).then(progress => {
       if (!active) return;
       const done = doneIds();
+      setQueue(null);
       walk.current = {
         // Carry on from the last picture this person finished, saved in their solarhub-data repo.
         lastId: progress?.lastCompletedIdsByType[kind] ?? null,
@@ -432,11 +426,17 @@ function Flow({ view }: { view: SolarView }) {
   useEffect(() => {
     if (!archive || !head || head.candidates) return;
     let active = true;
-    void loadGray(browseImage(head.url)).then(gray => {
+    const stamp = head.id.slice(-14);
+    const moment = new Date(`${stamp.slice(0, 4)}-${stamp.slice(4, 6)}-${stamp.slice(6, 8)}T${stamp.slice(8, 10)}:${stamp.slice(10, 12)}:${stamp.slice(12)}Z`);
+    // Coronal holes and filaments come from the published catalogue; the pixel finder is the fallback and handles 304.
+    const catalogue = kind === 'aia_304' ? Promise.resolve(null) : fetchCatalogue(moment);
+    const compare = kind === 'aia_304' ? Promise.resolve(null) : nearestFrameUrl(head.id, '0304').catch(() => null);
+    void Promise.all([loadGray(browseImage(head.url)), catalogue, compare]).then(([gray, found, compareUrl]) => {
       if (!active) return;
       setQueue(current => {
         if (!current?.length || current[0].id !== head.id) return current;
-        return gray ? [{ ...current[0], candidates: findCandidates(gray, kind) }, ...current.slice(1)] : current.slice(1);
+        if (!gray) return current.slice(1);
+        return [{ ...current[0], candidates: found ?? findCandidates(gray, kind), ...(compareUrl ? { compareUrl } : {}) }, ...current.slice(1)];
       });
     });
     return () => { active = false; };
@@ -531,6 +531,18 @@ function Flow({ view }: { view: SolarView }) {
           onSkip={() => { setSaved(''); nextImage(true); }}
           onHelp={view.learn ? () => setShowGuide(true) : undefined}
         />
+      ) : loadFailed ? (
+        <div className="measure py-12">
+          <h1 className="text-4xl font-bold" tabIndex={-1}>NASA's picture archive did not answer</h1>
+          <p className="mt-4 text-lg text-haze">This usually passes in a minute. Your place is kept.</p>
+          <button
+            type="button"
+            className="btn btn-primary big mt-6"
+            onClick={() => { setLoadFailed(false); walk.current.finished = false; void refill(); }}
+          >
+            Try again
+          </button>
+        </div>
       ) : (
         <div className="measure py-12">
           <h1 className="text-4xl font-bold" tabIndex={-1}>{kind === 'flare_source' ? 'No unassigned flares right now' : archive ? 'No more pictures in this view right now' : 'You finished every picture here'}</h1>

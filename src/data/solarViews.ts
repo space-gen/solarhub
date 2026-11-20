@@ -66,11 +66,11 @@ const noDark = 'I see no dark areas';
 
 export const SOLAR_VIEWS: SolarView[] = [
   {
-    ...aia(193, 'Bronze', 'AIA 193 Å, corona', 'Bronze shows gas near 1 million °C. Coronal holes are wide dark areas where this hot gas is missing. Filaments are thin dark threads.', '#c98b52', darkPrompt, noDark, 'dark area', DARK, 90, 480),
+    ...aia(193, 'Bronze', 'AIA 193 Å, corona', 'Bronze shows gas near 1 million °C. Coronal holes are dark because this hot gas is missing. Filaments are dark because a cool cloud of gas sits in front. To tell them apart you get the same spot in red: filaments stay dark there, coronal holes mostly do not.', '#c98b52', darkPrompt, noDark, 'dark area', DARK, 90, 480),
     missed: 'Draw around any filament or coronal hole we missed',
   },
   {
-    ...aia(211, 'Purple', 'AIA 211 Å, active corona', 'Purple shows gas near 2 million °C. Look past the soft swirls for wide dark holes and thin dark threads.', '#c47bb5', darkPrompt, noDark, 'dark area', DARK, 90, 480),
+    ...aia(211, 'Purple', 'AIA 211 Å, active corona', 'Purple shows gas near 2 million °C. Coronal holes and filaments both look dark here. The same spot in red tells them apart: filaments stay dark there, coronal holes mostly do not.', '#c47bb5', darkPrompt, noDark, 'dark area', DARK, 90, 480),
     missed: 'Draw around any filament or coronal hole we missed',
   },
   {

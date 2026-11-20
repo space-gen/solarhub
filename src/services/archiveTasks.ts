@@ -61,12 +61,34 @@ function task(kind: TaskType, id: string): AuroraTask {
   };
 }
 
+const LIST_ATTEMPTS = 3;
+
+// NASA's day listings are slow the first time and sometimes fail, so a failure is retried before giving up.
 export const listDay: DayLister = async (date, code) => {
-  const response = await fetch(`/api/sdo/list/${date.replace(/-/g, '/')}/${code}.json`);
-  if (!response.ok) throw new Error(`listing ${date} failed: ${response.status}`);
-  const names: unknown = await response.json();
-  return Array.isArray(names) ? names.filter((name): name is string => typeof name === 'string') : [];
+  for (let attempt = 1; ; attempt++) {
+    try {
+      const response = await fetch(`/api/sdo/list/${date.replace(/-/g, '/')}/${code}.json`);
+      if (!response.ok) throw new Error(`listing ${date} failed: ${response.status}`);
+      const names: unknown = await response.json();
+      return Array.isArray(names) ? names.filter((name): name is string => typeof name === 'string') : [];
+    } catch (error) {
+      if (attempt === LIST_ATTEMPTS) throw error;
+      await new Promise(resolve => setTimeout(resolve, 1500 * attempt));
+    }
+  }
 };
+
+/** The frame of another channel nearest in time to an archive picture, or null when that day has none. */
+export async function nearestFrameUrl(id: string, code: string, list: DayLister = listDay): Promise<string | null> {
+  const match = ID.exec(id);
+  if (!match) return null;
+  const seconds = (stamp: string) => Number(stamp.slice(0, 2)) * 3600 + Number(stamp.slice(2, 4)) * 60 + Number(stamp.slice(4, 6));
+  const target = seconds(match[5]);
+  const names = await list(`${match[2]}-${match[3]}-${match[4]}`, code);
+  const best = names.reduce<string | null>((found, name) => (found && Math.abs(seconds(found.slice(9, 15)) - target) <= Math.abs(seconds(name.slice(9, 15)) - target) ? found : name), null);
+  const other = best && archiveId(code, best);
+  return other ? urlFromId(other) : null;
+}
 
 export type Direction = 'back' | 'forward';
 
@@ -122,6 +144,11 @@ export async function nextArchiveTasks(
       if (!skip(id)) tasks.push(task(kind, id));
       if (tasks.length === want) break;
     }
+  }
+  // Ask for the following day now, so it is already cached when this one runs out.
+  if (scanned) {
+    const following = back ? dayBefore(scanned) : dayAfter(scanned);
+    if (following >= ARCHIVE_END && following <= ARCHIVE_START) void list(following, code).catch(() => undefined);
   }
   // With nothing new found, the next batch starts past the last day looked at, not on the same days again.
   const edge = back ? '000000' : '235959';

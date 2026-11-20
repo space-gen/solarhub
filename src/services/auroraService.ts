@@ -32,9 +32,11 @@ export interface AuroraTask {
   /** 1-based position in the dataset — used as the aurora serial_number */
   serialNumber: number;
   /** Features found by Aurora for contributors to check one at a time. */
-  candidates?: Array<{ x: number; y: number; r: number; mask?: string; noaa?: number }>;
+  candidates?: Array<{ x: number; y: number; r: number; mask?: string; noaa?: number; outline?: Array<[number, number]>; catalogue?: string }>;
   /** Flare tasks: the frame before the flare and the GOES flare details. */
   beforeUrl?: string;
+  /** 193 and 211: the 304 frame nearest in time, to tell filaments from coronal holes. */
+  compareUrl?: string;
   flare?: { goes_class: string; peak: string };
   /** Where the automatic check saw the flare brighten, and the close-up to show. */
   flash?: { x: number; y: number };
@@ -51,7 +53,7 @@ interface RawAuroraRecord {
     source?: string;
     date?: string;
     captured_at?: string;
-    candidates?: Array<{ x: number; y: number; r: number; mask?: string; noaa?: number }>;
+    candidates?: Array<{ x: number; y: number; r: number; mask?: string; noaa?: number; outline?: Array<[number, number]>; catalogue?: string }>;
     before_url?: string;
     flare?: { goes_class: string; peak: string };
     flash?: { x: number; y: number };

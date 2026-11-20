@@ -89,7 +89,8 @@ export default function SectionEditor({ src, section, marks, label, onDraw, onTa
     >
       <svg viewBox={`${section.x} ${section.y} ${section.size} ${section.size}`} aria-hidden="true" className="pointer-events-none absolute inset-0 h-full w-full">
         {marks.map((mark, index) => {
-          if (mark.deleted || mark.merged) return null;
+          // Rejected suggestions are gone as far as the person is concerned.
+          if (mark.deleted || mark.merged || mark.label === 'none') return null;
           const shape = { fill: 'none', vectorEffect: 'non-scaling-stroke' as const };
           const colour = mark.added || index === active ? '#ffc45e' : '#56e6d4';
           return (

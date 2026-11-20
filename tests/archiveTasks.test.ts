@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { ARCHIVE_END, archiveId, directionFor, nextArchiveTasks, urlFromId, type DayLister } from '../src/services/archiveTasks.ts';
+import { ARCHIVE_END, archiveId, directionFor, nearestFrameUrl, nextArchiveTasks, urlFromId, type DayLister } from '../src/services/archiveTasks.ts';
 
 // Frames every two hours: 000000, 020000, 040000 ...
 const frames = (date: string, count: number) =>
@@ -61,4 +61,9 @@ test('the coin toss is stable per person and splits people about evenly', () => 
   assert.equal(directionFor('Ana'), directionFor('ana'));
   const back = Array.from({ length: 1000 }, (_, i) => directionFor(`user${i}`)).filter(d => d === 'back').length;
   assert.ok(back > 430 && back < 570, String(back));
+});
+
+test('the comparison frame is the one nearest in time on the same day', async () => {
+  const list: DayLister = async (_date, code) => [`20200304_115000_1024_${code}.jpg`, `20200304_120400_1024_${code}.jpg`];
+  assert.equal(await nearestFrameUrl('aia193-20200304120100', '0304', list), 'https://sdo.gsfc.nasa.gov/assets/img/browse/2020/03/04/20200304_120400_1024_0304.jpg');
 });

@@ -112,3 +112,27 @@ test('day listing refuses dates outside the archive range and impossible dates',
     assert.equal(res.status, 404, path);
   }
 });
+
+test('catalogue lookup sends only fixed HEK parameters around the asked hour', async () => {
+  let asked;
+  globalThis.fetch = async url => {
+    asked = new URL(url);
+    return Response.json({ result: [
+      { event_type: 'CH', frm_name: 'SPoCA', event_starttime: '2021-03-06T09:37:05', hpc_boundcc: 'POLYGON((1 2,3 4,5 6))' },
+      { event_type: 'FL', frm_name: 'x', hpc_boundcc: 'POLYGON((1 2,3 4,5 6))' },
+    ] });
+  };
+  const res = await worker.fetch(new Request(`${ORIGIN}/api/hek/dark/2021-03-06T12.json`), env);
+  assert.equal(asked.origin + asked.pathname, 'https://www.lmsal.com/hek/her');
+  assert.equal(asked.searchParams.get('event_type'), 'ch,fi');
+  assert.equal(asked.searchParams.get('event_starttime'), '2021-03-06T08:00:00');
+  assert.deepEqual(await res.json(), [{ type: 'CH', catalogue: 'SPoCA', start: '2021-03-06T09:37:05', polygon: 'POLYGON((1 2,3 4,5 6))' }]);
+});
+
+test('catalogue lookup refuses impossible or out-of-range hours', async () => {
+  globalThis.fetch = async () => assert.fail('must not fetch');
+  for (const path of ['2021-02-30T12', '2021-03-06T25', '2016-09-30T12']) {
+    const res = await worker.fetch(new Request(`${ORIGIN}/api/hek/dark/${path}.json`), env);
+    assert.equal(res.status, 404, path);
+  }
+});

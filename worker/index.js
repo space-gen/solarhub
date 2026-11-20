@@ -13,6 +13,10 @@ const LIST_PATH = /^\/api\/sdo\/list\/(\d{4})\/(\d{2})\/(\d{2})\/(0193|0211|0304
 const ARCHIVE_FIRST = '20161001';
 const ARCHIVE_LAST = '20261120';
 
+const HEK_PATH = /^\/api\/hek\/dark\/(\d{4})-(\d{2})-(\d{2})T(\d{2})\.json$/;
+const HEK_HOURS = 4;
+const HEK_CACHE_SECONDS = 2592000;
+
 function json(status, body) {
   return new Response(JSON.stringify(body), {
     status,
@@ -84,6 +88,39 @@ function listing(names) {
   });
 }
 
+// Catalogued coronal holes (SPoCA) and filaments near one hour, so suggestions come from a published detector.
+async function darkFeatures(match, method) {
+  const [, year, month, day, hour] = match;
+  const moment = new Date(`${year}-${month}-${day}T${hour}:00:00Z`);
+  const date = `${year}${month}${day}`;
+  if (Number.isNaN(moment.getTime()) || moment.toISOString().slice(0, 13) !== `${year}-${month}-${day}T${hour}`) return json(404, { error: 'not_found' });
+  if (date < ARCHIVE_FIRST || date > ARCHIVE_LAST) return json(404, { error: 'not_found' });
+  if (method !== 'GET') return json(405, { error: 'method_not_allowed' });
+  const stamp = offset => new Date(moment.getTime() + offset * 3600000).toISOString().slice(0, 19);
+  const query = new URLSearchParams({
+    cosec: '2', cmd: 'search', type: 'column', event_type: 'ch,fi',
+    event_starttime: stamp(-HEK_HOURS), event_endtime: stamp(HEK_HOURS),
+    event_coordsys: 'helioprojective', x1: '-5000', x2: '5000', y1: '-5000', y2: '5000',
+    result_limit: '500', return: 'event_type,frm_name,hpc_boundcc,event_starttime',
+  });
+  try {
+    const response = await fetch(`https://www.lmsal.com/hek/her?${query}`, {
+      headers: { 'User-Agent': 'solarhub-catalogue-proxy' },
+      cf: { cacheEverything: true, cacheTtl: HEK_CACHE_SECONDS },
+    });
+    if (!response.ok) return json(502, { error: 'catalogue_unavailable' });
+    const body = await response.json();
+    const events = (body.result ?? [])
+      .filter(event => (event.event_type === 'CH' || event.event_type === 'FI') && typeof event.hpc_boundcc === 'string')
+      .map(event => ({ type: event.event_type, catalogue: event.frm_name, start: event.event_starttime, polygon: event.hpc_boundcc }));
+    return new Response(JSON.stringify(events), {
+      headers: { 'Content-Type': 'application/json', 'Cache-Control': `public, max-age=${HEK_CACHE_SECONDS}` },
+    });
+  } catch {
+    return json(502, { error: 'catalogue_unavailable' });
+  }
+}
+
 async function buildUpstream(pathname, request, env) {
   if (pathname === '/api/github/device/code') {
     return {
@@ -111,6 +148,8 @@ export default {
     if (browse) return browseSolarImage(browse, request.method);
     const day = pathname.match(LIST_PATH);
     if (day) return listSolarDay(day, request.method);
+    const dark = pathname.match(HEK_PATH);
+    if (dark) return darkFeatures(dark, request.method);
 
     if (pathname !== '/api/github/device/code' && pathname !== '/api/github/access_token') {
       return json(404, { error: 'not_found' });
