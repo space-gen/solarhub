@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import type { AuroraTask } from '@/services/auroraService';
+import { redShift } from '@/services/catalogue';
 import { saveAnnotation } from '@/services/submissionQueue';
 import { IMAGE_SIZE } from '@/utils/annotationLogic';
 import { outlineFromMask, type Point } from '@/utils/outline';
@@ -44,6 +45,10 @@ export function Crop({ src, patch, size, label }: { src: string; patch: Patch; s
       <figcaption className="mt-1 text-center text-xs text-haze">{label}</figcaption>
     </figure>
   );
+}
+
+function shifted(patch: Patch, [dx, dy]: Point): Patch {
+  return dx || dy ? { ...patch, x: patch.x + dx, y: patch.y + dy, outline: patch.outline?.map(([x, y]) => [x + dx, y + dy] as Point) } : patch;
 }
 
 function patchesOf(task: AuroraTask): Patch[] {
@@ -100,7 +105,7 @@ export default function PatchTask({ task, src, compareSrc, onDone, onSkip, onHel
     <div className="grid gap-5 md:grid-cols-[minmax(0,1fr)_23rem] md:items-start">
       <div className={`mx-auto grid w-full gap-2 md:max-w-[min(100%,calc((100svh-15rem)*1.5))] ${compareSrc ? 'grid-cols-3' : 'grid-cols-2'}`}>
         <Crop src={src} patch={patch} size={size} label="Up close" />
-        {compareSrc && <Crop src={compareSrc} patch={patch} size={size} label="Same place in red (304 Å)" />}
+        {compareSrc && <Crop src={compareSrc} patch={shifted(patch, redShift(compareSrc))} size={size} label="Same place in red (304 Å)" />}
         <Crop src={src} patch={patch} size={IMAGE_SIZE} label="Whole Sun" />
       </div>
       <div className="flex flex-col gap-3">

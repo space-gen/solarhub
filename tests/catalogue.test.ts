@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { catalogueCandidates, polygonPixels, type CatalogueEvent } from '../src/services/catalogue.ts';
+import { catalogueCandidates, polygonPixels, redShift, type CatalogueEvent } from '../src/services/catalogue.ts';
 
 const square = (x: number, y: number, half: number) =>
   `POLYGON((${x - half} ${y - half},${x + half} ${y - half},${x + half} ${y + half},${x - half} ${y + half},${x - half} ${y - half}))`;
@@ -23,4 +23,10 @@ test('only the SPoCA run nearest the picture is kept, filaments always, tiny sha
 
 test('an hour the catalogue has not reached yet gives nothing to ask about', () => {
   assert.deepEqual(catalogueCandidates([], new Date('2026-11-19T19:00:00Z')), []);
+});
+
+test('red frames before 2018-03-31 are shifted to their off-centre disk', () => {
+  assert.deepEqual(redShift('/api/sdo/browse/2018/03/30/20180330_235800_1024_0304.jpg'), [5.5, 9.5]);
+  assert.deepEqual(redShift('/api/sdo/browse/2018/03/31/20180331_000600_1024_0304.jpg'), [0, 0]);
+  assert.deepEqual(redShift('/api/sdo/browse/2017/01/01/20170101_120000_1024_0193.jpg'), [0, 0]);
 });

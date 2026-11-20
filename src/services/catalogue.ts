@@ -9,6 +9,15 @@ import { circleAround, simplifyOutline, type Point } from '../utils/outline.ts';
 const ARCSEC_PER_PIXEL = 2.4;
 const CENTRE = 511.5;
 const MIN_AREA = 300;
+// Limb fits: 304 browse frames before 2018-03-31 have the disk centre at (517, 521), not the image centre.
+const RED_RECENTRED = '20180331';
+const RED_EARLY_SHIFT: Point = [517 - CENTRE, 521 - CENTRE];
+
+/** How far a point on a 193/211 picture moves to land on the same spot of this 304 frame. */
+export function redShift(url: string): Point {
+  const day = url.match(/(\d{8})_\d{6}_1024_0304/)?.[1];
+  return day && day < RED_RECENTRED ? RED_EARLY_SHIFT : [0, 0];
+}
 
 export interface CatalogueEvent { type: 'CH' | 'FI'; catalogue: string; start: string; polygon: string }
 export interface CatalogueCandidate { x: number; y: number; r: number; outline: Point[]; catalogue: string; expected: 'coronal_hole' | 'filament' }
