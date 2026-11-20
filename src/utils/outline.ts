@@ -7,106 +7,13 @@ interface Box {
   height: number;
 }
 
-interface Outlined {
-  x: number;
-  y: number;
-  r: number;
-  label: string | null;
-  edited?: boolean;
-  added?: boolean;
-  deleted?: boolean;
-  drawn?: boolean;
-  merged?: boolean;
-  partOfLarger?: boolean;
-  outline?: Point[];
-}
-
 const MASK_SIZE = 1024;
 const MAX_POINTS = 48;
-export const JOIN_SHARE = 0.3;
-// When one shape mostly contains the other, the drawing is a new edge rather than an extension.
-const REPLACE_SHARE = 0.7;
-const MIN_TOUCH_SHARE = 0.05;
 const NEIGHBOURS: Point[] = [[1, 0], [1, 1], [0, 1], [-1, 1], [-1, 0], [-1, -1], [0, -1], [1, -1]];
 
-export function circlePolygon(x: number, y: number, r: number, count = 24): Point[] {
-  return Array.from({ length: count }, (_, index) => {
-    const angle = (index / count) * Math.PI * 2;
-    return [Math.round(x + Math.cos(angle) * r), Math.round(y + Math.sin(angle) * r)];
-  });
-}
 
-function maskOf(polygon: Point[], box: Box): Uint8Array {
-  const mask = new Uint8Array(box.width * box.height);
-  for (let row = 0; row < box.height; row++) {
-    const y = box.y + row + 0.5;
-    const crossings: number[] = [];
-    polygon.forEach(([ax, ay], index) => {
-      const [bx, by] = polygon[(index + 1) % polygon.length];
-      if ((ay <= y) !== (by <= y)) crossings.push(ax + ((y - ay) / (by - ay)) * (bx - ax));
-    });
-    crossings.sort((a, b) => a - b);
-    for (let pair = 0; pair + 1 < crossings.length; pair += 2) {
-      const from = Math.max(0, Math.ceil(crossings[pair] - box.x - 0.5));
-      const to = Math.min(box.width - 1, Math.floor(crossings[pair + 1] - box.x - 0.5));
-      for (let column = from; column <= to; column++) mask[row * box.width + column] = 1;
-    }
-  }
-  return mask;
-}
 
-function bestComponent(mask: Uint8Array, width: number, weight?: Uint8Array): Uint8Array {
-  const labels = new Int32Array(mask.length);
-  let label = 0;
-  let bestLabel = 0;
-  let bestScore = 0;
-  for (let start = 0; start < mask.length; start++) {
-    if (!mask[start] || labels[start]) continue;
-    label++;
-    let score = 0;
-    const stack = [start];
-    labels[start] = label;
-    while (stack.length) {
-      const at = stack.pop()!;
-      score += weight ? weight[at] : 1;
-      const x = at % width;
-      const next = [x > 0 ? at - 1 : -1, x < width - 1 ? at + 1 : -1, at >= width ? at - width : -1, at + width < mask.length ? at + width : -1];
-      for (const other of next) {
-        if (other >= 0 && mask[other] && !labels[other]) {
-          labels[other] = label;
-          stack.push(other);
-        }
-      }
-    }
-    if (score > bestScore) {
-      bestScore = score;
-      bestLabel = label;
-    }
-  }
-  return Uint8Array.from(labels, value => (bestLabel && value === bestLabel ? 1 : 0));
-}
 
-function fillHoles(mask: Uint8Array, width: number, height: number): Uint8Array {
-  const outside = new Uint8Array(mask.length);
-  const stack: number[] = [];
-  const visit = (at: number) => {
-    if (!mask[at] && !outside[at]) {
-      outside[at] = 1;
-      stack.push(at);
-    }
-  };
-  for (let x = 0; x < width; x++) { visit(x); visit((height - 1) * width + x); }
-  for (let y = 0; y < height; y++) { visit(y * width); visit(y * width + width - 1); }
-  while (stack.length) {
-    const at = stack.pop()!;
-    const x = at % width;
-    if (x > 0) visit(at - 1);
-    if (x < width - 1) visit(at + 1);
-    if (at >= width) visit(at - width);
-    if (at + width < mask.length) visit(at + width);
-  }
-  return Uint8Array.from(outside, value => 1 - value);
-}
 
 function traceEdge(mask: Uint8Array, box: Box): Point[] {
   const start = mask.indexOf(1);
@@ -202,35 +109,8 @@ export function outlineFromMask(text: string): Point[] | undefined {
   return edge.length >= 3 ? simplifyOutline(edge) : undefined;
 }
 
-function unionBox(a: Point[], b: Point[]): Box {
-  const points = [...a, ...b];
-  const x = Math.floor(Math.min(...points.map(point => point[0]))) - 1;
-  const y = Math.floor(Math.min(...points.map(point => point[1]))) - 1;
-  return { x, y, width: Math.ceil(Math.max(...points.map(point => point[0]))) - x + 2, height: Math.ceil(Math.max(...points.map(point => point[1]))) - y + 2 };
-}
 
-export function overlapShare(a: Point[], b: Point[]): number {
-  const box = unionBox(a, b);
-  const first = maskOf(a, box);
-  const second = maskOf(b, box);
-  let both = 0;
-  let sizeA = 0;
-  let sizeB = 0;
-  first.forEach((value, index) => {
-    sizeA += value;
-    sizeB += second[index];
-    both += value & second[index];
-  });
-  return both / Math.max(1, Math.min(sizeA, sizeB));
-}
 
-export function joinOutlines(a: Point[], b: Point[]): Point[] {
-  const box = unionBox(a, b);
-  const first = maskOf(a, box);
-  const second = maskOf(b, box);
-  const union = Uint8Array.from(first, (value, index) => value | second[index]);
-  return simplifyOutline(traceEdge(fillHoles(bestComponent(union, box.width), box.width, box.height), box));
-}
 
 export function circleAround(outline: Point[]) {
   const x = outline.reduce((sum, point) => sum + point[0], 0) / outline.length;
@@ -239,43 +119,4 @@ export function circleAround(outline: Point[]) {
   return { x: Math.round(x), y: Math.round(y), r: Math.max(8, Math.min(300, Math.ceil(r))) };
 }
 
-/** Joins a drawing to the ring it overlaps, or adds it as a new feature. */
-export function addOutline<T extends Outlined>(marks: T[], outline: Point[]): { marks: T[]; joined: number | null } {
-  let joined: number | null = null;
-  let best = JOIN_SHARE;
-  marks.forEach((mark, index) => {
-    if (mark.deleted || mark.merged) return;
-    const share = overlapShare(mark.outline ?? circlePolygon(mark.x, mark.y, mark.r), outline);
-    if (share >= best) {
-      best = share;
-      joined = index;
-    }
-  });
-  if (joined === null) {
-    return { marks: [...marks, { ...circleAround(outline), label: null, added: true, outline } as T], joined };
-  }
-  return {
-    joined,
-    marks: marks.map((mark, index) => {
-      if (index !== joined) return mark;
-      const shape = mark.outline && best < REPLACE_SHARE ? joinOutlines(mark.outline, outline) : outline;
-      return { ...mark, ...circleAround(shape), outline: shape, edited: !mark.added, drawn: true };
-    }),
-  };
-}
 
-/** Redraws one feature, or grows it to the whole structure and absorbs the pieces inside. */
-export function reshapeMark<T extends Outlined>(marks: T[], index: number, outline: Point[], whole: boolean): T[] | null {
-  const shapeOf = (mark: T) => mark.outline ?? circlePolygon(mark.x, mark.y, mark.r);
-  const current = shapeOf(marks[index]);
-  if (overlapShare(current, outline) < MIN_TOUCH_SHARE) return null;
-  const shape = whole ? joinOutlines(current, outline) : outline;
-  const circle = circleAround(shape);
-  return marks.map((mark, position) => {
-    if (position === index) {
-      return { ...mark, ...circle, outline: shape, label: null, edited: !mark.added, drawn: true, partOfLarger: whole || mark.partOfLarger };
-    }
-    const absorbed = whole && !mark.deleted && !mark.merged && mark.r <= circle.r && overlapShare(shapeOf(mark), shape) >= REPLACE_SHARE;
-    return absorbed ? { ...mark, merged: true, label: 'part_of_larger' } : mark;
-  });
-}

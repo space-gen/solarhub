@@ -67,3 +67,11 @@ test('the comparison frame is the one nearest in time on the same day', async ()
   const list: DayLister = async (_date, code) => [`20200304_115000_1024_${code}.jpg`, `20200304_120400_1024_${code}.jpg`];
   assert.equal(await nearestFrameUrl('aia193-20200304120100', '0304', list), 'https://sdo.gsfc.nasa.gov/assets/img/browse/2020/03/04/20200304_120400_1024_0304.jpg');
 });
+
+test('daily sampling takes the frame nearest noon; windows group 3-hour movies', async () => {
+  const list: DayLister = async date => frames(date, 12);
+  const daily = await nextArchiveTasks('aia_193', null, () => false, 2, 'back', list, 'daily');
+  assert.deepEqual(daily.tasks.map(t => t.id), ['aia193-20261120120000', 'aia193-20261119120000']);
+  const movies = await nextArchiveTasks('aia_304', null, () => false, 2, 'forward', async date => frames(date, 12).map(n => n.replace('0193', '0304')), 'windows');
+  assert.deepEqual(movies.tasks.map(t => [t.id, t.frames?.length]), [['aia304-20161001000000', 2], ['aia304-20161001040000', 1]]);
+});

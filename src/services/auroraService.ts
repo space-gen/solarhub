@@ -37,6 +37,8 @@ export interface AuroraTask {
   beforeUrl?: string;
   /** 193 and 211: the 304 frame nearest in time, to tell filaments from coronal holes. */
   compareUrl?: string;
+  /** Eruption movies: the consecutive frames of one 3-hour window, oldest first. */
+  frames?: string[];
   flare?: { goes_class: string; peak: string };
   /** Where the automatic check saw the flare brighten, and the close-up to show. */
   flash?: { x: number; y: number };

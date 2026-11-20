@@ -11,9 +11,9 @@ export default function ChannelGuide({ view, onDone }: { view: SolarView; onDone
         </div>
       </div>
       <p className="measure mt-4 text-lg">{view.learn}</p>
-      <p className="mt-2 text-haze">You see one outline at a time. Say what is inside it, then whether the outline fits. At the end, draw around anything we missed.</p>
+      <p className="mt-2 text-haze">{view.howTo}</p>
       <ul className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-        {view.answers.filter(answer => answer.label !== 'part_of_larger').map(answer => (
+        {view.answers.map(answer => (
           <li key={answer.label} className="overflow-hidden rounded-md border border-hairline bg-panel">
             <img src={answer.image} alt={`Real solar example: ${answer.text.toLowerCase()}`} loading="lazy" className="aspect-square w-full object-cover" />
             <div className="p-3">

@@ -5,49 +5,41 @@ const EMAIL = 'soumyadipkarforma02@gmail.com';
 
 const PRODUCTS = [
   {
-    id: 'coronal-holes',
-    title: 'Coronal hole boundaries',
+    id: 'dark-patches',
+    title: 'Coronal hole or filament channel',
     image: '/images/aia-examples/0193-coronal_hole.jpg',
-    source: 'SDO/AIA 193 Å and 211 Å',
-    what: 'The outline of each coronal hole as a pixel mask, with its area, position in solar coordinates and Carrington rotation.',
-    uses: ['Train and test coronal hole segmentation models', 'Inputs for solar wind and high-speed stream forecasts', 'Check automatic detectors against human boundaries'],
+    source: 'SDO/AIA 193 Å and 211 Å, with 304 Å for comparison; one picture a day',
+    what: 'For each dark patch catalogued by SPoCA or AAFDCC, or found by our detector, several people say whether it is a coronal hole, a filament channel, something else, or unclear. Automatic detectors still confuse the two.',
+    uses: ['Clean coronal hole samples for solar wind forecasting', 'Labels for coronal hole and filament channel classifiers', 'A check on catalogue detections, patch by patch'],
   },
   {
-    id: 'filaments',
-    title: 'Filaments in EUV',
-    image: '/images/aia-examples/0193-filament.jpg',
-    source: 'SDO/AIA 193, 211 and 304 Å',
-    what: 'Hand-drawn outlines of dark filaments on the disk. NASA’s event catalogue (HEK) has no filament records since 2023.',
-    uses: ['Track filaments before they erupt', 'Study eruptions that lead to coronal mass ejections', 'Labels for filament detectors in EUV, not only H-alpha'],
-  },
-  {
-    id: 'prominences',
-    title: 'Prominences at the limb',
+    id: 'eruptions',
+    title: 'Prominence and filament eruptions',
     image: '/images/aia-examples/0304-prominence.jpg',
-    source: 'SDO/AIA 304 Å',
-    what: 'Outlines of prominences above the solar edge, drawn on the original images rather than on enhanced colour maps.',
-    uses: ['Prominence size and height over time', 'Link prominences seen at the limb to filaments seen on the disk'],
+    source: 'SDO/AIA 304 Å, 3-hour movies of each quarter of the Sun, every frame',
+    what: 'Whether material lifts off and leaves the Sun, where and when it started, and the many movies where nothing erupted. The main expert catalogue of AIA filament eruptions ends in 2014; this covers 2016 to 2026.',
+    uses: ['Eruption rates and early warning of coronal mass ejections', 'Eruptions and non-eruptions for training models', 'Matching against coronal mass ejection catalogues'],
   },
   {
     id: 'flares',
     title: 'Which region produced a flare',
     image: '/images/aia-examples/0131-bright_region.jpg',
     source: 'GOES flares with SDO/AIA 131 and 94 Å',
-    what: 'For C, M and X flares that NOAA left without an active region, the region volunteers saw brighten, with the flash position and how well people agreed.',
+    what: 'For C, M and X flares that NOAA left without an active region, the region volunteers saw brighten. Hidden check flares with a known region measure how often volunteers are right.',
     uses: ['Fill gaps in flare catalogues', 'Region-level labels for flare forecasting', 'Compare with SolarSoft Latest Events'],
   },
 ];
 
 const FIELDS = [
-  ['Shape', 'Pixel mask in COCO run-length encoding, readable with pycocotools, plus bounding box and centroid.'],
-  ['Position', 'Helioprojective and Stonyhurst coordinates, distance from disk centre, area in millionths of a hemisphere.'],
+  ['Votes, not just answers', 'Every answer count, the share who agreed, and items still unclear after many answers, so you can choose your own threshold.'],
+  ['Shape and position', 'Catalogue outlines as pixel masks readable with pycocotools, with helioprojective and Stonyhurst coordinates.'],
   ['Time and geometry', 'Observation time, plate scale, solar radius, B0 angle and Carrington longitude for every image.'],
-  ['Agreement', 'How many people answered, the share who agreed on the class, and how closely their shapes overlap.'],
-  ['Credit', 'GitHub usernames of the people behind each feature, so their work can be acknowledged.'],
-  ['Splits', 'Train, validation and test sets by Carrington rotation, so nearby days never leak between sets.'],
+  ['Measured accuracy', 'Hidden check items with known answers, reported in each dataset card.'],
+  ['Contributors', 'Stable anonymous IDs in the data. The people behind them are credited separately.'],
+  ['Splits', 'Train, validation and test sets by year, so long-lived coronal holes never appear in two sets.'],
 ];
 
-const DATASETS = ['Coronal holes and filaments (193 Å)', 'Coronal holes and filaments (211 Å)', 'Filaments and prominences (304 Å)', 'Flare source regions'];
+const DATASETS = ['Coronal hole or filament channel (193 Å)', 'Coronal hole or filament channel (211 Å)', 'Eruptions (304 Å)', 'Flare source regions'];
 
 function requestEmail(form: { name: string; institution: string; huggingface: string; datasets: string[]; use: string }) {
   const body = [
@@ -72,8 +64,8 @@ export default function Data() {
     <div className="page">
       <h1 className="max-w-4xl text-5xl font-bold md:text-7xl">Data for <span className="gradient-text">solar research</span></h1>
       <p className="measure mt-4 text-lg text-haze">
-        Volunteers outline features on NASA Solar Dynamics Observatory images from October 2016 to November 2026, every frame, so each
-        feature can be followed as it changes. Every answer is checked before it is kept.
+        Volunteers answer short, focused questions about NASA Solar Dynamics Observatory images from October 2016 to November 2026.
+        Each item is seen by several people, and every answer is checked before it is kept.
       </p>
 
       <h2 className="mt-14 text-3xl font-bold">What the data can produce</h2>
@@ -166,7 +158,7 @@ export default function Data() {
 
       <h2 className="mt-14 text-3xl font-bold">Using the data</h2>
       <p className="measure mt-4 text-haze">
-        Please cite SolarHub and the SpaceGen volunteers, and keep the licence stated on each dataset card. Want to add to it instead?{' '}
+        The datasets are released under CC BY 4.0. Please cite SolarHub and the SpaceGen volunteers. Want to add to it instead?{' '}
         <Link className="link" to="/classify">Start marking</Link>.
       </p>
     </div>

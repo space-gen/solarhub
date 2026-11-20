@@ -8,8 +8,14 @@ import type { TaskType } from '@/services/annotationService';
 
 export const ARCHIVE_START = '2026-11-20';
 export const ARCHIVE_END = '2016-10-01';
-// Every frame, so each feature can be tracked as it evolves.
-const FRAME_STEP = 1;
+/**
+ * How pictures are sampled, by what the science needs:
+ * - daily: one frame near noon, enough for coronal holes and filament channels, which change over days;
+ * - windows: consecutive frames in 3-hour movies, so eruptions are seen as motion and no stretch of time is skipped;
+ * - every: every frame.
+ */
+export type Sample = 'daily' | 'windows' | 'every';
+const WINDOW_HOURS = 3;
 // Stop looking after this many empty days in one go, so a long archive gap cannot hang the page.
 const MAX_DAYS_PER_BATCH = 60;
 const BROWSE = 'https://sdo.gsfc.nasa.gov/assets/img/browse';
@@ -46,7 +52,23 @@ export function dayBefore(date: string): string {
   return moment.toISOString().slice(0, 10);
 }
 
-function task(kind: TaskType, id: string): AuroraTask {
+function pick(names: string[], code: string, sample: Sample): Array<{ id: string; frames?: string[] }> {
+  const valid = names.filter(name => archiveId(code, name));
+  const minutes = (name: string) => Number(name.slice(9, 11)) * 60 + Number(name.slice(11, 13));
+  if (sample === 'every') return valid.map(name => ({ id: archiveId(code, name)! }));
+  if (sample === 'daily') {
+    const noon = valid.reduce<string | null>((best, name) => (best && Math.abs(minutes(best) - 720) <= Math.abs(minutes(name) - 720) ? best : name), null);
+    return noon ? [{ id: archiveId(code, noon)! }] : [];
+  }
+  const windows = new Map<number, string[]>();
+  for (const name of valid) {
+    const slot = Math.floor(minutes(name) / (WINDOW_HOURS * 60));
+    windows.set(slot, [...(windows.get(slot) ?? []), name]);
+  }
+  return [...windows.values()].map(group => ({ id: archiveId(code, group[0])!, frames: group.map(name => urlFromId(archiveId(code, name)!)!) }));
+}
+
+function task(kind: TaskType, id: string, frames?: string[]): AuroraTask {
   const url = urlFromId(id)!;
   const date = dateOfId(id)!;
   return {
@@ -56,6 +78,7 @@ function task(kind: TaskType, id: string): AuroraTask {
     taskType: kind,
     date,
     source: 'SDO_AIA_BROWSE',
+    ...(frames ? { frames } : {}),
     // Days since the start, so numbers stay stable for everyone.
     serialNumber: Math.round((Date.parse(`${ARCHIVE_START}T00:00:00Z`) - Date.parse(`${date}T00:00:00Z`)) / 86400000) + 1,
   };
@@ -119,6 +142,7 @@ export async function nextArchiveTasks(
   want: number,
   direction: Direction = 'back',
   list: DayLister = listDay,
+  sample: Sample = 'every',
 ): Promise<{ tasks: AuroraTask[]; finished: boolean; cursor: string | null }> {
   const code = ARCHIVE_CODES[kind];
   if (!code) return { tasks: [], finished: true, cursor: afterId };
@@ -133,15 +157,12 @@ export async function nextArchiveTasks(
     if (date < ARCHIVE_END || date > ARCHIVE_START) return { tasks, finished: true, cursor: null };
     scanned = date;
     const names = await list(date, code);
-    const ids = names
-      .filter((_, index) => index % FRAME_STEP === 0)
-      .map(name => archiveId(code, name))
-      .filter((id): id is string => id !== null);
-    if (back) ids.reverse();
-    for (const id of ids) {
+    const picks = pick(names, code, sample);
+    if (back) picks.reverse();
+    for (const { id, frames } of picks) {
       // Ids sort by time, so "past the cursor" is a plain string comparison.
       if (cursor && (back ? id >= cursor : id <= cursor)) continue;
-      if (!skip(id)) tasks.push(task(kind, id));
+      if (!skip(id)) tasks.push(task(kind, id, frames));
       if (tasks.length === want) break;
     }
   }

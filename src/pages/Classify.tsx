@@ -1,34 +1,18 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, Navigate, NavLink, useParams } from 'react-router-dom';
 import ChannelGuide from '@/components/ChannelGuide';
+import EruptionTask from '@/components/EruptionTask';
 import FlareTask from '@/components/FlareTask';
-import SectionEditor from '@/components/SectionEditor';
-import FeatureCheck from '@/components/FeatureCheck';
+import PatchTask from '@/components/PatchTask';
 import { liveImage, SOLAR_VIEWS, viewFor, type SolarView } from '@/data/solarViews';
-import TapStage from '@/components/TapStage';
 import { useStoredUser } from '@/hooks/useStoredUser';
 import { fetchAuroraTasksByType, type AuroraTask } from '@/services/auroraService';
-import { ARCHIVE_CODES, directionFor, nearestFrameUrl, nextArchiveTasks, type Direction } from '@/services/archiveTasks';
-import { findCandidates, SIZE as FINDER_SIZE } from '@/utils/finder';
+import { ARCHIVE_CODES, directionFor, listDay, nearestFrameUrl, nextArchiveTasks, type Direction } from '@/services/archiveTasks';
 import { fetchCatalogue } from '@/services/catalogue';
 import { loadProgressFromGitHub } from '@/services/githubSyncService';
-import { doneIds, doneToday, pendingCount, saveAnnotation } from '@/services/submissionQueue';
-import {
-  buildReview,
-  confidenceFor,
-  findMarkAt,
-  isOnSun,
-  pickSection,
-  remainingAfter,
-  spreadOrder,
-  viewAround,
-  type Mark,
-  type MarkKind,
-} from '@/utils/annotationLogic';
-import { getCorrectDateFromUrl } from '@/utils/jsocDateExtractor';
-import { addOutline, circlePolygon, outlineFromMask, reshapeMark, simplifyOutline, type Point } from '@/utils/outline';
-
-const TAP_OUTLINE_RADIUS = 30;
+import { doneIds, doneToday, pendingCount } from '@/services/submissionQueue';
+import { remainingAfter, spreadOrder, type MarkKind } from '@/utils/annotationLogic';
+import { findCandidates, SIZE as FINDER_SIZE } from '@/utils/finder';
 
 const browseImage = (url: string) => url.replace('https://sdo.gsfc.nasa.gov/assets/img/browse/', '/api/sdo/browse/');
 
@@ -57,34 +41,8 @@ function loadGray(src: string): Promise<Float32Array | null> {
 }
 
 const REFILL_BELOW = 3;
-const BATCH = 10;
-
-
-const PRACTICE_FOUND: Partial<Record<MarkKind, string>> = {
-  sunspot: 'You found both spots.',
-  magnetogram: 'You found both patches.',
-};
-
-function practiceImage(kind: MarkKind) {
-  const body = kind === 'sunspot'
-    ? `<circle cx="512" cy="512" r="468" fill="#ffc45e"/><circle cx="360" cy="420" r="30" fill="#c8611f"/><circle cx="360" cy="420" r="14" fill="#21101a"/><circle cx="655" cy="625" r="24" fill="#c8611f"/><circle cx="655" cy="625" r="11" fill="#21101a"/>`
-    : `<circle cx="512" cy="512" r="468" fill="#777"/><ellipse cx="350" cy="420" rx="46" ry="38" fill="#000"/><ellipse cx="425" cy="425" rx="42" ry="34" fill="#fff"/><ellipse cx="650" cy="630" rx="48" ry="36" fill="#fff"/>`;
-  return `data:image/svg+xml,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024"><rect width="1024" height="1024" fill="#000"/>${body}</svg>`)}`;
-}
-
-const PRACTICE_TARGETS: Partial<Record<MarkKind, Array<[number, number]>>> = {
-  sunspot: [[360, 420], [655, 625]],
-  magnetogram: [[388, 422], [650, 630]],
-};
-
-function practiceDone(kind: MarkKind) {
-  if (!PRACTICE_TARGETS[kind]) return true;
-  try {
-    return localStorage.getItem(`solarhub_practice_${kind}`) === '1';
-  } catch {
-    return true;
-  }
-}
+// Each NASA day listing can take seconds, so a batch is about one day's worth: one picture a day, or eight 3-hour movies.
+const batchFor = (kind: MarkKind) => (kind === 'aia_304' ? 8 : 2);
 
 function guideSeen(kind: MarkKind) {
   try {
@@ -106,260 +64,12 @@ function contributorId() {
   }
 }
 
-function Practice({ view, onDone }: { view: SolarView; onDone: () => void }) {
-  const kind = view.kind;
-  const copy = view;
-  const targets = PRACTICE_TARGETS[kind] ?? [];
-  const [marks, setMarks] = useState<Mark[]>([]);
-  const [message, setMessage] = useState('');
-  const finished = marks.length === targets.length;
-
-  const handleTap = (x: number, y: number) => {
-    const target = targets.find(([tx, ty]) => Math.hypot(tx - x, ty - y) < 75);
-    if (!target) {
-      setMessage(`Not there. Look for a ${copy.thing}.`);
-      return;
-    }
-    if (marks.some(mark => mark.x === target[0] && mark.y === target[1])) return;
-    const next = [...marks, { x: target[0], y: target[1], r: copy.radius + 18, label: null }];
-    setMarks(next);
-    setMessage(next.length === targets.length ? PRACTICE_FOUND[kind] ?? 'You found them.' : 'Yes! Find one more.');
-  };
-
-  return (
-    <Workspace
-      stage={<TapStage src={practiceImage(kind)} alt="Practice picture of the Sun" instruction={copy.prompt} marks={marks} onTap={handleTap} onError={() => {}} />}
-    >
-      <p className="text-haze">Quick practice</p>
-      <h1 className="text-4xl font-bold">{copy.prompt}</h1>
-      <p role="status" className="min-h-7 text-lg">{message}</p>
-      <button type="button" className={`btn ${finished ? 'btn-primary' : ''} big`} onClick={onDone}>
-        {finished ? 'Start the real pictures' : 'Skip practice'}
-      </button>
-    </Workspace>
-  );
-}
-
-function Workspace({ stage, children }: { stage: React.ReactNode; children: React.ReactNode }) {
-  return (
-    <div className="grid gap-5 md:grid-cols-[minmax(0,1fr)_23rem] md:items-start">
-      <div className="mx-auto w-full max-w-[min(100%,calc(100svh-15rem))] md:max-w-[min(100%,calc(100svh-11rem))]">{stage}</div>
-      <div className="flex flex-col gap-3">{children}</div>
-    </div>
-  );
-}
-
-function ImageTask({ task, view, onDone, onSkip, onHelp }: { task: AuroraTask; view: SolarView; onDone: () => void; onSkip: () => void; onHelp?: () => void }) {
-  const kind = view.kind;
-  const copy = view;
-  const checking = Boolean(view.learn && Array.isArray(task.candidates));
-  const [assignment] = useState(() => (checking ? pickSection(task.candidates!, contributorId(), task.id) : null));
-  const section = assignment?.section;
-  const [marks, setMarks] = useState<Mark[]>(() => assignment?.items.map(({ mask, outline: given, catalogue, noaa: _noaa, ...mark }) => {
-    const outline = given ?? (mask ? outlineFromMask(mask) : undefined);
-    return { ...mark, label: null, finder: { x: mark.x, y: mark.y, r: mark.r }, ...(outline ? { outline } : {}), ...(catalogue ? { catalogue } : {}) };
-  }) ?? []);
-  const [history, setHistory] = useState<Mark[][]>([]);
-  const [message, setMessage] = useState('');
-  const [describing, setDescribing] = useState<number | null>(checking && marks.length ? 0 : null);
-  const [reshaping, setReshaping] = useState<{ index: number; whole: boolean; label: string } | null>(null);
-  const [failed, setFailed] = useState(false);
-  const date = getCorrectDateFromUrl(task.url) || task.date;
-  const editorImage = browseImage(task.url);
-  const area = section && reshaping ? viewAround(marks[reshaping.index], section) : section;
-
-
-  const finish = (allMarks: Mark[]) => {
-    const finalMarks = allMarks.filter(mark => !mark.deleted && !mark.merged);
-    const labelled = finalMarks.find(mark => mark.label && mark.label !== 'none');
-    saveAnnotation({
-      ...(section ? { review: buildReview(allMarks, section) } : {}),
-      task_id: task.id,
-      serial_number: task.serialNumber,
-      image_url: task.url,
-      task_type: kind,
-      user_label: (labelled?.label ?? 'none') as never,
-      // In checking mode, "None of these" is a real answer rather than uncertainty.
-      confidence: checking ? 80 : confidenceFor(finalMarks),
-      comments: '',
-      pixel_coords: finalMarks.map(mark => ({ x: Math.round(mark.x), y: Math.round(mark.y) })),
-      pixel_labels: finalMarks.map(mark => mark.label as never),
-      pixel_radii: finalMarks.map(mark => Math.round(mark.r)),
-    });
-    onDone();
-  };
-
-  const handleTap = (x: number, y: number) => {
-    if (!isOnSun(x, y)) {
-      setMessage('That is outside the Sun. Tap on the round part.');
-      return;
-    }
-    const existing = findMarkAt(marks, x, y);
-    if (existing >= 0) {
-      setMarks(marks.filter((_, index) => index !== existing));
-      setMessage(`Ring ${existing + 1} removed.`);
-      return;
-    }
-    setMarks([...marks, { x, y, r: copy.radius, label: null }]);
-    setMessage(`Ring ${marks.length + 1} added. Tap it again to remove it.`);
-  };
-
-  const applyDrawing = (points: Point[]) => {
-    // Kept as drawn: snapping to the darkest blob replaced people's outlines with the wrong shape.
-    const outline = simplifyOutline(points);
-    const result = addOutline(marks, outline);
-    setHistory([...history, marks]);
-    setMarks(result.marks);
-    setMessage(result.joined === null ? 'New outline added.' : `Shape of feature ${result.joined + 1} updated.`);
-  };
-
-  const handleEditorTap = (x: number, y: number) => {
-    const existing = marks.findIndex(mark => !mark.deleted && !mark.merged && Math.hypot(mark.x - x, mark.y - y) <= Math.max(mark.r, 20));
-    if (existing >= 0 && marks[existing].added) {
-      setHistory([...history, marks]);
-      setMarks(marks.filter((_, index) => index !== existing));
-      setMessage('New outline removed.');
-    } else if (existing >= 0) {
-      setMessage('Draw around this feature to reshape it.');
-    } else {
-      applyDrawing(circlePolygon(x, y, TAP_OUTLINE_RADIUS));
-    }
-  };
-
-  const advance = (next: Mark[]) => {
-    setMarks(next);
-    const remaining = next.findIndex(mark => mark.label === null);
-    if (remaining >= 0) setDescribing(remaining);
-    else if (checking) setDescribing(null);
-    else finish(next);
-  };
-
-  const applyReshape = (points: Point[]) => {
-    if (!reshaping) return;
-    // Kept as drawn: snapping to the darkest blob replaced people's outlines with the wrong shape.
-    const outline = simplifyOutline(points);
-    const next = reshapeMark(marks, reshaping.index, outline, reshaping.whole);
-    if (!next) {
-      setMessage('Your line must touch the highlighted feature.');
-      return;
-    }
-    setHistory([...history, marks]);
-    setMessage('');
-    setReshaping(null);
-    // The person already said what it is; the new shape keeps that answer.
-    advance(next.map((mark, position) => (position === reshaping.index ? { ...mark, label: reshaping.label } : mark)));
-  };
-
-  const previousMark = (index: number) => {
-    for (let at = index - 1; at >= 0; at--) if (!marks[at].merged) return at;
-    return null;
-  };
-
-  const answered = marks.filter(mark => mark.label !== null);
-  const unanswered = marks.findIndex(mark => mark.label === null);
-
-  if (failed) {
-    return (
-      <div className="measure py-10">
-        <h1 className="text-3xl font-bold">This picture did not load</h1>
-        <button type="button" className="btn btn-primary big mt-5" onClick={onSkip}>Show another picture</button>
-      </div>
-    );
-  }
-
-  if (reshaping && area) {
-    const { index, whole, label } = reshaping;
-    const prompt = whole ? 'Draw around the whole thing' : 'Draw the correct edge';
-    return (
-      <Workspace stage={<SectionEditor src={editorImage} section={area} marks={marks} active={index} label={prompt} onDraw={applyReshape} onTap={() => setMessage('Draw a line around it.')} />}>
-        <p className="text-haze">Outline {index + 1} is highlighted</p>
-        <h1 className="text-4xl font-bold" tabIndex={-1}>{prompt}</h1>
-        <p role="status" className="min-h-7 text-lg text-haze">{message || (whole ? 'Start on the highlighted piece and go all the way round. Your line is kept as you draw it.' : 'Draw the whole edge again. Your line is kept as you draw it.')}</p>
-        {whole && (
-          <button type="button" className="btn big" onClick={() => { setReshaping(null); advance(marks.map((mark, position) => (position === index ? { ...mark, label, partOfLarger: true } : mark))); }}>
-            I can't see where it ends
-          </button>
-        )}
-        <button type="button" className="btn" onClick={() => { setMessage(''); setReshaping(null); setDescribing(index); }}>Back</button>
-      </Workspace>
-    );
-  }
-
-  if (describing !== null) {
-    return (
-      <FeatureCheck
-        key={describing}
-        kind={kind}
-        src={editorImage}
-        compareSrc={task.compareUrl ? browseImage(task.compareUrl) : undefined}
-        mark={marks[describing]}
-        position={describing + 1}
-        total={marks.length}
-        onBack={previousMark(describing) === null ? undefined : () => setDescribing(previousMark(describing))}
-        onHelp={onHelp}
-        onSkip={onSkip}
-        onFinish={answered.length ? () => finish(answered) : undefined}
-        onReshape={(whole, label) => { setReshaping({ index: describing, whole, label }); setDescribing(null); }}
-        onAnswer={label => advance(
-          // A person's own drawing that turns out to be nothing is simply removed.
-          label === 'none' && marks[describing].added
-            ? marks.filter((_, index) => index !== describing)
-            : marks.map((mark, index) => (index === describing ? { ...mark, label } : mark)),
-        )}
-      />
-    );
-  }
-
-  if (section) {
-    const prompt = view.missed ?? 'Did we miss anything here?';
-    return (
-      <Workspace stage={<SectionEditor src={editorImage} section={section} marks={marks} label={prompt} onDraw={applyDrawing} onTap={handleEditorTap} />}>
-        <h1 className="text-4xl font-bold" tabIndex={-1}>{prompt}</h1>
-        <p role="status" className="min-h-7 text-lg text-haze">{message || 'Draw all the way round it. Your line is kept as you draw it.'}</p>
-        {unanswered >= 0
-          ? <button type="button" className="btn btn-primary big" onClick={() => setDescribing(unanswered)}>Describe the new outline</button>
-          : <button type="button" className="btn btn-primary big" onClick={() => finish(marks)}>Nothing else, finish</button>}
-        {history.length > 0 && (
-          <button type="button" className="btn" onClick={() => { setMarks(history[history.length - 1]); setHistory(history.slice(0, -1)); setMessage('Last change undone.'); }}>Undo</button>
-        )}
-      </Workspace>
-    );
-  }
-
-  return (
-    <Workspace
-      stage={
-        <TapStage
-          src={editorImage}
-          alt={`The whole Sun photographed by NASA's Solar Dynamics Observatory${date ? ` on ${date}` : ''}`}
-          instruction={copy.prompt}
-          marks={marks}
-          onTap={handleTap}
-          onError={() => setFailed(true)}
-        />
-      }
-    >
-      <h1 className="text-4xl font-bold" tabIndex={-1}>{copy.prompt}</h1>
-      <p role="status" className="min-h-7 text-lg text-haze">{message || 'Press and slide to use the magnifier.'}</p>
-      {marks.length > 0 ? (
-        <button type="button" className="btn btn-primary big" onClick={() => setDescribing(0)}>
-          Done marking
-        </button>
-      ) : (
-        <button type="button" className="btn big" onClick={() => finish([])}>{copy.none}</button>
-      )}
-      <button type="button" className="btn" onClick={onSkip}>Show another picture</button>
-    </Workspace>
-  );
-}
-
 function Flow({ view }: { view: SolarView }) {
   const kind = view.kind;
   const user = useStoredUser();
   const topRef = useRef<HTMLDivElement>(null);
   const [queue, setQueue] = useState<AuroraTask[] | null>(null);
   const [loadFailed, setLoadFailed] = useState(false);
-  const [practising, setPractising] = useState(() => !practiceDone(kind));
   const [showGuide, setShowGuide] = useState(() => Boolean(view.learn) && !guideSeen(kind));
   const [saved, setSaved] = useState('');
   const [pending, setPending] = useState(pendingCount);
@@ -380,7 +90,7 @@ function Flow({ view }: { view: SolarView }) {
     if (state.busy || state.finished) return;
     state.busy = true;
     try {
-      const { tasks, finished, cursor } = await nextArchiveTasks(kind, state.lastId, state.skip, BATCH, state.direction);
+      const { tasks, finished, cursor } = await nextArchiveTasks(kind, state.lastId, state.skip, batchFor(kind), state.direction, listDay, kind === 'aia_304' ? 'windows' : 'daily');
       // Signing in or out restarts the walk; drop results from the old one.
       if (walk.current !== state) return;
       state.finished = finished;
@@ -425,18 +135,25 @@ function Flow({ view }: { view: SolarView }) {
   // Each picture gets the finder's suggestions before it is shown; a picture that will not load is dropped.
   useEffect(() => {
     if (!archive || !head || head.candidates) return;
+    if (kind === 'aia_304') {
+      // Eruption movies need no detector: every quarter of the Sun is shown.
+      setQueue(current => (current?.[0]?.id === head.id ? [{ ...current[0], candidates: [] }, ...current.slice(1)] : current));
+      return;
+    }
     let active = true;
     const stamp = head.id.slice(-14);
     const moment = new Date(`${stamp.slice(0, 4)}-${stamp.slice(4, 6)}-${stamp.slice(6, 8)}T${stamp.slice(8, 10)}:${stamp.slice(10, 12)}:${stamp.slice(12)}Z`);
-    // Coronal holes and filaments come from the published catalogue; the pixel finder is the fallback and handles 304.
-    const catalogue = kind === 'aia_304' ? Promise.resolve(null) : fetchCatalogue(moment);
-    const compare = kind === 'aia_304' ? Promise.resolve(null) : nearestFrameUrl(head.id, '0304').catch(() => null);
+    // Dark patches come from the published catalogue; the pixel finder is the fallback for hours it has not reached.
+    const catalogue = fetchCatalogue(moment);
+    const compare = nearestFrameUrl(head.id, '0304').catch(() => null);
     void Promise.all([loadGray(browseImage(head.url)), catalogue, compare]).then(([gray, found, compareUrl]) => {
       if (!active) return;
       setQueue(current => {
         if (!current?.length || current[0].id !== head.id) return current;
-        if (!gray) return current.slice(1);
-        return [{ ...current[0], candidates: found ?? findCandidates(gray, kind), ...(compareUrl ? { compareUrl } : {}) }, ...current.slice(1)];
+        const candidates = gray ? found ?? findCandidates(gray, kind) : [];
+        // A picture that will not load, or has no dark patch to ask about, is passed over.
+        if (!candidates.length) return current.slice(1);
+        return [{ ...current[0], candidates, ...(compareUrl ? { compareUrl } : {}) }, ...current.slice(1)];
       });
     });
     return () => { active = false; };
@@ -497,15 +214,7 @@ function Flow({ view }: { view: SolarView }) {
         )}
       </div>
 
-      {practising ? (
-        <Practice
-          view={view}
-          onDone={() => {
-            try { localStorage.setItem(`solarhub_practice_${kind}`, '1'); } catch { /* storage may be blocked */ }
-            setPractising(false);
-          }}
-        />
-      ) : showGuide ? (
+      {showGuide ? (
         <ChannelGuide
           view={view}
           onDone={() => {
@@ -522,14 +231,24 @@ function Flow({ view }: { view: SolarView }) {
           onDone={() => { setSaved('Saved. Thank you!'); nextImage(false); }}
           onSkip={() => { setSaved(''); nextImage(true); }}
         />
-      ) : task ? (
-        <ImageTask
+      ) : task && kind === 'aia_304' ? (
+        <EruptionTask
           key={task.id}
           task={task}
-          view={view}
+          frames={(task.frames ?? [task.url]).map(browseImage)}
           onDone={() => { setSaved('Saved. Thank you!'); nextImage(false); }}
           onSkip={() => { setSaved(''); nextImage(true); }}
-          onHelp={view.learn ? () => setShowGuide(true) : undefined}
+          onHelp={() => setShowGuide(true)}
+        />
+      ) : task ? (
+        <PatchTask
+          key={task.id}
+          task={task}
+          src={browseImage(task.url)}
+          compareSrc={task.compareUrl ? browseImage(task.compareUrl) : undefined}
+          onDone={() => { setSaved('Saved. Thank you!'); nextImage(false); }}
+          onSkip={() => { setSaved(''); nextImage(true); }}
+          onHelp={() => setShowGuide(true)}
         />
       ) : loadFailed ? (
         <div className="measure py-12">

@@ -1,66 +1,22 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { addOutline, circleAround, circlePolygon, outlineFromMask, overlapShare, reshapeMark, simplifyOutline, type Point } from '../src/utils/outline.ts';
-import { buildReview, SECTIONS, type Mark } from '../src/utils/annotationLogic.ts';
+import { circleAround, outlineFromMask, simplifyOutline, type Point } from '../src/utils/outline.ts';
 
-test('a new drawing is added, and an overlapping one joins the existing ring', () => {
-  const marks: Mark[] = [{ x: 200, y: 200, r: 40, label: 'plage', finder: { x: 200, y: 200, r: 40 } }];
-  const away = addOutline(marks, circlePolygon(400, 400, 30));
-  assert.equal(away.joined, null);
-  assert.equal(away.marks.length, 2);
-  assert.equal(away.marks[1].added, true);
-
-  const over = addOutline(marks, circlePolygon(210, 200, 30));
-  assert.equal(over.joined, 0);
-  assert.equal(over.marks.length, 1);
-  assert.equal(over.marks[0].edited, true);
-  const again = addOutline(over.marks, circlePolygon(240, 200, 30));
-  assert.ok(circleAround(again.marks[0].outline as Point[]).r > circleAround(over.marks[0].outline as Point[]).r, 'second drawing grows the shape');
-  const tighter = addOutline(again.marks, circlePolygon(220, 200, 12));
-  assert.ok(circleAround(tighter.marks[0].outline as Point[]).r < 20, 'a drawing inside the shape replaces it');
-});
-
-test('a finder mask becomes an uneven outline', () => {
+test('a finder mask becomes an uneven outline that keeps its empty corner empty', () => {
+  // An L shape: x 100-190, y 200-260, with the corner x 130-190, y 200-240 empty.
   const mask = 'XVT3l1Tn0000000000000000000000000000000000000000000000000000000000X1hN0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000`hQj0';
   const outline = outlineFromMask(mask) as Point[];
-  const shape: Point[] = [[100, 200], [130, 200], [130, 240], [190, 240], [190, 260], [100, 260]];
-  assert.ok(outline.length <= 48);
-  assert.ok(overlapShare(outline, shape) > 0.9);
-  assert.ok(overlapShare(outline, [[150, 200], [190, 200], [190, 235], [150, 235]]) < 0.05, 'the empty corner stays empty');
+  assert.ok(outline.length >= 4 && outline.length <= 48);
+  const xs = outline.map(point => point[0]);
+  const ys = outline.map(point => point[1]);
+  assert.ok(Math.min(...xs) <= 102 && Math.max(...xs) >= 188 && Math.min(...ys) <= 202 && Math.max(...ys) >= 258);
+  assert.ok(!outline.some(([x, y]) => x > 140 && x < 180 && y > 205 && y < 230), 'no edge runs through the empty corner');
 });
 
-test('tracing the bigger feature grows the mark and absorbs pieces inside it', () => {
-  const marks: Mark[] = [
-    { x: 200, y: 200, r: 20, label: null, finder: { x: 200, y: 200, r: 20 } },
-    { x: 250, y: 200, r: 15, label: null, finder: { x: 250, y: 200, r: 15 } },
-    { x: 500, y: 500, r: 15, label: null, finder: { x: 500, y: 500, r: 15 } },
-  ];
-  const next = reshapeMark(marks, 0, circlePolygon(230, 200, 60), true) as Mark[];
-  assert.equal(next[0].partOfLarger, true);
-  assert.equal(next[0].label, null);
-  assert.ok(next[0].r >= 55);
-  assert.equal(next[1].merged, true);
-  assert.equal(next[2].merged, undefined);
-  assert.equal(reshapeMark(marks, 0, circlePolygon(700, 700, 30), true), null);
-  const review = buildReview(next.map(mark => (mark.label ? mark : { ...mark, label: 'plage' })), SECTIONS[0]);
-  assert.deepEqual(review.rings.map(ring => ring.action), ['outlined', 'merged', 'confirmed']);
-  assert.equal(review.rings[0].part_of_larger, true);
-});
-
-test('the review separates each human decision', () => {
-  const finder = { x: 200, y: 200, r: 30 };
-  const marks: Mark[] = [
-    { ...finder, label: 'plage', finder },
-    { ...finder, x: 210, label: 'plage', edited: true, finder },
-    { ...finder, label: 'none', finder },
-    { ...finder, label: 'none', deleted: true, finder },
-    { ...finder, label: 'plage', edited: true, drawn: true, outline: circlePolygon(200, 200, 30), finder },
-    { ...finder, label: 'plage', outline: circlePolygon(200, 200, 30), finder },
-    { x: 300, y: 300, r: 20, label: 'sunspot', added: true, outline: circlePolygon(300, 300, 20) },
-  ];
-  const review = buildReview(marks, SECTIONS[0]);
-  assert.deepEqual(review.rings.map(ring => ring.action), ['confirmed', 'moved', 'rejected', 'deleted', 'outlined', 'confirmed', 'added']);
-  assert.equal(review.rings[3].label, null);
-  assert.equal('outline' in review.rings[5], false, 'an untouched finder shape is not resent');
-  assert.equal(review.rings[6].finder, null);
+test('long catalogue outlines are simplified and get an enclosing circle', () => {
+  const ring: Point[] = Array.from({ length: 200 }, (_, i) => [500 + 100 * Math.cos(i / 100 * Math.PI), 400 + 100 * Math.sin(i / 100 * Math.PI)]);
+  const simple = simplifyOutline(ring);
+  assert.ok(simple.length <= 48);
+  const circle = circleAround(simple);
+  assert.ok(Math.abs(circle.x - 500) <= 2 && Math.abs(circle.y - 400) <= 2 && Math.abs(circle.r - 100) <= 3);
 });
