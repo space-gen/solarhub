@@ -101,12 +101,15 @@ async function darkFeatures(match, method) {
     cosec: '2', cmd: 'search', type: 'column', event_type: 'ch,fi',
     event_starttime: stamp(-HEK_HOURS), event_endtime: stamp(HEK_HOURS),
     event_coordsys: 'helioprojective', x1: '-5000', x2: '5000', y1: '-5000', y2: '5000',
-    result_limit: '500', return: 'event_type,frm_name,hpc_boundcc,event_starttime',
+    // 499 rather than 500 only changes the cache key, dropping empty answers cached before recent hours were handled.
+    result_limit: '499', return: 'event_type,frm_name,hpc_boundcc,event_starttime',
   });
+  // The catalogue lags by about a day, so a recent hour may still fill in; cache it briefly.
+  const cacheSeconds = Date.now() - moment.getTime() < 3 * 86400000 ? 3600 : HEK_CACHE_SECONDS;
   try {
     const response = await fetch(`https://www.lmsal.com/hek/her?${query}`, {
       headers: { 'User-Agent': 'solarhub-catalogue-proxy' },
-      cf: { cacheEverything: true, cacheTtl: HEK_CACHE_SECONDS },
+      cf: { cacheEverything: true, cacheTtl: cacheSeconds },
     });
     if (!response.ok) return json(502, { error: 'catalogue_unavailable' });
     const body = await response.json();
@@ -114,7 +117,7 @@ async function darkFeatures(match, method) {
       .filter(event => (event.event_type === 'CH' || event.event_type === 'FI') && typeof event.hpc_boundcc === 'string')
       .map(event => ({ type: event.event_type, catalogue: event.frm_name, start: event.event_starttime, polygon: event.hpc_boundcc }));
     return new Response(JSON.stringify(events), {
-      headers: { 'Content-Type': 'application/json', 'Cache-Control': `public, max-age=${HEK_CACHE_SECONDS}` },
+      headers: { 'Content-Type': 'application/json', 'Cache-Control': `public, max-age=${cacheSeconds}` },
     });
   } catch {
     return json(502, { error: 'catalogue_unavailable' });

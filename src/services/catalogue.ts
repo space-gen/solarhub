@@ -26,8 +26,10 @@ const area = (points: Point[]) => Math.abs(points.reduce((sum, [x, y], i) => {
 
 /** SPoCA reports every hole again every few hours, so only the run nearest the picture is kept. */
 // shortcut: no differential rotation between the catalogue run and the picture (under 2 hours, about 10 pixels at disk centre); rotate if runs get sparser.
-export function catalogueCandidates(events: CatalogueEvent[], moment: Date): CatalogueCandidate[] {
+export function catalogueCandidates(events: CatalogueEvent[], moment: Date): CatalogueCandidate[] | null {
   const runs = [...new Set(events.filter(event => event.type === 'CH').map(event => event.start))];
+  // SPoCA reports holes in every run; no run at all means the catalogue has not reached this hour yet.
+  if (!runs.length) return null;
   const distance = (start: string) => Math.abs(Date.parse(`${start}Z`) - moment.getTime());
   const nearest = runs.sort((a, b) => distance(a) - distance(b))[0];
   const found: CatalogueCandidate[] = [];

@@ -20,3 +20,7 @@ test('only the SPoCA run nearest the picture is kept, filaments always, tiny sha
   const found = catalogueCandidates(events, new Date('2021-03-06T12:30:00Z'));
   assert.deepEqual(found.map(item => [item.expected, item.catalogue, Math.round(item.x)]), [['coronal_hole', 'SPoCA', 595], ['filament', 'AAFDCC', 387]]);
 });
+
+test('an hour the catalogue has not reached yet is reported as unknown, not empty', () => {
+  assert.equal(catalogueCandidates([], new Date('2026-11-19T19:00:00Z')), null);
+});
