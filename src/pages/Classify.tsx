@@ -12,33 +12,8 @@ import { fetchCatalogue } from '@/services/catalogue';
 import { loadProgressFromGitHub } from '@/services/githubSyncService';
 import { doneIds, doneToday, pendingCount } from '@/services/submissionQueue';
 import { remainingAfter, spreadOrder, type MarkKind } from '@/utils/annotationLogic';
-import { findCandidates, SIZE as FINDER_SIZE } from '@/utils/finder';
 
 const browseImage = (url: string) => url.replace('https://sdo.gsfc.nasa.gov/assets/img/browse/', '/api/sdo/browse/');
-
-/** The whole picture as grey levels, converted the way Aurora's Python finder (Pillow "L") does. */
-function loadGray(src: string): Promise<Float32Array | null> {
-  return new Promise(resolve => {
-    const image = new Image();
-    image.onerror = () => resolve(null);
-    image.onload = () => {
-      try {
-        const canvas = document.createElement('canvas');
-        canvas.width = FINDER_SIZE;
-        canvas.height = FINDER_SIZE;
-        const context = canvas.getContext('2d', { willReadFrequently: true })!;
-        context.drawImage(image, 0, 0, FINDER_SIZE, FINDER_SIZE);
-        const rgba = context.getImageData(0, 0, FINDER_SIZE, FINDER_SIZE).data;
-        const gray = new Float32Array(FINDER_SIZE * FINDER_SIZE);
-        for (let i = 0; i < gray.length; i++) gray[i] = (rgba[i * 4] * 19595 + rgba[i * 4 + 1] * 38470 + rgba[i * 4 + 2] * 7471 + 0x8000) >> 16;
-        resolve(gray);
-      } catch {
-        resolve(null);
-      }
-    };
-    image.src = src;
-  });
-}
 
 const REFILL_BELOW = 3;
 // Each NASA day listing can take seconds, so a batch is about one day's worth: one picture a day, or eight 3-hour movies.
@@ -143,17 +118,21 @@ function Flow({ view }: { view: SolarView }) {
     let active = true;
     const stamp = head.id.slice(-14);
     const moment = new Date(`${stamp.slice(0, 4)}-${stamp.slice(4, 6)}-${stamp.slice(6, 8)}T${stamp.slice(8, 10)}:${stamp.slice(10, 12)}:${stamp.slice(12)}Z`);
-    // Dark patches come from the published catalogue; the pixel finder is the fallback for hours it has not reached.
-    const catalogue = fetchCatalogue(moment);
-    const compare = nearestFrameUrl(head.id, '0304').catch(() => null);
-    void Promise.all([loadGray(browseImage(head.url)), catalogue, compare]).then(([gray, found, compareUrl]) => {
+    // Only catalogued dark patches are asked about: the pixel finder matched a real feature less than half the time.
+    void Promise.all([fetchCatalogue(moment), nearestFrameUrl(head.id, '0304').catch(() => null)]).then(([found, compareUrl]) => {
       if (!active) return;
+      if (found === null) {
+        // The catalogue did not answer; stop rather than skip through every picture.
+        walk.current.finished = true;
+        setLoadFailed(true);
+        setQueue(current => (current?.[0]?.id === head.id ? current.slice(1) : current));
+        return;
+      }
       setQueue(current => {
         if (!current?.length || current[0].id !== head.id) return current;
-        const candidates = gray ? found ?? findCandidates(gray, kind) : [];
-        // A picture that will not load, or has no dark patch to ask about, is passed over.
-        if (!candidates.length) return current.slice(1);
-        return [{ ...current[0], candidates, ...(compareUrl ? { compareUrl } : {}) }, ...current.slice(1)];
+        // A day the catalogue has not reached, or with no dark patch, is passed over.
+        if (!found.length) return current.slice(1);
+        return [{ ...current[0], candidates: found, ...(compareUrl ? { compareUrl } : {}) }, ...current.slice(1)];
       });
     });
     return () => { active = false; };
@@ -185,7 +164,7 @@ function Flow({ view }: { view: SolarView }) {
 
   // Not ready until the finder has run, so nobody sees a picture without its suggestions.
   const task = archive && head && !head.candidates ? undefined : head;
-  const preparing = archive && (queue === null || (head && !head.candidates) || (!head && !walk.current.finished));
+  const preparing = archive && !loadFailed && (queue === null || (head && !head.candidates) || (!head && !walk.current.finished));
 
   return (
     <div ref={topRef} className="mx-auto max-w-6xl px-4 py-4 sm:px-6">

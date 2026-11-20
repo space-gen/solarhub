@@ -1,7 +1,7 @@
 /**
  * Suggestions from NASA's Heliophysics Events Knowledgebase: coronal holes found by SPoCA, and filaments.
  * On random archive days only 46% of the pixel finder's proposals matched a catalogued feature, and it missed
- * 30% of SPoCA's coronal holes, so the catalogue is used for 193 and 211 whenever it answers.
+ * 30% of SPoCA's coronal holes, so only catalogued patches are asked about.
  */
 import { circleAround, simplifyOutline, type Point } from '../utils/outline.ts';
 
@@ -26,10 +26,10 @@ const area = (points: Point[]) => Math.abs(points.reduce((sum, [x, y], i) => {
 
 /** SPoCA reports every hole again every few hours, so only the run nearest the picture is kept. */
 // shortcut: no differential rotation between the catalogue run and the picture (under 2 hours, about 10 pixels at disk centre); rotate if runs get sparser.
-export function catalogueCandidates(events: CatalogueEvent[], moment: Date): CatalogueCandidate[] | null {
+export function catalogueCandidates(events: CatalogueEvent[], moment: Date): CatalogueCandidate[] {
   const runs = [...new Set(events.filter(event => event.type === 'CH').map(event => event.start))];
-  // SPoCA reports holes in every run; no run at all means the catalogue has not reached this hour yet.
-  if (!runs.length) return null;
+  // SPoCA reports holes in every run; no run at all means the catalogue has not reached this hour yet, so nothing is asked.
+  if (!runs.length) return [];
   const distance = (start: string) => Math.abs(Date.parse(`${start}Z`) - moment.getTime());
   const nearest = runs.sort((a, b) => distance(a) - distance(b))[0];
   const found: CatalogueCandidate[] = [];
